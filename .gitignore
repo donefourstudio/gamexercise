@@ -43,3 +43,6 @@ Thumbs.db
 *.aab
 *.unitypackage
 *.app
+
+# Temporary asset download staging
+/tmp_assets/
