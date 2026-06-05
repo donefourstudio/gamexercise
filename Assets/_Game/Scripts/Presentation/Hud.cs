@@ -43,8 +43,11 @@ namespace Gamex.Game
         AvatarSprite _openingHeroAvatar;     // muscular hero shown during OpeningHeroShown
         AvatarSprite _curseAnimAvatar;       // hero -> cursed in the curse cinematic
         AvatarSprite _curseMaleA, _curseFemaleA, _curseMaleB, _curseFemaleB;
+        Image _raceAnimSilhouette;       // shown for the first half of the cinematic
+        AvatarSprite _raceAnimAvatar;    // race form, shown for the second half
         Text _raceAnimText;
         float _raceAnimT;
+        const float RACE_ANIM_SWAP_AT = 0.7f;
 
         // ---- daily ritual icons (Home) ----
         Image[] _candleImgs = new Image[4];   // 4 candles bracketing the mirror
@@ -216,8 +219,8 @@ namespace Gamex.Game
         }
 
         // ============================================================
-        // Race transformation animation — 1.5s placeholder (M3b).
-        // M3c will replace with silhouette -> race cinematic.
+        // Race transformation animation — 1.5s. Silhouette in for the
+        // first 0.7s, then sprite-swaps to the chosen race form.
         // ============================================================
         const float RACE_ANIM_DURATION = 1.5f;
 
@@ -228,8 +231,16 @@ namespace Gamex.Game
             img.color = new Color(0f, 0f, 0f, 0.001f);
             img.raycastTarget = false;
 
-            _raceAnimText = MkText("AnimText", _raceAnimPanel.transform, new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(960f, 200f), FS_BIG, TextAnchor.MiddleCenter, AccentGold);
+            _raceAnimSilhouette = MkSpriteIcon("Silhouette", _raceAnimPanel.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 640f),
+                "silhouette", Color.white).GetComponent<Image>();
+
+            _raceAnimAvatar = BuildAvatar(_raceAnimPanel.transform, Vector2.zero, 2.4f,
+                Gender.Male, Curse.Unset, stage: 5);
+            _raceAnimAvatar.root.SetActive(false);
+
+            _raceAnimText = MkText("AnimText", _raceAnimPanel.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 220f), new Vector2(960f, 80f), FS_BIG, TextAnchor.LowerCenter, AccentGold);
             _raceAnimText.text = "Awakening...";
         }
 
@@ -284,7 +295,9 @@ namespace Gamex.Game
 
         void BuildOpeningHeroShown(Transform root)
         {
-            // Hero standing alone against the void of memory — no halo, just the figure.
+            // Abstract silhouette of the legendary hero — no race / gender revealed yet.
+            // Per Q4=B: faded silhouette with a faint halo. Resolves at the Lv 20
+            // race transformation.
             _openingHeroShownPanel = MkFullPanel("OpeningHeroShown", root);
             var img = _openingHeroShownPanel.GetComponent<Image>();
             img.color = new Color(0f, 0f, 0f, 0.001f);
@@ -294,8 +307,9 @@ namespace Gamex.Game
             btn.transition = Selectable.Transition.None;
             btn.onClick.AddListener(() => _onTapAdvanceOpening?.Invoke());
 
-            _openingHeroAvatar = BuildAvatar(_openingHeroShownPanel.transform, Vector2.zero, 2.4f,
-                Gender.Male, Curse.Unset, stage: 5);
+            MkSpriteIcon("HeroSilhouette", _openingHeroShownPanel.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 640f),
+                "silhouette", Color.white);
 
             MkText("Hint", _openingHeroShownPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
@@ -576,6 +590,16 @@ namespace Gamex.Game
             if (g.phase == AppPhase.RaceTransformAnim)
             {
                 _raceAnimT += Time.unscaledDeltaTime;
+                bool swapped = _raceAnimT >= RACE_ANIM_SWAP_AT;
+                if (_raceAnimSilhouette != null) _raceAnimSilhouette.gameObject.SetActive(!swapped);
+                if (_raceAnimAvatar != null)
+                {
+                    _raceAnimAvatar.root.SetActive(swapped);
+                    if (swapped)
+                        ApplyAvatarLook(_raceAnimAvatar,
+                            (Gender)g.state.gender, (Curse)g.state.curse,
+                            (Race)g.state.race, g.Stage);
+                }
                 if (_raceAnimT >= RACE_ANIM_DURATION) _onRaceAnimDone?.Invoke();
             }
 

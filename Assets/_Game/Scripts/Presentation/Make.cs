@@ -19,6 +19,7 @@ namespace Gamex.Game
 
         public static Sprite UI(string name)   => Resources.Load<Sprite>("UI/" + name);
         public static Sprite Char(string name) => Resources.Load<Sprite>("Char/" + name);
+        public static Sprite Silhouette()      => UI("silhouette");
 
         // Portrait dispatch:
         //   race == Unset (Lv 1-19, before transformation)    -> skeleton growth (M3a)
