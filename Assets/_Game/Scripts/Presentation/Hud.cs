@@ -56,6 +56,10 @@ namespace Gamex.Game
         Text _camStatus;
         PoseDetector _pose;
         PushupCounter _pushupCounter;
+        SitupCounter  _situpCounter;
+        SquatCounter  _squatCounter;
+        Exercise _currentExercise = Exercise.Pushup;
+        readonly GameObject[] _exerciseButtons = new GameObject[3];
         readonly Image[] _poseDots = new Image[PoseDetector.KEYPOINT_COUNT];
         float _poseT;
         const float POSE_INTERVAL = 0.1f;        // 10 Hz inference
@@ -508,11 +512,27 @@ namespace Gamex.Game
         {
             _trainPanel = MkFullPanel("TrainPanel", root);
 
+            // Exercise selector row at the top of the screen (above the camera).
+            string[] names = { "Pushup", "Situp", "Squat" };
+            const float btnW = 220f, gap = 30f;
+            float totalW = btnW * 3f + gap * 2f;
+            for (int i = 0; i < 3; i++)
+            {
+                Exercise ex = (Exercise)i;
+                float x = -totalW * 0.5f + btnW * 0.5f + i * (btnW + gap);
+                _exerciseButtons[i] = MkButton("Ex_" + ex, _trainPanel.transform,
+                    new Vector2(0.5f, 1f), new Vector2(x, -60f),
+                    new Vector2(btnW, 80f), names[i],
+                    () => SelectExercise(ex),
+                    "btn_grey", "btn_grey_down");
+            }
+            UpdateExerciseButtonHighlight();
+
             // Top half: live camera viewport. Live front-camera feed renders into
             // a RawImage that fills the panel; cartoon face mask sits on top as a
-            // privacy overlay (M4b will move it to track the detected face).
+            // privacy overlay.
             var cam = MkSpritePanel("CamViewport", _trainPanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -120f), new Vector2(900f, 700f), "panel_light", CamBg);
+                new Vector2(0f, -200f), new Vector2(900f, 640f), "panel_light", CamBg);
 
             var rawGO = new GameObject("CamRaw");
             rawGO.transform.SetParent(cam.transform, false);
@@ -821,11 +841,12 @@ namespace Gamex.Game
             {
                 _camPreview.uvRect = new Rect(1f, 0f, -1f, 1f);   // selfie mirror
 
-                // Lazily spin up the pose detector + pushup counter.
-                if (_pose == null) _pose = new PoseDetector();
-                if (_pushupCounter == null) _pushupCounter = new PushupCounter();
+                // Lazily spin up the pose detector + counters.
+                if (_pose == null)            _pose            = new PoseDetector();
+                if (_pushupCounter == null)   _pushupCounter   = new PushupCounter();
+                if (_situpCounter == null)    _situpCounter    = new SitupCounter();
+                if (_squatCounter == null)    _squatCounter    = new SquatCounter();
 
-                // Throttled inference: every POSE_INTERVAL s when a new camera frame is in.
                 if (_pose.IsReady && _camTexture.didUpdateThisFrame)
                 {
                     _poseT += Time.unscaledDeltaTime;
@@ -835,19 +856,39 @@ namespace Gamex.Game
                         _pose.Detect(_camTexture);
                         UpdatePoseOverlay();
 
-                        // Feed the counter; +1 rep on a full down->up cycle.
-                        if (_pushupCounter.Update(_pose.Keypoints))
-                            _onFakeRep?.Invoke();
+                        // Run the counter matching the selected exercise.
+                        bool repDone = false;
+                        float angle = float.NaN;
+                        string stateLabel = "—";
+                        switch (_currentExercise)
+                        {
+                            case Exercise.Pushup:
+                                repDone = _pushupCounter.Update(_pose.Keypoints);
+                                angle = _pushupCounter.LastAngle;
+                                stateLabel = _pushupCounter.CurrentState.ToString();
+                                break;
+                            case Exercise.Situp:
+                                repDone = _situpCounter.Update(_pose.Keypoints);
+                                angle = _situpCounter.LastAngle;
+                                stateLabel = _situpCounter.CurrentState.ToString();
+                                break;
+                            case Exercise.Squat:
+                                repDone = _squatCounter.Update(_pose.Keypoints);
+                                angle = _squatCounter.LastAngle;
+                                stateLabel = _squatCounter.CurrentState.ToString();
+                                break;
+                        }
+                        if (repDone) _onFakeRep?.Invoke();
 
                         if (_camStatus != null)
                         {
                             float top = _pose.TopScore();
                             if (top <= POSE_SCORE_GATE)
                                 _camStatus.text = "Looking for pose...";
-                            else if (float.IsNaN(_pushupCounter.LastAngle))
-                                _camStatus.text = $"Pose seen — show your arms";
+                            else if (float.IsNaN(angle))
+                                _camStatus.text = $"Pose seen — show your full body";
                             else
-                                _camStatus.text = $"{(int)_pushupCounter.LastAngle}° · {_pushupCounter.CurrentState}";
+                                _camStatus.text = $"{_currentExercise}: {(int)angle}° · {stateLabel}";
                         }
                     }
                 }
@@ -926,6 +967,27 @@ namespace Gamex.Game
             if (_camTexture != null)
             {
                 try { _camTexture.Stop(); } catch { /* fine */ }
+            }
+        }
+
+        void SelectExercise(Exercise ex)
+        {
+            _currentExercise = ex;
+            _pushupCounter?.Reset();
+            _situpCounter?.Reset();
+            _squatCounter?.Reset();
+            UpdateExerciseButtonHighlight();
+        }
+
+        void UpdateExerciseButtonHighlight()
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                if (_exerciseButtons[i] == null) continue;
+                bool selected = (Exercise)i == _currentExercise;
+                var img = _exerciseButtons[i].GetComponent<Image>();
+                if (img != null)
+                    img.color = selected ? new Color(1f, 0.85f, 0.42f, 1f) : new Color(0.75f, 0.75f, 0.75f, 1f);
             }
         }
 

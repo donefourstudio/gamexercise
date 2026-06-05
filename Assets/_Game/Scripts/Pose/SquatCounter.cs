@@ -1,0 +1,67 @@
+using UnityEngine;
+
+namespace Gamex.Pose
+{
+    // Squat counter — uses the interior angle at the knee (between hip->knee
+    // and ankle->knee vectors, both emanating from the knee).
+    //   Standing:  hip, knee, ankle roughly colinear  -> ~180°
+    //   Squatting: thigh ~horizontal, shin vertical   -> ~ 90°
+    //
+    // State machine: Down = squatting, Up = standing. Rep on Down -> Up.
+    public class SquatCounter
+    {
+        public enum State { Unknown, Up, Down }
+        public State CurrentState { get; private set; } = State.Unknown;
+        public float LastAngle { get; private set; } = float.NaN;
+
+        const float UP_THRESHOLD   = 160f;   // standing tall
+        const float DOWN_THRESHOLD = 110f;   // deep enough squat
+        const float MIN_SCORE      = 0.3f;
+
+        public bool Update(PoseDetector.Keypoint[] kps)
+        {
+            float angle = AvgKneeAngle(kps);
+            LastAngle = angle;
+            if (float.IsNaN(angle)) return false;
+
+            if (angle < DOWN_THRESHOLD)
+            {
+                if (CurrentState != State.Down) CurrentState = State.Down;
+            }
+            else if (angle > UP_THRESHOLD)
+            {
+                bool completedRep = CurrentState == State.Down;
+                CurrentState = State.Up;
+                return completedRep;
+            }
+            return false;
+        }
+
+        public void Reset()
+        {
+            CurrentState = State.Unknown;
+            LastAngle = float.NaN;
+        }
+
+        static float KneeAngle(PoseDetector.Keypoint h, PoseDetector.Keypoint k, PoseDetector.Keypoint a)
+        {
+            if (h.score < MIN_SCORE || k.score < MIN_SCORE || a.score < MIN_SCORE) return float.NaN;
+            var kToH = new Vector2(h.x - k.x, h.y - k.y);
+            var kToA = new Vector2(a.x - k.x, a.y - k.y);
+            if (kToH.sqrMagnitude < 1e-6f || kToA.sqrMagnitude < 1e-6f) return float.NaN;
+            float dot = Mathf.Clamp(Vector2.Dot(kToH.normalized, kToA.normalized), -1f, 1f);
+            return Mathf.Acos(dot) * Mathf.Rad2Deg;
+        }
+
+        static float AvgKneeAngle(PoseDetector.Keypoint[] kps)
+        {
+            float l = KneeAngle(kps[11], kps[13], kps[15]);   // left hip/knee/ankle
+            float r = KneeAngle(kps[12], kps[14], kps[16]);
+            bool lv = !float.IsNaN(l), rv = !float.IsNaN(r);
+            if (lv && rv) return (l + r) * 0.5f;
+            if (lv) return l;
+            if (rv) return r;
+            return float.NaN;
+        }
+    }
+}
