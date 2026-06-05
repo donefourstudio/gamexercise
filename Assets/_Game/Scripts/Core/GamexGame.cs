@@ -40,8 +40,14 @@ namespace Gamex.Core
         public void SetCurse(Curse c)
         {
             state.curse = (int)c;
-            // M2b-1: curse animation deferred; route straight to Amnesia.
-            // M2b-2 will insert AppPhase.CurseAnim between these two.
+            phase = AppPhase.CurseAnim;       // Hud auto-advances after the animation finishes
+            onSave?.Invoke();
+        }
+
+        // Called by Hud when the curse transformation cinematic ends.
+        public void CompleteCurseAnim()
+        {
+            if (phase != AppPhase.CurseAnim) return;
             phase = AppPhase.OpeningAmnesia;
             onSave?.Invoke();
         }

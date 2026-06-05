@@ -116,8 +116,12 @@ namespace Gamex.Game
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_curse.png");
 
-            runner.Game.SetCurse(Curse.Weakness);   // -> OpeningAmnesia (CurseAnim deferred to M2b-2)
-            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            runner.Game.SetCurse(Curse.Weakness);   // -> CurseAnim (auto-advances after ~1.5s)
+            // capture mid-animation just past the sprite swap so the cursed self + shake are visible
+            yield return new WaitForSecondsRealtime(0.9f);
+            Capture("/tmp/gamex_curse_anim.png");
+            // wait for the auto-advance to land on OpeningAmnesia
+            yield return new WaitForSecondsRealtime(0.9f);
             Capture("/tmp/gamex_op4_amnesia.png");
 
             runner.Game.TapAdvanceOpening();   // -> GenderSelect

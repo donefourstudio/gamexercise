@@ -49,6 +49,7 @@ namespace Gamex.Game
 
             _hud = new Hud(
                 onTapAdvanceOpening: () => _game.TapAdvanceOpening(),
+                onCurseAnimDone:     () => _game.CompleteCurseAnim(),
                 onSelectGender:      g => _game.SetGender((Gender)g),
                 onSelectCurse:       c => _game.SetCurse((Curse)c),
                 onFinishFirstMirror: () => { _game.DoRep(Exercise.Pushup); _game.FinishFirstMirror(); },

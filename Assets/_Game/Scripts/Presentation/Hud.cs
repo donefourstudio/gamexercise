@@ -32,14 +32,23 @@ namespace Gamex.Game
 
         // ---- panels ----
         GameObject _openingIntroPanel, _openingHeroShownPanel, _openingCurseLoomsPanel, _openingAmnesiaPanel;
+        GameObject _curseAnimPanel;
         GameObject _genderPanel, _cursePanel, _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
 
         // ---- avatars ----
         AvatarSprite _mirrorSelf;            // the player's reflection on Home — current cursed -> hero arc
         AvatarSprite _firstMirrorSelf;        // cursed self in the first-mirror beat
         AvatarSprite _openingHeroAvatar;     // muscular hero shown during OpeningHeroShown
+        AvatarSprite _curseAnimAvatar;       // hero -> cursed in the curse cinematic
         AvatarSprite _curseMaleA, _curseFemaleA, _curseMaleB, _curseFemaleB;
         AvatarSprite _genderHeroMale, _genderHeroFemale;
+
+        // ---- curse anim state ----
+        Image _curseAnimDim;
+        float _curseAnimT;
+        AppPhase _lastPhase = AppPhase.Boot;
+        const float CURSE_ANIM_DURATION = 1.5f;
+        const float CURSE_ANIM_SWAP_AT  = 0.7f;
 
         // ---- home refs ----
         Text _homeLevel, _homeCoins, _homeProgress, _homeStreak;
@@ -60,6 +69,7 @@ namespace Gamex.Game
 
         // ---- callbacks ----
         readonly Action         _onTapAdvanceOpening;
+        readonly Action         _onCurseAnimDone;
         readonly Action<int>    _onSelectGender;
         readonly Action<int>    _onSelectCurse;
         readonly Action         _onFinishFirstMirror;
@@ -68,6 +78,7 @@ namespace Gamex.Game
 
         public Hud(
             Action onTapAdvanceOpening,
+            Action onCurseAnimDone,
             Action<int> onSelectGender,
             Action<int> onSelectCurse,
             Action onFinishFirstMirror,
@@ -79,6 +90,7 @@ namespace Gamex.Game
             Action<string> onToggleEquip)
         {
             _onTapAdvanceOpening = onTapAdvanceOpening;
+            _onCurseAnimDone     = onCurseAnimDone;
             _onSelectGender      = onSelectGender;
             _onSelectCurse       = onSelectCurse;
             _onFinishFirstMirror = onFinishFirstMirror;
@@ -110,6 +122,7 @@ namespace Gamex.Game
             BuildOpeningIntro(root);
             BuildOpeningHeroShown(root);
             BuildOpeningCurseLooms(root);
+            BuildCurseAnim(root);
             BuildOpeningAmnesia(root);
             BuildGenderSelect(root);
             BuildCurseSelect(root);
@@ -117,6 +130,26 @@ namespace Gamex.Game
             BuildHome(root);
             BuildTraining(root);
             BuildShop(root);
+        }
+
+        // ============================================================
+        // Curse animation panel — auto-driven from Refresh().
+        // Layout (back to front): full-screen dim overlay -> hero avatar.
+        // The dim alpha lerps 0 -> 0.7 over the duration to isolate the
+        // hero. Avatar shakes (amplitude peaks at the swap moment), then
+        // its sprite swaps from hero to cursed at CURSE_ANIM_SWAP_AT.
+        // ============================================================
+        void BuildCurseAnim(Transform root)
+        {
+            _curseAnimPanel = MkFullPanel("CurseAnim", root);
+
+            var dim = MkPanel("Dim", _curseAnimPanel.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(4000f, 4000f), new Color(0f, 0f, 0f, 0f));
+            _curseAnimDim = dim.GetComponent<Image>();
+            _curseAnimDim.raycastTarget = false;
+
+            _curseAnimAvatar = BuildAvatar(_curseAnimPanel.transform, Vector2.zero, 2.4f,
+                Gender.Male, Curse.Unset, stage: 5);
         }
 
         // ============================================================
@@ -423,9 +456,17 @@ namespace Gamex.Game
         // ============================================================
         public void Refresh(GamexGame g)
         {
+            // Phase entry — reset per-phase animation state.
+            if (g.phase != _lastPhase)
+            {
+                if (g.phase == AppPhase.CurseAnim) _curseAnimT = 0f;
+                _lastPhase = g.phase;
+            }
+
             Set(_openingIntroPanel,       g.phase == AppPhase.OpeningIntro);
             Set(_openingHeroShownPanel,   g.phase == AppPhase.OpeningHeroShown);
             Set(_openingCurseLoomsPanel,  g.phase == AppPhase.OpeningCurseLooms);
+            Set(_curseAnimPanel,          g.phase == AppPhase.CurseAnim);
             Set(_openingAmnesiaPanel,     g.phase == AppPhase.OpeningAmnesia);
             Set(_genderPanel,             g.phase == AppPhase.GenderSelect);
             Set(_cursePanel,              g.phase == AppPhase.CurseSelect);
@@ -437,6 +478,34 @@ namespace Gamex.Game
             var gender = (Gender)g.state.gender;
             var curse  = (Curse)g.state.curse;
             var safeGender = gender == Gender.Unset ? Gender.Male : gender;
+
+            // Curse animation: shake hero + dim background, swap sprite at SWAP_AT,
+            // auto-advance when duration elapses.
+            if (g.phase == AppPhase.CurseAnim)
+            {
+                _curseAnimT += Time.unscaledDeltaTime;
+                bool swapped = _curseAnimT >= CURSE_ANIM_SWAP_AT;
+
+                // shake amplitude: ramp up 2 -> 14 px to swap, then decay 14 -> 0 px after
+                float shakeAmp = swapped
+                    ? Mathf.Lerp(14f, 0f, (_curseAnimT - CURSE_ANIM_SWAP_AT) / (CURSE_ANIM_DURATION - CURSE_ANIM_SWAP_AT))
+                    : Mathf.Lerp(2f, 14f, _curseAnimT / CURSE_ANIM_SWAP_AT);
+                float sx = Mathf.Round(UnityEngine.Random.Range(-shakeAmp, shakeAmp));
+                float sy = Mathf.Round(UnityEngine.Random.Range(-shakeAmp, shakeAmp));
+                ((RectTransform)_curseAnimAvatar.root.transform).anchoredPosition = new Vector2(sx, sy);
+
+                // dim overlay alpha 0 -> 0.7
+                var dc = _curseAnimDim.color;
+                dc.a = Mathf.Lerp(0f, 0.7f, _curseAnimT / CURSE_ANIM_DURATION);
+                _curseAnimDim.color = dc;
+
+                // sprite: hero (stage 5) before swap, cursed (stage 0 of chosen curse) after
+                ApplyAvatarLook(_curseAnimAvatar, safeGender,
+                                swapped ? (curse == Curse.Unset ? Curse.Weakness : curse) : Curse.Unset,
+                                swapped ? 0 : 5);
+
+                if (_curseAnimT >= CURSE_ANIM_DURATION) _onCurseAnimDone?.Invoke();
+            }
 
             // curse select: show the avatar that matches chosen gender (defaults to male while gender Unset)
             if (_curseMaleA != null)
