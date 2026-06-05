@@ -50,6 +50,33 @@ namespace Gamex.Game
         const float CROWN_Y_FLOATING = 660f;
         const float CROWN_Y_LANDED   = 540f;
 
+        // ---- mirror polish (breathing + stage-up flash + milestone dialogue) ----
+        Image _stageUpFlash;          // white overlay inside the mirror, lerps up + back
+        Text  _milestoneText;         // 4s line below the mirror after a stage transition
+        int   _prevStage  = -1;       // -1 = uninitialised, set on first Home Refresh
+        int   _prevLevel  = 1;
+        float _stageUpT;              // > 0 while flash + scale-pulse is playing
+        float _milestoneT;            // > 0 while milestone line is visible
+
+        const float BREATH_AMP        = 0.015f;
+        const float BREATH_FREQ       = 1.8f;
+        const float STAGEUP_DURATION  = 0.6f;
+        const float STAGEUP_SCALE_AMP = 0.08f;
+        const float STAGEUP_FLASH_A   = 0.5f;
+        const float MILESTONE_DURATION = 4f;
+        const float MILESTONE_FADE_OUT = 1f;
+
+        // 6 lines surface in order at the 6 stage transitions (Lv 6 / 11 / 16 / 21 / 26 / 30).
+        static readonly string[] MILESTONE_LINES = new[]
+        {
+            "\"...I feel a flicker of strength.\"",
+            "\"My body remembers the old training.\"",
+            "\"The curse's fog is lifting.\"",
+            "\"...I'm starting to remember who I am.\"",
+            "\"Almost there. Just a little further.\"",
+            "\"...I'm back.\"",
+        };
+
         // ---- curse anim state ----
         Image _curseAnimDim;
         float _curseAnimT;
@@ -352,6 +379,16 @@ namespace Gamex.Game
                 Vector2.zero, new Vector2(460f, 600f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
             _mirrorSelf = BuildAvatar(inner.transform, Vector2.zero, 1.8f, Gender.Male, Curse.Weakness, stage: 0);
 
+            // Stage-up flash overlay (above the avatar inside the mirror).
+            _stageUpFlash = MkPanel("StageUpFlash", inner.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(460f, 600f), new Color(1f, 1f, 1f, 0f)).GetComponent<Image>();
+            _stageUpFlash.raycastTarget = false;
+
+            // Milestone dialogue — fades in just under the mirror after a stage transition.
+            _milestoneText = MkText("Milestone", _homePanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -110f), new Vector2(1000f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+            _milestoneText.color = new Color(1f, 0.84f, 0.42f, 0f);
+
             // Daily ritual icons:
             //   4 candles bracket the mirror frame (2 left, 2 right).
             //   1 crown hovers above the character; lands on the head when
@@ -559,6 +596,67 @@ namespace Gamex.Game
                 // Mirror is the player at the current stage (cursed -> hero over time).
                 ApplyAvatarLook(_mirrorSelf, safeGender, curse, g.Stage);
                 _mirrorSelf.SetAlpha(1f);
+
+                // Stage / level transition detection (Home only). First Refresh after Home
+                // appears initialises the tracker without firing a fake milestone.
+                if (g.phase == AppPhase.Home)
+                {
+                    int currentStage = g.Stage;
+                    if (_prevStage < 0)
+                    {
+                        _prevStage = currentStage;
+                        _prevLevel = g.state.level;
+                    }
+                    else
+                    {
+                        if (currentStage > _prevStage)
+                        {
+                            _stageUpT = STAGEUP_DURATION;
+                            int idx = Mathf.Clamp(currentStage - 1, 0, MILESTONE_LINES.Length - 1);
+                            _milestoneText.text = MILESTONE_LINES[idx];
+                            _milestoneT = MILESTONE_DURATION;
+                        }
+                        // hitting max level for the first time fires the 6th line, even
+                        // though Stage doesn't change (Lv 26-30 are all stage 5).
+                        if (_prevLevel < GamexGame.MaxLevel && g.state.level == GamexGame.MaxLevel)
+                        {
+                            _stageUpT = STAGEUP_DURATION;
+                            _milestoneText.text = MILESTONE_LINES[5];
+                            _milestoneT = MILESTONE_DURATION;
+                        }
+                        _prevStage = currentStage;
+                        _prevLevel = g.state.level;
+                    }
+                }
+
+                // Stage-up flash (scale pulse + white overlay) supersedes breathing.
+                if (_stageUpT > 0f)
+                {
+                    _stageUpT -= Time.unscaledDeltaTime;
+                    float t = 1f - Mathf.Clamp01(_stageUpT / STAGEUP_DURATION);
+                    float pulse = Mathf.Sin(t * Mathf.PI);
+                    float scale = 1f + STAGEUP_SCALE_AMP * pulse;
+                    _mirrorSelf.root.transform.localScale = new Vector3(scale, scale, 1f);
+                    var fc = _stageUpFlash.color;
+                    fc.a = STAGEUP_FLASH_A * pulse;
+                    _stageUpFlash.color = fc;
+                    if (_stageUpT <= 0f) _stageUpFlash.color = new Color(1f, 1f, 1f, 0f);
+                }
+                else
+                {
+                    // Idle breathing — gentle sin-wave scale modulation.
+                    float breath = 1f + BREATH_AMP * Mathf.Sin(Time.time * BREATH_FREQ);
+                    _mirrorSelf.root.transform.localScale = new Vector3(breath, breath, 1f);
+                }
+
+                // Milestone text — visible for MILESTONE_DURATION, fades out over last second.
+                if (_milestoneT > 0f)
+                {
+                    _milestoneT -= Time.unscaledDeltaTime;
+                    var tc = _milestoneText.color;
+                    tc.a = Mathf.Clamp01(_milestoneT / MILESTONE_FADE_OUT);
+                    _milestoneText.color = tc;
+                }
 
                 // Daily ritual: candles light + crown turns gold and drops when maintenance met.
                 bool ritualDone = g.state.repsToday >= g.MaintenanceToday;

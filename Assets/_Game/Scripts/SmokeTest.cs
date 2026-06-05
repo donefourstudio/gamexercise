@@ -149,6 +149,16 @@ namespace Gamex.Game
             runner.Game.state.repsToday = 15;
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_home_done.png");
+
+            // (c) trigger a Stage 0 -> Stage 1 transition so the milestone line
+            // + stage-up flash are visible in the capture.
+            runner.Game.state.level = 5;
+            runner.Game.state.repsToday = 5;
+            yield return null; yield return null;   // let Refresh consume the down-transition
+            runner.Game.state.level = 6;            // stage 0 -> 1 fires milestone
+            yield return new WaitForSecondsRealtime(0.25f);
+            Capture("/tmp/gamex_home_milestone.png");
+
             // legacy filename for downstream tools that look for gamex_home.png
             Capture("/tmp/gamex_home.png");
 
