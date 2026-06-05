@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using Gamex.Core;
+using Gamex.Pose;
 
 namespace Gamex.Game
 {
@@ -49,10 +50,15 @@ namespace Gamex.Game
         float _raceAnimT;
         const float RACE_ANIM_SWAP_AT = 0.7f;
 
-        // ---- camera preview (Training) ----
+        // ---- camera preview + pose detection (Training) ----
         RawImage _camPreview;
         WebCamTexture _camTexture;
         Text _camStatus;
+        PoseDetector _pose;
+        readonly Image[] _poseDots = new Image[PoseDetector.KEYPOINT_COUNT];
+        float _poseT;
+        const float POSE_INTERVAL = 0.1f;        // 10 Hz inference
+        const float POSE_SCORE_GATE = 0.3f;
 
         // ---- daily ritual icons (Home) ----
         Image[] _candleImgs = new Image[4];   // 4 candles bracketing the mirror
@@ -800,7 +806,7 @@ namespace Gamex.Game
         }
 
         // ============================================================
-        // Camera lifecycle — Training only.
+        // Camera lifecycle + pose detection — Training only.
         // ============================================================
         void UpdateCamera(GamexGame g)
         {
@@ -810,16 +816,74 @@ namespace Gamex.Game
             else if (!wantsCam && _camTexture != null && _camTexture.isPlaying)
                 StopCamera();
 
-            // Mirror the feed horizontally so the user sees themselves selfie-style.
-            // RawImage uvRect flip is cheap and survives rotation changes.
             if (_camPreview != null && _camTexture != null && _camTexture.isPlaying)
             {
-                _camPreview.uvRect = new Rect(1f, 0f, -1f, 1f);
-                if (_camStatus != null) _camStatus.text = "Live (front camera)";
+                _camPreview.uvRect = new Rect(1f, 0f, -1f, 1f);   // selfie mirror
+
+                // Lazily spin up the pose detector (model load is non-trivial).
+                if (_pose == null) _pose = new PoseDetector();
+
+                // Throttled inference: every POSE_INTERVAL s when a new camera frame is in.
+                if (_pose.IsReady && _camTexture.didUpdateThisFrame)
+                {
+                    _poseT += Time.unscaledDeltaTime;
+                    if (_poseT >= POSE_INTERVAL)
+                    {
+                        _poseT = 0f;
+                        _pose.Detect(_camTexture);
+                        UpdatePoseOverlay();
+                        if (_camStatus != null)
+                        {
+                            float top = _pose.TopScore();
+                            _camStatus.text = top > POSE_SCORE_GATE
+                                ? $"Pose tracking — conf {top:0.00}"
+                                : "Looking for pose...";
+                        }
+                    }
+                }
             }
-            else if (_camPreview != null && _camPreview.texture != null)
+            else
             {
-                _camPreview.texture = null;
+                if (_camPreview != null && _camPreview.texture != null) _camPreview.texture = null;
+                for (int i = 0; i < _poseDots.Length; i++)
+                    if (_poseDots[i] != null) _poseDots[i].gameObject.SetActive(false);
+            }
+        }
+
+        void UpdatePoseOverlay()
+        {
+            if (_pose == null || _camPreview == null) return;
+            var rect = _camPreview.rectTransform.rect;
+
+            for (int i = 0; i < PoseDetector.KEYPOINT_COUNT; i++)
+            {
+                if (_poseDots[i] == null)
+                {
+                    var go = new GameObject("Pose_" + i);
+                    go.transform.SetParent(_camPreview.transform, false);
+                    var img = go.AddComponent<Image>();
+                    img.color = new Color(0.45f, 1f, 0.50f, 0.85f);
+                    img.raycastTarget = false;
+                    var rt = img.rectTransform;
+                    rt.anchorMin = rt.anchorMax = new Vector2(0f, 0f);  // bottom-left of preview
+                    rt.pivot = new Vector2(0.5f, 0.5f);
+                    rt.sizeDelta = new Vector2(14f, 14f);
+                    _poseDots[i] = img;
+                }
+
+                var kp = _pose.Keypoints[i];
+                if (kp.score >= POSE_SCORE_GATE)
+                {
+                    // MoveNet: y down, x right. UI: y up. We also mirrored the feed.
+                    float ux = (1f - kp.x) * rect.width;
+                    float uy = (1f - kp.y) * rect.height;
+                    _poseDots[i].rectTransform.anchoredPosition = new Vector2(ux, uy);
+                    if (!_poseDots[i].gameObject.activeSelf) _poseDots[i].gameObject.SetActive(true);
+                }
+                else if (_poseDots[i].gameObject.activeSelf)
+                {
+                    _poseDots[i].gameObject.SetActive(false);
+                }
             }
         }
 
