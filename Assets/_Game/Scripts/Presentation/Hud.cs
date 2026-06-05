@@ -96,7 +96,7 @@ namespace Gamex.Game
             var scaler = canvasGO.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1080f, 1920f);
-            scaler.matchWidthOrHeight  = 0.5f;
+            scaler.matchWidthOrHeight  = 1f;   // portrait-only: match height, letterbox sides in landscape preview
             canvasGO.AddComponent<GraphicRaycaster>();
             var root = canvasGO.transform;
 
@@ -248,16 +248,17 @@ namespace Gamex.Game
             _homeProgress = MkText("Progress", _homePanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -240f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
 
-            // XP bar — left-anchored fill image inside a sliced background
-            var xpBg = MkSpritePanel("XpBg", _homePanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -310f), new Vector2(700f, 36f), "panel_light", new Color(0.10f, 0.12f, 0.18f, 1f));
-            var fill = MkSpritePanel("XpFill", xpBg.transform, new Vector2(0f, 0.5f),
-                Vector2.zero, new Vector2(700f, 36f), "btn_brown", AccentGold);
+            // XP bar — solid-color rects, fill anchored to parent's left edge.
+            // (9-slice sprites stretched to 36px tall produced compression artifacts.)
+            var xpBg = MkPanel("XpBg", _homePanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -310f), new Vector2(700f, 32f), new Color(0.10f, 0.12f, 0.18f, 1f));
+            var fill = MkPanel("XpFill", xpBg.transform, new Vector2(0f, 0.5f),
+                Vector2.zero, new Vector2(700f, 28f), AccentGold);
             _xpBar = fill.GetComponent<Image>();
             var xrt = _xpBar.rectTransform;
             xrt.pivot = new Vector2(0f, 0.5f);
             xrt.anchorMin = xrt.anchorMax = new Vector2(0f, 0.5f);
-            xrt.anchoredPosition = new Vector2(-350f, 0f);
+            xrt.anchoredPosition = Vector2.zero;   // pivot sits AT the anchor (parent's left-center)
 
             // bottom buttons
             MkButton("Train", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
@@ -381,7 +382,7 @@ namespace Gamex.Game
                 _homeStreak.text  = $"连续 {g.state.streakDays} 天 · 错过 {g.state.missedDays}";
                 _homeProgress.text = $"今日 {g.state.repsToday} / {g.MaintenanceToday} （保持量）";
                 _xpBar.rectTransform.sizeDelta = new Vector2(
-                    700f * Mathf.Clamp01((float)g.state.xp / Mathf.Max(1, g.XpPerLevel)), 36f);
+                    700f * Mathf.Clamp01((float)g.state.xp / Mathf.Max(1, g.XpPerLevel)), 28f);
 
                 int stage = g.Stage;
                 ApplyAvatarLook(_homeAvatar, gender, curse, stage);

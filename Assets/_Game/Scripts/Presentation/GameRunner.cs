@@ -23,6 +23,8 @@ namespace Gamex.Game
         void Awake()
         {
             DisableDefaultSceneObjects();
+            // lock to portrait — this app is one-handed phone/iPad only
+            Screen.orientation = ScreenOrientation.Portrait;
 
             _game = new GamexGame();
             var loaded = SaveSystem.Load();
