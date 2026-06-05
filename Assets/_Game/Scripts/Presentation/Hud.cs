@@ -55,6 +55,7 @@ namespace Gamex.Game
         WebCamTexture _camTexture;
         Text _camStatus;
         PoseDetector _pose;
+        PushupCounter _pushupCounter;
         readonly Image[] _poseDots = new Image[PoseDetector.KEYPOINT_COUNT];
         float _poseT;
         const float POSE_INTERVAL = 0.1f;        // 10 Hz inference
@@ -820,8 +821,9 @@ namespace Gamex.Game
             {
                 _camPreview.uvRect = new Rect(1f, 0f, -1f, 1f);   // selfie mirror
 
-                // Lazily spin up the pose detector (model load is non-trivial).
+                // Lazily spin up the pose detector + pushup counter.
                 if (_pose == null) _pose = new PoseDetector();
+                if (_pushupCounter == null) _pushupCounter = new PushupCounter();
 
                 // Throttled inference: every POSE_INTERVAL s when a new camera frame is in.
                 if (_pose.IsReady && _camTexture.didUpdateThisFrame)
@@ -832,12 +834,20 @@ namespace Gamex.Game
                         _poseT = 0f;
                         _pose.Detect(_camTexture);
                         UpdatePoseOverlay();
+
+                        // Feed the counter; +1 rep on a full down->up cycle.
+                        if (_pushupCounter.Update(_pose.Keypoints))
+                            _onFakeRep?.Invoke();
+
                         if (_camStatus != null)
                         {
                             float top = _pose.TopScore();
-                            _camStatus.text = top > POSE_SCORE_GATE
-                                ? $"Pose tracking — conf {top:0.00}"
-                                : "Looking for pose...";
+                            if (top <= POSE_SCORE_GATE)
+                                _camStatus.text = "Looking for pose...";
+                            else if (float.IsNaN(_pushupCounter.LastAngle))
+                                _camStatus.text = $"Pose seen — show your arms";
+                            else
+                                _camStatus.text = $"{(int)_pushupCounter.LastAngle}° · {_pushupCounter.CurrentState}";
                         }
                     }
                 }
