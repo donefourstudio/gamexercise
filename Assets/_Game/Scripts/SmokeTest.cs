@@ -133,10 +133,23 @@ namespace Gamex.Game
             Capture("/tmp/gamex_first_mirror.png");
 
             runner.Game.FinishFirstMirror();
-            // simulate some progress to make panels visually interesting
-            for (int i = 0; i < 60; i++) runner.Game.DoRep(Exercise.Pushup);
+            // Push to Lv 6 (stage 1, maintenance = 10) so the ritual icons have a
+            // meaningful threshold to compare against. Then capture two states.
+            runner.Game.state.level = 6;
+            runner.Game.state.xp = 0;
+            runner.Game.state.coins = 60;
             runner.Game.state.streakDays = 7;
+
+            // (a) ritual not yet done — candles unlit, crown floating + grey
+            runner.Game.state.repsToday = 3;
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_home_undone.png");
+
+            // (b) ritual done — candles lit, crown lands gold on the head
+            runner.Game.state.repsToday = 15;
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_home_done.png");
+            // legacy filename for downstream tools that look for gamex_home.png
             Capture("/tmp/gamex_home.png");
 
             runner.Game.GoTraining();

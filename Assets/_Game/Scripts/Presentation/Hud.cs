@@ -43,6 +43,13 @@ namespace Gamex.Game
         AvatarSprite _curseMaleA, _curseFemaleA, _curseMaleB, _curseFemaleB;
         AvatarSprite _genderHeroMale, _genderHeroFemale;
 
+        // ---- daily ritual icons (Home) ----
+        Image[] _candleImgs = new Image[4];   // 4 candles bracketing the mirror
+        Image _crownImg;                       // hovers above the mirror character
+        // crown y when floating (maintenance not yet met) vs landed on the head (met)
+        const float CROWN_Y_FLOATING = 660f;
+        const float CROWN_Y_LANDED   = 540f;
+
         // ---- curse anim state ----
         Image _curseAnimDim;
         float _curseAnimT;
@@ -345,6 +352,25 @@ namespace Gamex.Game
                 Vector2.zero, new Vector2(460f, 600f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
             _mirrorSelf = BuildAvatar(inner.transform, Vector2.zero, 1.8f, Gender.Male, Curse.Weakness, stage: 0);
 
+            // Daily ritual icons:
+            //   4 candles bracket the mirror frame (2 left, 2 right).
+            //   1 crown hovers above the character; lands on the head when
+            //   the day's maintenance is met. Refresh swaps sprites + crown y.
+            var candleAt = new[] {
+                new Vector2(-330f,  80f),  // bottom left
+                new Vector2(-330f, 440f),  // top left
+                new Vector2( 330f,  80f),  // bottom right
+                new Vector2( 330f, 440f),  // top right
+            };
+            for (int i = 0; i < 4; i++)
+                _candleImgs[i] = MkSpriteIcon("Candle_" + i, _homePanel.transform,
+                    new Vector2(0.5f, 0.5f), candleAt[i], new Vector2(64f, 96f),
+                    "candle_unlit", Color.white).GetComponent<Image>();
+
+            _crownImg = MkSpriteIcon("Crown", _homePanel.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, CROWN_Y_FLOATING), new Vector2(120f, 80f),
+                "crown_grey", Color.white).GetComponent<Image>();
+
             // streak + maintenance + XP bar (under mirror, top-down)
             _homeStreak = MkText("Streak", _homePanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -180f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
@@ -533,6 +559,14 @@ namespace Gamex.Game
                 // Mirror is the player at the current stage (cursed -> hero over time).
                 ApplyAvatarLook(_mirrorSelf, safeGender, curse, g.Stage);
                 _mirrorSelf.SetAlpha(1f);
+
+                // Daily ritual: candles light + crown turns gold and drops when maintenance met.
+                bool ritualDone = g.state.repsToday >= g.MaintenanceToday;
+                var candleSprite = Make.UI(ritualDone ? "candle_lit" : "candle_unlit");
+                foreach (var c in _candleImgs) if (c != null) c.sprite = candleSprite;
+                _crownImg.sprite = Make.UI(ritualDone ? "crown_gold" : "crown_grey");
+                ((RectTransform)_crownImg.transform).anchoredPosition = new Vector2(0f,
+                    ritualDone ? CROWN_Y_LANDED : CROWN_Y_FLOATING);
             }
 
             if (g.phase == AppPhase.Training)
@@ -692,6 +726,24 @@ namespace Gamex.Game
                 img.sprite = spr;
                 img.type = Image.Type.Sliced;
                 img.pixelsPerUnitMultiplier = 1f;
+            }
+            return go;
+        }
+
+        // Same as MkSpritePanel but renders the sprite as-is (Image.Type.Simple) —
+        // for icons and props where 9-slicing would warp the artwork.
+        static GameObject MkSpriteIcon(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
+                                       string spriteName, Color tint)
+        {
+            var go = MkPanel(name, parent, anchor, pos, size, tint);
+            var img = go.GetComponent<Image>();
+            img.raycastTarget = false;
+            var spr = Make.UI(spriteName);
+            if (spr != null)
+            {
+                img.sprite = spr;
+                img.type = Image.Type.Simple;
+                img.preserveAspect = true;
             }
             return go;
         }
