@@ -20,14 +20,18 @@ namespace Gamex.Game
         public static Sprite UI(string name)   => Resources.Load<Sprite>("UI/" + name);
         public static Sprite Char(string name) => Resources.Load<Sprite>("Char/" + name);
 
-        // Cohort-aware LPC portrait. curse=Unset falls back to Weakness sheet
-        // (stage 6 of both curses is visually identical hero anyway).
+        // Cursed-stage portrait. Lv 1-20 (stages 0-3) render as the gender-neutral
+        // skeleton-growing-into-humanoid arc; Lv 21+ (stages 4-5) render as the chosen
+        // form (M3d will diversify these by race; for now they fall back to the
+        // gender+curse humanoid sprites baked in M2a).
         public static Sprite Portrait(Gender gender, Curse curse, int stage)
         {
+            if (stage < 4)
+                return Char($"skel_stage{Mathf.Clamp(stage + 1, 1, 4)}");
+
             string g = gender == Gender.Female ? "female" : "male";
             string c = curse == Curse.Gluttony ? "gluttony" : "weakness";
-            int s = Mathf.Clamp(stage + 1, 1, 6);   // GameState.Stage is 0-indexed
-            return Char($"{g}_{c}_stage{s}");
+            return Char($"{g}_{c}_stage{stage + 1}");   // stage 4 -> _stage5, stage 5 -> _stage6
         }
     }
 }
