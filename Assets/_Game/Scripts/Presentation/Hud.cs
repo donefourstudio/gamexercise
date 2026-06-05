@@ -191,31 +191,37 @@ namespace Gamex.Game
                 .text = "\"...this is what I was meant to be.\"";
 
             MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f,  220f), "Human", "Male",
+                Make.Portrait(Gender.Male, Curse.Unset, Race.Human, 5),
                 "The classic hero.",   () => _onSelectRaceAndGender?.Invoke(1, 1));
             MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f,  220f), "Human", "Female",
+                Make.Portrait(Gender.Female, Curse.Unset, Race.Human, 5),
                 "The classic hero.",   () => _onSelectRaceAndGender?.Invoke(1, 2));
-            MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f, -220f), "Orc",   "Male",
+            MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f, -220f), "Orc", "Male",
+                Make.Portrait(Gender.Male, Curse.Unset, Race.Orc, 5),
                 "Strength and rage.",  () => _onSelectRaceAndGender?.Invoke(2, 1));
-            MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f, -220f), "Orc",   "Female",
+            MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f, -220f), "Orc", "Female",
+                Make.Portrait(Gender.Female, Curse.Unset, Race.Orc, 5),
                 "Strength and rage.",  () => _onSelectRaceAndGender?.Invoke(2, 2));
         }
 
-        void MkRaceCard(Transform parent, Vector2 pos, string race, string gender, string flavor, Action onClick)
+        void MkRaceCard(Transform parent, Vector2 pos, string race, string gender, Sprite portrait, string flavor, Action onClick)
         {
             var card = MkSpritePanel("Race_" + race + "_" + gender, parent, new Vector2(0.5f, 0.5f), pos,
-                new Vector2(400f, 380f), "panel", PanelTint);
+                new Vector2(400f, 460f), "panel", PanelTint);
             var btn = card.AddComponent<Button>();
             btn.targetGraphic = card.GetComponent<Image>();
             btn.transition = Selectable.Transition.ColorTint;
             var cb = btn.colors; cb.highlightedColor = new Color(1f, 0.9f, 0.7f, 1f); btn.colors = cb;
             btn.onClick.AddListener(() => onClick?.Invoke());
 
-            MkText("Race", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 80f),
-                new Vector2(360f, 80f), FS_BIG, TextAnchor.MiddleCenter, AccentGold).text = race;
-            MkText("Gender", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 10f),
-                new Vector2(360f, 60f), FS_TITLE, TextAnchor.MiddleCenter, TextWhite).text = gender;
-            MkText("Flavor", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -90f),
-                new Vector2(360f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim).text = flavor;
+            MkSpriteIcon("Portrait", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 100f),
+                new Vector2(220f, 220f), portrait, Color.white);
+            MkText("Race", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -50f),
+                new Vector2(360f, 60f), FS_TITLE, TextAnchor.MiddleCenter, AccentGold).text = race;
+            MkText("Gender", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -110f),
+                new Vector2(360f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite).text = gender;
+            MkText("Flavor", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -180f),
+                new Vector2(360f, 60f), FS_BODY, TextAnchor.MiddleCenter, TextDim).text = flavor;
         }
 
         // ============================================================
@@ -370,9 +376,12 @@ namespace Gamex.Game
             var cb = btn.colors; cb.highlightedColor = new Color(1f, 0.9f, 0.7f, 1f); btn.colors = cb;
             btn.onClick.AddListener(() => onClick?.Invoke());
 
-            male   = BuildAvatar(card.transform, new Vector2(0f, 90f), 1.4f, Gender.Male,   curse, stage: 0);
-            female = BuildAvatar(card.transform, new Vector2(0f, 90f), 1.4f, Gender.Female, curse, stage: 0);
-            female.root.SetActive(false);
+            // Preview the cursed body shape (teen vs pregnant) — NOT the post-transformation
+            // skeleton, so the player can actually see what they're picking between.
+            MkSpriteIcon("Preview", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 110f),
+                new Vector2(300f, 300f), Make.CursePreview(curse), Color.white);
+
+            male = female = null;   // M3a removed gender from curse-select avatar; visuals are gender-neutral here
 
             MkText("Title", card.transform, new Vector2(0.5f, 0f), new Vector2(0f, 130f),
                 new Vector2(360f, 60f), FS_BIG, TextAnchor.MiddleCenter, AccentGold).text = title;
@@ -636,14 +645,8 @@ namespace Gamex.Game
                 if (_curseAnimT >= CURSE_ANIM_DURATION) _onCurseAnimDone?.Invoke();
             }
 
-            // curse select: show the avatar that matches chosen gender (defaults to male while gender Unset)
-            if (_curseMaleA != null)
-            {
-                _curseMaleA.root.SetActive(gender != Gender.Female);
-                _curseFemaleA.root.SetActive(gender == Gender.Female);
-                _curseMaleB.root.SetActive(gender != Gender.Female);
-                _curseFemaleB.root.SetActive(gender == Gender.Female);
-            }
+            // (Curse-select avatars used to switch by gender; M3a/M3b made the
+            // curse preview gender-neutral so no per-frame work is needed.)
 
             // First mirror reveals the cursed self (not the lost hero).
             if (_firstMirrorSelf != null)
@@ -899,14 +902,17 @@ namespace Gamex.Game
         // for icons and props where 9-slicing would warp the artwork.
         static GameObject MkSpriteIcon(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
                                        string spriteName, Color tint)
+            => MkSpriteIcon(name, parent, anchor, pos, size, Make.UI(spriteName), tint);
+
+        static GameObject MkSpriteIcon(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
+                                       Sprite sprite, Color tint)
         {
             var go = MkPanel(name, parent, anchor, pos, size, tint);
             var img = go.GetComponent<Image>();
             img.raycastTarget = false;
-            var spr = Make.UI(spriteName);
-            if (spr != null)
+            if (sprite != null)
             {
-                img.sprite = spr;
+                img.sprite = sprite;
                 img.type = Image.Type.Simple;
                 img.preserveAspect = true;
             }

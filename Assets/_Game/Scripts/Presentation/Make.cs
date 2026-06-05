@@ -22,20 +22,26 @@ namespace Gamex.Game
         public static Sprite Silhouette()      => UI("silhouette");
 
         // Portrait dispatch:
-        //   race == Unset (Lv 1-19, before transformation)    -> skeleton growth (M3a)
-        //   race != Unset (Lv 20+, after Race transformation) -> race form (M2a sprites
-        //     for now; M3d will branch on race for distinct Human / Orc art).
+        //   race == Unset (Lv 1-19, before transformation) -> skeleton growth (M3a)
+        //   race != Unset (Lv 20+)                          -> race-specific hero (M3d:
+        //     muscular body with race-tinted skin + race head from LPC).
         public static Sprite Portrait(Gender gender, Curse curse, Race race, int stage)
         {
             if (race == Race.Unset)
                 return Char($"skel_stage{Mathf.Clamp(stage + 1, 1, 4)}");
 
+            string r = race == Race.Orc ? "orc" : "human";
             string g = gender == Gender.Female ? "female" : "male";
+            return Char($"{r}_{g}");
+        }
+
+        // Preview sprite for the curse-select cards: shows the gendered cursed body
+        // (teen for Weakness, pregnant for Gluttony) so the player can tell the two
+        // curses apart. Bypasses the skeleton dispatch in Portrait().
+        public static Sprite CursePreview(Curse curse)
+        {
             string c = curse == Curse.Gluttony ? "gluttony" : "weakness";
-            // M3b: race chosen but race-specific sprites not yet diverse. Map Lv 20-25 to
-            // stage 5 sprite, Lv 26-30 to stage 6 (hero peak).
-            int s = stage >= 5 ? 6 : 5;
-            return Char($"{g}_{c}_stage{s}");
+            return Char($"male_{c}_stage1");
         }
     }
 }
