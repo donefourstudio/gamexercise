@@ -121,14 +121,14 @@ namespace Gamex.Core
 
         public static readonly EquipmentDef[] Catalog = new[]
         {
-            new EquipmentDef { id = "sword_wood",   name = "木剑",   tier = 1, minLevel = 1,  price = 50 },
-            new EquipmentDef { id = "armor_cloth",  name = "布衣",   tier = 1, minLevel = 1,  price = 80 },
-            new EquipmentDef { id = "sword_iron",   name = "铁剑",   tier = 2, minLevel = 10, price = 300 },
-            new EquipmentDef { id = "armor_leather",name = "皮甲",   tier = 2, minLevel = 10, price = 400 },
-            new EquipmentDef { id = "sword_silver", name = "银剑",   tier = 3, minLevel = 20, price = 1500 },
-            new EquipmentDef { id = "armor_silver", name = "银甲",   tier = 3, minLevel = 20, price = 1800 },
-            new EquipmentDef { id = "sword_legend", name = "神剑",   tier = 4, minLevel = 30, price = 8000 },
-            new EquipmentDef { id = "armor_legend", name = "神甲",   tier = 4, minLevel = 30, price = 10000 },
+            new EquipmentDef { id = "sword_wood",   name = "Wooden Sword",    tier = 1, minLevel = 1,  price = 50 },
+            new EquipmentDef { id = "armor_cloth",  name = "Cloth Robe",      tier = 1, minLevel = 1,  price = 80 },
+            new EquipmentDef { id = "sword_iron",   name = "Iron Sword",      tier = 2, minLevel = 10, price = 300 },
+            new EquipmentDef { id = "armor_leather",name = "Leather Armor",   tier = 2, minLevel = 10, price = 400 },
+            new EquipmentDef { id = "sword_silver", name = "Silver Sword",    tier = 3, minLevel = 20, price = 1500 },
+            new EquipmentDef { id = "armor_silver", name = "Silver Armor",    tier = 3, minLevel = 20, price = 1800 },
+            new EquipmentDef { id = "sword_legend", name = "Legendary Sword", tier = 4, minLevel = 30, price = 8000 },
+            new EquipmentDef { id = "armor_legend", name = "Legendary Armor", tier = 4, minLevel = 30, price = 10000 },
         };
 
         public bool TryBuy(EquipmentDef def)

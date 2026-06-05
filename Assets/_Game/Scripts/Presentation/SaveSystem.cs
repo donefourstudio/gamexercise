@@ -8,6 +8,12 @@ namespace Gamex.Game
     {
         static string Path => System.IO.Path.Combine(Application.persistentDataPath, "gamex_save.json");
 
+        public static void Wipe()
+        {
+            try { if (File.Exists(Path)) File.Delete(Path); }
+            catch (System.Exception e) { Debug.LogWarning("[Gamex] wipe failed: " + e.Message); }
+        }
+
         public static void Save(GameState s)
         {
             try { File.WriteAllText(Path, JsonUtility.ToJson(s)); }

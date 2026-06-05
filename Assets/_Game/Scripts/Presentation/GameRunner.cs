@@ -66,6 +66,15 @@ namespace Gamex.Game
             // debug keys for fast iteration
             if (Input.GetKeyDown(KeyCode.E)) _game.EndDay();                  // advance one day
             if (Input.GetKeyDown(KeyCode.R) && _game.phase == AppPhase.Training) _game.DoRep(Exercise.Pushup); // alt fake rep
+            // Shift+R from anywhere: nuke save + replay opening (dev / QA only).
+            if (Input.GetKeyDown(KeyCode.R) &&
+                (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
+            {
+                SaveSystem.Wipe();
+                _game.state = new GameState();
+                _game.phase = AppPhase.OpeningIntro;
+                Debug.Log("[Gamex] save wiped, replaying opening");
+            }
         }
 
         static EquipmentDef FindDef(string id)

@@ -136,17 +136,16 @@ namespace Gamex.Game
             btn.onClick.AddListener(() => _onTapAdvanceOpening?.Invoke());
 
             MkText("Body", go.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(960f, 400f), FS_BIG, align, AccentGold).text = text;
+                new Vector2(960f, 400f), FS_TITLE, align, AccentGold).text = text;
             MkText("Hint", go.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "（轻触继续）";
+                new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
             return go;
         }
 
         void BuildOpeningIntro(Transform root)
         {
-            // Two-line break keeps the long line readable at FS_BIG without overflow.
             _openingIntroPanel = BuildOpeningTextPanel(
-                "OpeningIntro", root, "你曾是这个时代\n最强的勇士……", TextAnchor.MiddleCenter);
+                "OpeningIntro", root, "You were once the strongest\nhero of this age...", TextAnchor.MiddleCenter);
         }
 
         void BuildOpeningHeroShown(Transform root)
@@ -165,19 +164,19 @@ namespace Gamex.Game
                 Gender.Male, Curse.Unset, stage: 5);
 
             MkText("Hint", _openingHeroShownPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "（轻触继续）";
+                new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
         }
 
         void BuildOpeningCurseLooms(Transform root)
         {
             _openingCurseLoomsPanel = BuildOpeningTextPanel(
-                "OpeningCurseLooms", root, "……直到诅咒降临。", TextAnchor.MiddleCenter);
+                "OpeningCurseLooms", root, "...until the curse fell upon you.", TextAnchor.MiddleCenter);
         }
 
         void BuildOpeningAmnesia(Transform root)
         {
             _openingAmnesiaPanel = BuildOpeningTextPanel(
-                "OpeningAmnesia", root, "你忘了自己是谁。", TextAnchor.MiddleCenter);
+                "OpeningAmnesia", root, "You have forgotten who you are.", TextAnchor.MiddleCenter);
         }
 
         // ============================================================
@@ -199,13 +198,13 @@ namespace Gamex.Game
             _genderPanel = MkFullPanel("GenderPanel", root);
 
             MkText("Title", _genderPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -240f),
-                new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "选择你的性别";
+                new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Choose your form";
             MkText("Sub", _genderPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f),
                 new Vector2(900f, 60f), FS_LABEL, TextAnchor.UpperCenter, TextDim)
-                .text = "「……我是男的，还是女的？」";
+                .text = "\"...am I a man, or a woman?\"";
 
-            _genderHeroMale   = MkGenderOption(_genderPanel.transform, new Vector2(-260f, 80f), "男", Gender.Male,   () => _onSelectGender(1));
-            _genderHeroFemale = MkGenderOption(_genderPanel.transform, new Vector2( 260f, 80f), "女", Gender.Female, () => _onSelectGender(2));
+            _genderHeroMale   = MkGenderOption(_genderPanel.transform, new Vector2(-260f, 80f), "Male",   Gender.Male,   () => _onSelectGender(1));
+            _genderHeroFemale = MkGenderOption(_genderPanel.transform, new Vector2( 260f, 80f), "Female", Gender.Female, () => _onSelectGender(2));
         }
 
         AvatarSprite MkGenderOption(Transform parent, Vector2 pos, string label, Gender gender, Action onClick)
@@ -233,16 +232,16 @@ namespace Gamex.Game
             _cursePanel = MkFullPanel("CursePanel", root);
 
             MkText("Title", _cursePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -240f),
-                new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "你中了哪种诅咒？";
+                new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Which curse befell you?";
             MkText("Sub", _cursePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f),
                 new Vector2(900f, 60f), FS_LABEL, TextAnchor.UpperCenter, TextDim)
-                .text = "诅咒以两种形态降临。";
+                .text = "The curse takes two forms.";
 
             MkCurseOption(_cursePanel.transform, new Vector2(-260f, 60f),
-                "虚弱诅咒", "你的力量正在消散", Curse.Weakness, () => _onSelectCurse(1),
+                "Weakness", "Your strength is fading", Curse.Weakness, () => _onSelectCurse(1),
                 out _curseMaleA, out _curseFemaleA);
             MkCurseOption(_cursePanel.transform, new Vector2( 260f, 60f),
-                "贪食诅咒", "你的身躯沉重不堪", Curse.Gluttony, () => _onSelectCurse(2),
+                "Gluttony", "Your body grows heavy", Curse.Gluttony, () => _onSelectCurse(2),
                 out _curseMaleB, out _curseFemaleB);
         }
 
@@ -284,10 +283,10 @@ namespace Gamex.Game
 
             _firstMirrorLine = MkText("Line", _firstMirrorPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -380f), new Vector2(1000f, 80f), FS_BIG, TextAnchor.MiddleCenter, AccentGold);
-            _firstMirrorLine.text = "「……这就是现在的我。」";
+            _firstMirrorLine.text = "\"...so this is who I am now.\"";
 
             MkButton("Begin", _firstMirrorPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 180f),
-                new Vector2(540f, 130f), "做一个俯卧撑", () => _onFinishFirstMirror?.Invoke());
+                new Vector2(540f, 130f), "Do a Pushup", () => _onFinishFirstMirror?.Invoke());
         }
 
         // ============================================================
@@ -333,9 +332,9 @@ namespace Gamex.Game
 
             // bottom buttons
             MkButton("Train", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
-                new Vector2(800f, 160f), "开始训练", () => _onGoTraining?.Invoke());
+                new Vector2(800f, 160f), "Start Training", () => _onGoTraining?.Invoke());
             MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(420f, 100f), "商店", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
+                new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
@@ -349,7 +348,7 @@ namespace Gamex.Game
             var cam = MkSpritePanel("CamViewport", _trainPanel.transform, new Vector2(0.5f, 1f),
                 new Vector2(0f, -120f), new Vector2(900f, 700f), "panel_light", CamBg);
             MkText("CamTag", cam.transform, new Vector2(0.5f, 1f), new Vector2(0f, -30f),
-                new Vector2(800f, 50f), FS_LABEL, TextAnchor.UpperCenter, TextDim).text = "摄像头预览（占位）";
+                new Vector2(800f, 50f), FS_LABEL, TextAnchor.UpperCenter, TextDim).text = "Camera (placeholder)";
 
             // cartoon face mask — orange disc with smiley
             var mask = MkSpritePanel("Mask", cam.transform, new Vector2(0.5f, 0.5f),
@@ -367,9 +366,9 @@ namespace Gamex.Game
 
             // Bottom: buttons
             MkButton("FakeRep", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
-                new Vector2(720f, 140f), "假装做一个", () => _onFakeRep?.Invoke());
+                new Vector2(720f, 140f), "Fake a Rep", () => _onFakeRep?.Invoke());
             MkButton("Done", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(420f, 100f), "训练结束", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+                new Vector2(420f, 100f), "Done", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
@@ -380,7 +379,7 @@ namespace Gamex.Game
             _shopPanel = MkFullPanel("ShopPanel", root);
 
             MkText("Title", _shopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
-                new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "商店";
+                new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Shop";
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -90f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
 
@@ -414,7 +413,7 @@ namespace Gamex.Game
             }
 
             MkButton("Back", _shopPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
-                new Vector2(420f, 100f), "返回", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         bool IsOwned(string id) => _ownedSnapshot.Contains(id);
@@ -456,9 +455,9 @@ namespace Gamex.Game
             if (g.phase == AppPhase.Home || g.phase == AppPhase.Training || g.phase == AppPhase.Shop)
             {
                 _homeLevel.text   = $"Lv {g.state.level}";
-                _homeCoins.text   = $"金币 {g.state.coins}";
-                _homeStreak.text  = $"连续 {g.state.streakDays} 天 · 错过 {g.state.missedDays}";
-                _homeProgress.text = $"今日 {g.state.repsToday} / {g.MaintenanceToday} （保持量）";
+                _homeCoins.text   = $"{g.state.coins} Gold";
+                _homeStreak.text  = $"{g.state.streakDays}-day streak · {g.state.missedDays} missed";
+                _homeProgress.text = $"Today {g.state.repsToday} / {g.MaintenanceToday} (maintenance)";
                 _xpBar.rectTransform.sizeDelta = new Vector2(
                     700f * Mathf.Clamp01((float)g.state.xp / Mathf.Max(1, g.XpPerLevel)), 28f);
 
@@ -470,13 +469,13 @@ namespace Gamex.Game
             if (g.phase == AppPhase.Training)
             {
                 _trainReps.text = g.state.repsToday.ToString();
-                _trainCoinsXp.text = $"+{g.state.coins} 金币   ·   Lv {g.state.level}  ({g.state.xp}/{g.XpPerLevel} XP)";
-                _trainMaintenance.text = $"今日保持量 {g.MaintenanceToday} 个";
+                _trainCoinsXp.text = $"+{g.state.coins} Gold   ·   Lv {g.state.level}  ({g.state.xp}/{g.XpPerLevel} XP)";
+                _trainMaintenance.text = $"Daily maintenance: {g.MaintenanceToday}";
             }
 
             if (g.phase == AppPhase.Shop)
             {
-                _shopCoins.text = $"金币 {g.state.coins}";
+                _shopCoins.text = $"{g.state.coins} Gold";
                 _ownedSnapshot.Clear();
                 foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
 
@@ -489,11 +488,11 @@ namespace Gamex.Game
                     bool affordable = g.state.coins >= def.price;
 
                     string status;
-                    if (equipped) status = "✓ 已穿戴（点击卸下）";
-                    else if (owned) status = "已拥有（点击穿戴）";
-                    else if (!unlocked) status = $"需要 Lv {def.minLevel}";
-                    else if (!affordable) status = $"{def.price} 金币（不足）";
-                    else status = $"{def.price} 金币（点击购买）";
+                    if (equipped) status = "✓ Equipped (tap to remove)";
+                    else if (owned) status = "Owned (tap to equip)";
+                    else if (!unlocked) status = $"Requires Lv {def.minLevel}";
+                    else if (!affordable) status = $"{def.price} Gold (not enough)";
+                    else status = $"{def.price} Gold (tap to buy)";
 
                     t.text = $"[T{def.tier}] {def.name}    Lv{def.minLevel}\n{status}";
                     _shopBtns[def.id].interactable = equipped || owned || (unlocked && affordable);
