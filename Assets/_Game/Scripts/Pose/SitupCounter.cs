@@ -15,9 +15,10 @@ namespace Gamex.Pose
         public State CurrentState { get; private set; } = State.Unknown;
         public float LastAngle { get; private set; } = float.NaN;
 
-        const float DOWN_THRESHOLD = 160f;   // mostly flat
-        const float UP_THRESHOLD   = 100f;   // crunched enough to count
-        const float MIN_SCORE      = 0.3f;
+        // Loosened from 160/100 after first playtest — partial situps don't hit 100°.
+        const float DOWN_THRESHOLD = 150f;
+        const float UP_THRESHOLD   = 125f;
+        const float MIN_SCORE      = 0.2f;
 
         public bool Update(PoseDetector.Keypoint[] kps)
         {

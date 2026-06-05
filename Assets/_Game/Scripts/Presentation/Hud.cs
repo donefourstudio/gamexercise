@@ -887,11 +887,20 @@ namespace Gamex.Game
                         {
                             float top = _pose.TopScore();
                             if (top <= POSE_SCORE_GATE)
+                            {
                                 _camStatus.text = "Looking for pose...";
+                            }
                             else if (float.IsNaN(angle))
-                                _camStatus.text = $"Pose seen — show your full body";
+                            {
+                                string missing = WhatsMissing(_currentExercise, _pose.Keypoints);
+                                _camStatus.text = missing != null
+                                    ? $"Show your {missing}"
+                                    : "Pose seen — get into position";
+                            }
                             else
+                            {
                                 _camStatus.text = $"{_currentExercise}: {(int)angle}° · {stateLabel}";
+                            }
                         }
                     }
                 }
@@ -992,6 +1001,33 @@ namespace Gamex.Game
                 case Exercise.Squat:  return "Tip: phone 2 m away at hip height · full body in frame";
             }
             return "";
+        }
+
+        // Identify which keypoint group is missing for the active exercise so the
+        // user can adjust framing instead of guessing why nothing's counting.
+        static string WhatsMissing(Exercise ex, PoseDetector.Keypoint[] k)
+        {
+            const float G = 0.2f;
+            bool L(int a, int b) => k[a].score < G && k[b].score < G;
+            switch (ex)
+            {
+                case Exercise.Pushup:
+                    if (L(5, 6))   return "shoulders";
+                    if (L(7, 8))   return "elbows";
+                    if (L(9, 10))  return "wrists";
+                    break;
+                case Exercise.Situp:
+                    if (L(5, 6))   return "shoulders";
+                    if (L(11, 12)) return "hips";
+                    if (L(13, 14)) return "knees";
+                    break;
+                case Exercise.Squat:
+                    if (L(11, 12)) return "hips";
+                    if (L(13, 14)) return "knees";
+                    if (L(15, 16)) return "ankles";
+                    break;
+            }
+            return null;
         }
 
         void UpdateExerciseButtonHighlight()

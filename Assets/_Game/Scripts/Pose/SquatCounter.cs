@@ -14,9 +14,10 @@ namespace Gamex.Pose
         public State CurrentState { get; private set; } = State.Unknown;
         public float LastAngle { get; private set; } = float.NaN;
 
-        const float UP_THRESHOLD   = 160f;   // standing tall
-        const float DOWN_THRESHOLD = 110f;   // deep enough squat
-        const float MIN_SCORE      = 0.3f;
+        // Loosened from 160/110 — partial squats don't dip below 110°.
+        const float UP_THRESHOLD   = 150f;
+        const float DOWN_THRESHOLD = 130f;
+        const float MIN_SCORE      = 0.2f;
 
         public bool Update(PoseDetector.Keypoint[] kps)
         {
