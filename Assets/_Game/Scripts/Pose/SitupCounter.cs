@@ -14,23 +14,27 @@ namespace Gamex.Pose
         public enum State { Unknown, Down, Up }   // Down = lying, Up = sitting
         public State CurrentState { get; private set; } = State.Unknown;
         public float LastAngle { get; private set; } = float.NaN;
+        public float RawLastAngle { get; private set; } = float.NaN;
 
-        // Loosened from 160/100 after first playtest — partial situps don't hit 100°.
-        const float DOWN_THRESHOLD = 150f;
-        const float UP_THRESHOLD   = 125f;
+        const float DOWN_THRESHOLD = 145f;
+        const float UP_THRESHOLD   = 135f;
         const float MIN_SCORE      = 0.2f;
+        const float SMOOTH_ALPHA   = 0.35f;
 
         public bool Update(PoseDetector.Keypoint[] kps)
         {
-            float angle = AvgHipAngle(kps);
-            LastAngle = angle;
-            if (float.IsNaN(angle)) return false;
+            float raw = AvgHipAngle(kps);
+            RawLastAngle = raw;
+            if (float.IsNaN(raw)) return false;
 
-            if (angle > DOWN_THRESHOLD)
+            LastAngle = float.IsNaN(LastAngle) ? raw : LastAngle * (1f - SMOOTH_ALPHA) + raw * SMOOTH_ALPHA;
+            float a = LastAngle;
+
+            if (a > DOWN_THRESHOLD)
             {
                 if (CurrentState != State.Down) CurrentState = State.Down;
             }
-            else if (angle < UP_THRESHOLD)
+            else if (a < UP_THRESHOLD)
             {
                 bool completedRep = CurrentState == State.Down;
                 CurrentState = State.Up;
@@ -43,6 +47,7 @@ namespace Gamex.Pose
         {
             CurrentState = State.Unknown;
             LastAngle = float.NaN;
+            RawLastAngle = float.NaN;
         }
 
         // Interior angle at hip, both vectors emanating from the hip.

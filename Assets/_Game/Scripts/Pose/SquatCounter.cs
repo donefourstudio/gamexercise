@@ -13,23 +13,27 @@ namespace Gamex.Pose
         public enum State { Unknown, Up, Down }
         public State CurrentState { get; private set; } = State.Unknown;
         public float LastAngle { get; private set; } = float.NaN;
+        public float RawLastAngle { get; private set; } = float.NaN;
 
-        // Loosened from 160/110 — partial squats don't dip below 110°.
         const float UP_THRESHOLD   = 150f;
-        const float DOWN_THRESHOLD = 130f;
+        const float DOWN_THRESHOLD = 140f;
         const float MIN_SCORE      = 0.2f;
+        const float SMOOTH_ALPHA   = 0.35f;
 
         public bool Update(PoseDetector.Keypoint[] kps)
         {
-            float angle = AvgKneeAngle(kps);
-            LastAngle = angle;
-            if (float.IsNaN(angle)) return false;
+            float raw = AvgKneeAngle(kps);
+            RawLastAngle = raw;
+            if (float.IsNaN(raw)) return false;
 
-            if (angle < DOWN_THRESHOLD)
+            LastAngle = float.IsNaN(LastAngle) ? raw : LastAngle * (1f - SMOOTH_ALPHA) + raw * SMOOTH_ALPHA;
+            float a = LastAngle;
+
+            if (a < DOWN_THRESHOLD)
             {
                 if (CurrentState != State.Down) CurrentState = State.Down;
             }
-            else if (angle > UP_THRESHOLD)
+            else if (a > UP_THRESHOLD)
             {
                 bool completedRep = CurrentState == State.Down;
                 CurrentState = State.Up;
@@ -42,6 +46,7 @@ namespace Gamex.Pose
         {
             CurrentState = State.Unknown;
             LastAngle = float.NaN;
+            RawLastAngle = float.NaN;
         }
 
         static float KneeAngle(PoseDetector.Keypoint h, PoseDetector.Keypoint k, PoseDetector.Keypoint a)

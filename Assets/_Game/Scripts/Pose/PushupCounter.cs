@@ -18,26 +18,31 @@ namespace Gamex.Pose
     {
         public enum State { Unknown, Up, Down }
         public State CurrentState { get; private set; } = State.Unknown;
-        public float LastAngle { get; private set; } = float.NaN;
+        public float LastAngle { get; private set; } = float.NaN;          // smoothed
+        public float RawLastAngle { get; private set; } = float.NaN;       // unsmoothed (debug)
 
-        // Loosened from 110/160 after first playtest — partial pushups (most people)
-        // never bend the elbow past 110°, so the down state was never entering.
-        const float DOWN_THRESHOLD = 130f;
+        // Permissive band. MoveNet keypoint jitter makes raw angles bounce 5-10°
+        // per frame, so we EWMA-smooth before the state machine touches anything.
+        const float DOWN_THRESHOLD = 140f;
         const float UP_THRESHOLD   = 150f;
         const float MIN_SCORE      = 0.2f;
+        const float SMOOTH_ALPHA   = 0.35f;
 
-        // Returns true on the frame a full rep (Down -> Up cycle) completes.
         public bool Update(PoseDetector.Keypoint[] kps)
         {
-            float angle = AvgElbowAngle(kps);
-            LastAngle = angle;
-            if (float.IsNaN(angle)) return false;
+            float raw = AvgElbowAngle(kps);
+            RawLastAngle = raw;
+            if (float.IsNaN(raw)) return false;
 
-            if (angle < DOWN_THRESHOLD)
+            // EWMA smoothing reduces phantom transitions from per-frame noise.
+            LastAngle = float.IsNaN(LastAngle) ? raw : LastAngle * (1f - SMOOTH_ALPHA) + raw * SMOOTH_ALPHA;
+            float a = LastAngle;
+
+            if (a < DOWN_THRESHOLD)
             {
                 if (CurrentState != State.Down) CurrentState = State.Down;
             }
-            else if (angle > UP_THRESHOLD)
+            else if (a > UP_THRESHOLD)
             {
                 bool completedRep = CurrentState == State.Down;
                 CurrentState = State.Up;
@@ -50,6 +55,7 @@ namespace Gamex.Pose
         {
             CurrentState = State.Unknown;
             LastAngle = float.NaN;
+            RawLastAngle = float.NaN;
         }
 
         // Interior angle at elbow (180° = arm straight, 90° = elbow at right angle).

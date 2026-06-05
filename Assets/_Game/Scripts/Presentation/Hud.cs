@@ -546,8 +546,10 @@ namespace Gamex.Game
             rrt.offsetMin = new Vector2(16f, 70f);   // leave room for tip text at the bottom
             rrt.offsetMax = new Vector2(-16f, -60f); // and for status tag at the top
 
-            _camStatus = MkText("CamTag", cam.transform, new Vector2(0.5f, 1f), new Vector2(0f, -30f),
-                new Vector2(800f, 50f), FS_LABEL, TextAnchor.UpperCenter, TextDim);
+            // Big, prominent status banner across the top of the camera viewport
+            // so the user can see live angle + state from across the room.
+            _camStatus = MkText("CamTag", cam.transform, new Vector2(0.5f, 1f), new Vector2(0f, -40f),
+                new Vector2(880f, 80f), FS_BIG, TextAnchor.UpperCenter, AccentGold);
             _camStatus.text = "Camera off";
 
             // Per-exercise placement tip at the bottom of the viewport. Swaps when the
@@ -888,18 +890,23 @@ namespace Gamex.Game
                             float top = _pose.TopScore();
                             if (top <= POSE_SCORE_GATE)
                             {
-                                _camStatus.text = "Looking for pose...";
+                                _camStatus.text = "Looking...";
+                                _camStatus.color = TextDim;
                             }
                             else if (float.IsNaN(angle))
                             {
                                 string missing = WhatsMissing(_currentExercise, _pose.Keypoints);
-                                _camStatus.text = missing != null
-                                    ? $"Show your {missing}"
-                                    : "Pose seen — get into position";
+                                _camStatus.text = missing != null ? $"Show {missing}" : "Get into position";
+                                _camStatus.color = new Color(1f, 0.55f, 0.45f, 1f);
                             }
                             else
                             {
-                                _camStatus.text = $"{_currentExercise}: {(int)angle}° · {stateLabel}";
+                                // green when Up, warm orange when Down — color flips at threshold
+                                bool isUp = stateLabel == "Up";
+                                _camStatus.color = isUp
+                                    ? new Color(0.55f, 1f, 0.55f, 1f)
+                                    : new Color(1f, 0.70f, 0.35f, 1f);
+                                _camStatus.text = $"{(int)angle}°  {stateLabel.ToUpper()}";
                             }
                         }
                     }
