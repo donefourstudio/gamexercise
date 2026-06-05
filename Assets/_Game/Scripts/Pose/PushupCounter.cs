@@ -2,33 +2,33 @@ using UnityEngine;
 
 namespace Gamex.Pose
 {
-    // Orientation-invariant pushup counter driven by 2D elbow angle.
-    // Doesn't care which way the camera is pointing — only the interior
-    // angle at the elbow matters: ~90° at the bottom of a pushup, ~180°
-    // when arms are extended at the top.
+    // Dynamic-range pushup counter — calibrates to the player's actual ROM.
     //
-    // State machine (hysteresis prevents flicker at the thresholds):
-    //   Unknown -> arm extended (>160°) -> Up   (no rep)
-    //   Up      -> arm bent     (<110°) -> Down (no rep)
-    //   Down    -> arm extended (>160°) -> Up   (+1 REP)
+    // We stop comparing angles against fixed thresholds (145° / 150° etc.) and
+    // instead watch for *direction reversals* of the smoothed elbow angle:
+    //   While extending (Up): track the running maximum. When the smoothed
+    //     angle drops MIN_SWING below that max, we've started a descent -> Down.
+    //   While bending (Down): track the running minimum. When the smoothed
+    //     angle rises MIN_SWING above that min, the rep is complete -> Up + REP.
     //
-    // Uses whichever elbow is visible (averages if both are). Returns
-    // NaN when neither elbow has confident shoulder+elbow+wrist data.
+    // This auto-adapts to whatever range the user can achieve — a shallow
+    // 20° pushup counts the same as a full 90° one, as long as the motion
+    // is consistent. The trade-off is that "twitchy" motion below MIN_SWING
+    // never counts (deliberate: filters jitter), and the first half-cycle
+    // is consumed bootstrapping the extremes (one "rep" sacrificed at start).
     public class PushupCounter
     {
         public enum State { Unknown, Up, Down }
         public State CurrentState { get; private set; } = State.Unknown;
-        public float LastAngle { get; private set; } = float.NaN;          // smoothed
-        public float RawLastAngle { get; private set; } = float.NaN;       // unsmoothed (debug)
+        public float LastAngle    { get; private set; } = float.NaN;      // smoothed
+        public float RawLastAngle { get; private set; } = float.NaN;
+        public float RunningMin   { get; private set; } = float.PositiveInfinity;
+        public float RunningMax   { get; private set; } = float.NegativeInfinity;
 
-        // VERY permissive — 5° dead band on smoothed signal. Any noticeable
-        // dip + return counts. Trades false positives for sensitivity (Jackson's
-        // playtest showed 1/4 detection rate; the smaller the band, the more
-        // borderline reps get caught).
-        const float DOWN_THRESHOLD = 155f;
-        const float UP_THRESHOLD   = 160f;
-        const float MIN_SCORE      = 0.2f;
-        const float SMOOTH_ALPHA   = 0.35f;
+        const float MIN_SWING    = 15f;
+        const float BOOTSTRAP    = 22f;          // need ~1.5x MIN_SWING of motion before locking in
+        const float MIN_SCORE    = 0.2f;
+        const float SMOOTH_ALPHA = 0.35f;
 
         public bool Update(PoseDetector.Keypoint[] kps)
         {
@@ -36,19 +36,39 @@ namespace Gamex.Pose
             RawLastAngle = raw;
             if (float.IsNaN(raw)) return false;
 
-            // EWMA smoothing reduces phantom transitions from per-frame noise.
             LastAngle = float.IsNaN(LastAngle) ? raw : LastAngle * (1f - SMOOTH_ALPHA) + raw * SMOOTH_ALPHA;
             float a = LastAngle;
 
-            if (a < DOWN_THRESHOLD)
+            if (CurrentState == State.Unknown)
             {
-                if (CurrentState != State.Down) CurrentState = State.Down;
+                if (a < RunningMin) RunningMin = a;
+                if (a > RunningMax) RunningMax = a;
+                if (RunningMax - RunningMin >= BOOTSTRAP)
+                {
+                    float mid = (RunningMin + RunningMax) * 0.5f;
+                    CurrentState = a > mid ? State.Up : State.Down;
+                }
+                return false;
             }
-            else if (a > UP_THRESHOLD)
+
+            if (CurrentState == State.Up)
             {
-                bool completedRep = CurrentState == State.Down;
-                CurrentState = State.Up;
-                return completedRep;
+                if (a > RunningMax) RunningMax = a;
+                if (RunningMax - a > MIN_SWING)
+                {
+                    CurrentState = State.Down;
+                    RunningMin = a;
+                }
+            }
+            else // Down
+            {
+                if (a < RunningMin) RunningMin = a;
+                if (a - RunningMin > MIN_SWING)
+                {
+                    CurrentState = State.Up;
+                    RunningMax = a;
+                    return true;          // REP
+                }
             }
             return false;
         }
@@ -58,9 +78,10 @@ namespace Gamex.Pose
             CurrentState = State.Unknown;
             LastAngle = float.NaN;
             RawLastAngle = float.NaN;
+            RunningMin = float.PositiveInfinity;
+            RunningMax = float.NegativeInfinity;
         }
 
-        // Interior angle at elbow (180° = arm straight, 90° = elbow at right angle).
         static float ElbowAngle(PoseDetector.Keypoint s, PoseDetector.Keypoint e, PoseDetector.Keypoint w)
         {
             if (s.score < MIN_SCORE || e.score < MIN_SCORE || w.score < MIN_SCORE) return float.NaN;

@@ -2,24 +2,24 @@ using UnityEngine;
 
 namespace Gamex.Pose
 {
-    // Situp counter — uses the interior angle at the hip (the angle between the
-    // shoulder->hip vector and the knee->hip vector, both emanating from the hip).
-    //   Lying flat:  shoulder, hip, knee are roughly colinear  -> ~180°
-    //   Sitting up:  torso vertical, thighs horizontal         -> ~ 90°
-    //
-    // State machine — rep on Down -> Up transition (with Down here meaning
-    // "lying flat" since that's the start of a situp).
+    // Dynamic-range situp counter. Same shape as PushupCounter but the
+    // direction is inverted: lying flat is the HIGH-angle (Down) state,
+    // sitting up is the LOW-angle (Up) state, so a rep completes when
+    // the smoothed angle DROPS MIN_SWING below the running max
+    // (i.e. user just crunched up).
     public class SitupCounter
     {
         public enum State { Unknown, Down, Up }   // Down = lying, Up = sitting
         public State CurrentState { get; private set; } = State.Unknown;
-        public float LastAngle { get; private set; } = float.NaN;
+        public float LastAngle    { get; private set; } = float.NaN;
         public float RawLastAngle { get; private set; } = float.NaN;
+        public float RunningMin   { get; private set; } = float.PositiveInfinity;
+        public float RunningMax   { get; private set; } = float.NegativeInfinity;
 
-        const float DOWN_THRESHOLD = 140f;
-        const float UP_THRESHOLD   = 135f;
-        const float MIN_SCORE      = 0.2f;
-        const float SMOOTH_ALPHA   = 0.35f;
+        const float MIN_SWING    = 20f;
+        const float BOOTSTRAP    = 30f;
+        const float MIN_SCORE    = 0.2f;
+        const float SMOOTH_ALPHA = 0.35f;
 
         public bool Update(PoseDetector.Keypoint[] kps)
         {
@@ -30,15 +30,36 @@ namespace Gamex.Pose
             LastAngle = float.IsNaN(LastAngle) ? raw : LastAngle * (1f - SMOOTH_ALPHA) + raw * SMOOTH_ALPHA;
             float a = LastAngle;
 
-            if (a > DOWN_THRESHOLD)
+            if (CurrentState == State.Unknown)
             {
-                if (CurrentState != State.Down) CurrentState = State.Down;
+                if (a < RunningMin) RunningMin = a;
+                if (a > RunningMax) RunningMax = a;
+                if (RunningMax - RunningMin >= BOOTSTRAP)
+                {
+                    float mid = (RunningMin + RunningMax) * 0.5f;
+                    CurrentState = a > mid ? State.Down : State.Up;
+                }
+                return false;
             }
-            else if (a < UP_THRESHOLD)
+
+            if (CurrentState == State.Down)   // lying — tracking max angle
             {
-                bool completedRep = CurrentState == State.Down;
-                CurrentState = State.Up;
-                return completedRep;
+                if (a > RunningMax) RunningMax = a;
+                if (RunningMax - a > MIN_SWING)
+                {
+                    CurrentState = State.Up;
+                    RunningMin = a;
+                    return true;          // REP — just crunched up
+                }
+            }
+            else // Up — sitting, tracking min angle
+            {
+                if (a < RunningMin) RunningMin = a;
+                if (a - RunningMin > MIN_SWING)
+                {
+                    CurrentState = State.Down;
+                    RunningMax = a;
+                }
             }
             return false;
         }
@@ -48,9 +69,10 @@ namespace Gamex.Pose
             CurrentState = State.Unknown;
             LastAngle = float.NaN;
             RawLastAngle = float.NaN;
+            RunningMin = float.PositiveInfinity;
+            RunningMax = float.NegativeInfinity;
         }
 
-        // Interior angle at hip, both vectors emanating from the hip.
         static float HipAngle(PoseDetector.Keypoint s, PoseDetector.Keypoint h, PoseDetector.Keypoint k)
         {
             if (s.score < MIN_SCORE || h.score < MIN_SCORE || k.score < MIN_SCORE) return float.NaN;

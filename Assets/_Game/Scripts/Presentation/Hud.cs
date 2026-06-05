@@ -901,12 +901,14 @@ namespace Gamex.Game
                             }
                             else
                             {
-                                // green when Up, warm orange when Down — color flips at threshold
                                 bool isUp = stateLabel == "Up";
-                                _camStatus.color = isUp
-                                    ? new Color(0.55f, 1f, 0.55f, 1f)
-                                    : new Color(1f, 0.70f, 0.35f, 1f);
-                                _camStatus.text = $"{(int)angle}°  {stateLabel.ToUpper()}";
+                                bool isUnknown = stateLabel == "Unknown";
+                                _camStatus.color = isUnknown
+                                    ? TextDim
+                                    : (isUp ? new Color(0.55f, 1f, 0.55f, 1f)
+                                            : new Color(1f, 0.70f, 0.35f, 1f));
+                                string label = isUnknown ? "calibrating..." : stateLabel.ToUpper();
+                                _camStatus.text = $"{(int)angle}°  {label}";
                             }
                         }
                     }

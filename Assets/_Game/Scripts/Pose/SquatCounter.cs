@@ -2,23 +2,23 @@ using UnityEngine;
 
 namespace Gamex.Pose
 {
-    // Squat counter — uses the interior angle at the knee (between hip->knee
-    // and ankle->knee vectors, both emanating from the knee).
-    //   Standing:  hip, knee, ankle roughly colinear  -> ~180°
-    //   Squatting: thigh ~horizontal, shin vertical   -> ~ 90°
-    //
-    // State machine: Down = squatting, Up = standing. Rep on Down -> Up.
+    // Dynamic-range squat counter — same direction polarity as PushupCounter.
+    // Standing is HIGH-angle (Up), squatting is LOW-angle (Down). Rep on the
+    // Down -> Up transition (when the smoothed angle rises MIN_SWING above
+    // the running min) = user just stood back up.
     public class SquatCounter
     {
         public enum State { Unknown, Up, Down }
         public State CurrentState { get; private set; } = State.Unknown;
-        public float LastAngle { get; private set; } = float.NaN;
+        public float LastAngle    { get; private set; } = float.NaN;
         public float RawLastAngle { get; private set; } = float.NaN;
+        public float RunningMin   { get; private set; } = float.PositiveInfinity;
+        public float RunningMax   { get; private set; } = float.NegativeInfinity;
 
-        const float UP_THRESHOLD   = 160f;
-        const float DOWN_THRESHOLD = 155f;
-        const float MIN_SCORE      = 0.2f;
-        const float SMOOTH_ALPHA   = 0.35f;
+        const float MIN_SWING    = 20f;
+        const float BOOTSTRAP    = 30f;
+        const float MIN_SCORE    = 0.2f;
+        const float SMOOTH_ALPHA = 0.35f;
 
         public bool Update(PoseDetector.Keypoint[] kps)
         {
@@ -29,15 +29,36 @@ namespace Gamex.Pose
             LastAngle = float.IsNaN(LastAngle) ? raw : LastAngle * (1f - SMOOTH_ALPHA) + raw * SMOOTH_ALPHA;
             float a = LastAngle;
 
-            if (a < DOWN_THRESHOLD)
+            if (CurrentState == State.Unknown)
             {
-                if (CurrentState != State.Down) CurrentState = State.Down;
+                if (a < RunningMin) RunningMin = a;
+                if (a > RunningMax) RunningMax = a;
+                if (RunningMax - RunningMin >= BOOTSTRAP)
+                {
+                    float mid = (RunningMin + RunningMax) * 0.5f;
+                    CurrentState = a > mid ? State.Up : State.Down;
+                }
+                return false;
             }
-            else if (a > UP_THRESHOLD)
+
+            if (CurrentState == State.Up)
             {
-                bool completedRep = CurrentState == State.Down;
-                CurrentState = State.Up;
-                return completedRep;
+                if (a > RunningMax) RunningMax = a;
+                if (RunningMax - a > MIN_SWING)
+                {
+                    CurrentState = State.Down;
+                    RunningMin = a;
+                }
+            }
+            else
+            {
+                if (a < RunningMin) RunningMin = a;
+                if (a - RunningMin > MIN_SWING)
+                {
+                    CurrentState = State.Up;
+                    RunningMax = a;
+                    return true;          // REP — stood back up
+                }
             }
             return false;
         }
@@ -47,6 +68,8 @@ namespace Gamex.Pose
             CurrentState = State.Unknown;
             LastAngle = float.NaN;
             RawLastAngle = float.NaN;
+            RunningMin = float.PositiveInfinity;
+            RunningMax = float.NegativeInfinity;
         }
 
         static float KneeAngle(PoseDetector.Keypoint h, PoseDetector.Keypoint k, PoseDetector.Keypoint a)
