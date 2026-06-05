@@ -102,13 +102,29 @@ namespace Gamex.Game
             var runner = FindFirstObjectByType<GameRunner>();
             if (runner == null || runner.Game == null) { Debug.LogWarning("[Smoke] no runner"); EditorApplication.Exit(1); yield break; }
 
-            Capture("/tmp/gamex_gender.png");
+            // Opening sequence (first-run only).
+            Capture("/tmp/gamex_op1_intro.png");
+            runner.Game.TapAdvanceOpening();   // -> OpeningHeroShown
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_op2_hero.png");
 
-            runner.Game.SetGender(Gender.Male);
+            runner.Game.TapAdvanceOpening();   // -> OpeningCurseLooms
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_op3_curse_looms.png");
+
+            runner.Game.TapAdvanceOpening();   // -> CurseSelect
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_curse.png");
 
-            runner.Game.SetCurse(Curse.Weakness);
+            runner.Game.SetCurse(Curse.Weakness);   // -> OpeningAmnesia (CurseAnim deferred to M2b-2)
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_op4_amnesia.png");
+
+            runner.Game.TapAdvanceOpening();   // -> GenderSelect
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_gender.png");
+
+            runner.Game.SetGender(Gender.Male);   // -> FirstMirror
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_first_mirror.png");
 

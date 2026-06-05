@@ -6,8 +6,21 @@ namespace Gamex.Core
     public enum AppPhase
     {
         Boot,
-        GenderSelect,
+        // Opening sequence (first run only). Order:
+        // OpeningIntro       — black, "你曾是这个时代最强的勇士……"   (tap)
+        // OpeningHeroShown   — hero standing, bright                  (tap)
+        // OpeningCurseLooms  — black, "……直到诅咒降临。"             (tap)
+        // CurseSelect        — pick weakness / gluttony
+        // [CurseAnim]        — M2b-2 transformation cinematic
+        // OpeningAmnesia     — black, "你忘了自己是谁。"             (tap)
+        // GenderSelect       — pick male / female
+        // FirstMirror        — "「……这就是现在的我。」" + first rep
+        OpeningIntro,
+        OpeningHeroShown,
+        OpeningCurseLooms,
         CurseSelect,
+        OpeningAmnesia,
+        GenderSelect,
         FirstMirror,
         Home,
         Training,

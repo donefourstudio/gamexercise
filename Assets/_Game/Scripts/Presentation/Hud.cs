@@ -31,10 +31,13 @@ namespace Gamex.Game
         const int FS_HUGE    = 154;
 
         // ---- panels ----
+        GameObject _openingIntroPanel, _openingHeroShownPanel, _openingCurseLoomsPanel, _openingAmnesiaPanel;
         GameObject _genderPanel, _cursePanel, _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
 
         // ---- avatars ----
-        AvatarSprite _homeAvatar, _mirrorHero, _firstMirrorHero;
+        AvatarSprite _mirrorSelf;            // the player's reflection on Home — current cursed -> hero arc
+        AvatarSprite _firstMirrorSelf;        // cursed self in the first-mirror beat
+        AvatarSprite _openingHeroAvatar;     // muscular hero shown during OpeningHeroShown
         AvatarSprite _curseMaleA, _curseFemaleA, _curseMaleB, _curseFemaleB;
         AvatarSprite _genderHeroMale, _genderHeroFemale;
 
@@ -56,6 +59,7 @@ namespace Gamex.Game
         readonly HashSet<string> _ownedSnapshot = new();
 
         // ---- callbacks ----
+        readonly Action         _onTapAdvanceOpening;
         readonly Action<int>    _onSelectGender;
         readonly Action<int>    _onSelectCurse;
         readonly Action         _onFinishFirstMirror;
@@ -63,6 +67,7 @@ namespace Gamex.Game
         readonly Action<string> _onBuy, _onToggleEquip;
 
         public Hud(
+            Action onTapAdvanceOpening,
             Action<int> onSelectGender,
             Action<int> onSelectCurse,
             Action onFinishFirstMirror,
@@ -73,6 +78,7 @@ namespace Gamex.Game
             Action<string> onBuy,
             Action<string> onToggleEquip)
         {
+            _onTapAdvanceOpening = onTapAdvanceOpening;
             _onSelectGender      = onSelectGender;
             _onSelectCurse       = onSelectCurse;
             _onFinishFirstMirror = onFinishFirstMirror;
@@ -101,12 +107,77 @@ namespace Gamex.Game
             var root = canvasGO.transform;
 
             BuildBackground(root);
+            BuildOpeningIntro(root);
+            BuildOpeningHeroShown(root);
+            BuildOpeningCurseLooms(root);
+            BuildOpeningAmnesia(root);
             BuildGenderSelect(root);
             BuildCurseSelect(root);
             BuildFirstMirror(root);
             BuildHome(root);
             BuildTraining(root);
             BuildShop(root);
+        }
+
+        // ============================================================
+        // Opening — 4 narrative beats. Each panel covers the full screen,
+        // its background captures taps that advance via TapAdvanceOpening.
+        // ============================================================
+        GameObject BuildOpeningTextPanel(string name, Transform root, string text, TextAnchor align)
+        {
+            var go = MkFullPanel(name, root);
+            // make the panel's full-screen invisible image catch clicks
+            var img = go.GetComponent<Image>();
+            img.color = new Color(0f, 0f, 0f, 0.001f);   // ~transparent but raycast-receivable
+            img.raycastTarget = true;
+            var btn = go.AddComponent<Button>();
+            btn.targetGraphic = img;
+            btn.transition = Selectable.Transition.None;
+            btn.onClick.AddListener(() => _onTapAdvanceOpening?.Invoke());
+
+            MkText("Body", go.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(960f, 400f), FS_BIG, align, AccentGold).text = text;
+            MkText("Hint", go.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
+                new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "（轻触继续）";
+            return go;
+        }
+
+        void BuildOpeningIntro(Transform root)
+        {
+            // Two-line break keeps the long line readable at FS_BIG without overflow.
+            _openingIntroPanel = BuildOpeningTextPanel(
+                "OpeningIntro", root, "你曾是这个时代\n最强的勇士……", TextAnchor.MiddleCenter);
+        }
+
+        void BuildOpeningHeroShown(Transform root)
+        {
+            // Hero standing alone against the void of memory — no halo, just the figure.
+            _openingHeroShownPanel = MkFullPanel("OpeningHeroShown", root);
+            var img = _openingHeroShownPanel.GetComponent<Image>();
+            img.color = new Color(0f, 0f, 0f, 0.001f);
+            img.raycastTarget = true;
+            var btn = _openingHeroShownPanel.AddComponent<Button>();
+            btn.targetGraphic = img;
+            btn.transition = Selectable.Transition.None;
+            btn.onClick.AddListener(() => _onTapAdvanceOpening?.Invoke());
+
+            _openingHeroAvatar = BuildAvatar(_openingHeroShownPanel.transform, Vector2.zero, 2.4f,
+                Gender.Male, Curse.Unset, stage: 5);
+
+            MkText("Hint", _openingHeroShownPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
+                new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "（轻触继续）";
+        }
+
+        void BuildOpeningCurseLooms(Transform root)
+        {
+            _openingCurseLoomsPanel = BuildOpeningTextPanel(
+                "OpeningCurseLooms", root, "……直到诅咒降临。", TextAnchor.MiddleCenter);
+        }
+
+        void BuildOpeningAmnesia(Transform root)
+        {
+            _openingAmnesiaPanel = BuildOpeningTextPanel(
+                "OpeningAmnesia", root, "你忘了自己是谁。", TextAnchor.MiddleCenter);
         }
 
         // ============================================================
@@ -131,7 +202,7 @@ namespace Gamex.Game
                 new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "选择你的性别";
             MkText("Sub", _genderPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f),
                 new Vector2(900f, 60f), FS_LABEL, TextAnchor.UpperCenter, TextDim)
-                .text = "你曾是这个时代最强的勇士……";
+                .text = "「……我是男的，还是女的？」";
 
             _genderHeroMale   = MkGenderOption(_genderPanel.transform, new Vector2(-260f, 80f), "男", Gender.Male,   () => _onSelectGender(1));
             _genderHeroFemale = MkGenderOption(_genderPanel.transform, new Vector2( 260f, 80f), "女", Gender.Female, () => _onSelectGender(2));
@@ -165,7 +236,7 @@ namespace Gamex.Game
                 new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "你中了哪种诅咒？";
             MkText("Sub", _cursePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f),
                 new Vector2(900f, 60f), FS_LABEL, TextAnchor.UpperCenter, TextDim)
-                .text = "……直到诅咒降临。";
+                .text = "诅咒以两种形态降临。";
 
             MkCurseOption(_cursePanel.transform, new Vector2(-260f, 60f),
                 "虚弱诅咒", "你的力量正在消散", Curse.Weakness, () => _onSelectCurse(1),
@@ -197,7 +268,7 @@ namespace Gamex.Game
         }
 
         // ============================================================
-        // First mirror
+        // First mirror — reveals the cursed self for the first time.
         // ============================================================
         void BuildFirstMirror(Transform root)
         {
@@ -207,12 +278,13 @@ namespace Gamex.Game
                 new Vector2(0f, 180f), new Vector2(540f, 720f), "panel", new Color(0.95f, 0.78f, 0.42f, 1f));
             var inner = MkSpritePanel("MirrorInner", frame.transform, new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(480f, 660f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
-            _firstMirrorHero = BuildAvatar(inner.transform, new Vector2(0f, 0f), 2.0f,
-                Gender.Male, Curse.Unset, stage: 5);
+            // Cursed self at stage 0 — refreshed with the chosen gender+curse on entry.
+            _firstMirrorSelf = BuildAvatar(inner.transform, new Vector2(0f, 0f), 2.0f,
+                Gender.Male, Curse.Weakness, stage: 0);
 
             _firstMirrorLine = MkText("Line", _firstMirrorPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -380f), new Vector2(1000f, 80f), FS_BIG, TextAnchor.MiddleCenter, AccentGold);
-            _firstMirrorLine.text = "「……终于，你想起来了。」";
+            _firstMirrorLine.text = "「……这就是现在的我。」";
 
             MkButton("Begin", _firstMirrorPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 180f),
                 new Vector2(540f, 130f), "做一个俯卧撑", () => _onFinishFirstMirror?.Invoke());
@@ -231,16 +303,15 @@ namespace Gamex.Game
             _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -60f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
 
-            // mirror (centered upper)
+            // Mirror — centered, holds the player's CURRENT reflection. The body
+            // shape morphs from cursed -> hero as stage advances. No more
+            // separate "small cursed avatar + big hero in mirror" split.
+            // (Left of mirror is reserved for the M2b-3 daily ritual: candles + crown.)
             var frame = MkSpritePanel("Mirror", _homePanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(80f, 260f), new Vector2(440f, 580f), "panel", new Color(0.95f, 0.78f, 0.42f, 1f));
+                new Vector2(0f, 260f), new Vector2(520f, 660f), "panel", new Color(0.95f, 0.78f, 0.42f, 1f));
             var inner = MkSpritePanel("MirrorInner", frame.transform, new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(380f, 520f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
-            _mirrorHero = BuildAvatar(inner.transform, Vector2.zero, 1.6f, Gender.Male, Curse.Unset, stage: 5);
-
-            // current cursed avatar (left of mirror)
-            _homeAvatar = BuildAvatar(_homePanel.transform, new Vector2(-340f, 240f), 1.0f,
-                Gender.Male, Curse.Weakness, stage: 0);
+                Vector2.zero, new Vector2(460f, 600f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
+            _mirrorSelf = BuildAvatar(inner.transform, Vector2.zero, 1.8f, Gender.Male, Curse.Weakness, stage: 0);
 
             // streak + maintenance + XP bar (under mirror, top-down)
             _homeStreak = MkText("Streak", _homePanel.transform, new Vector2(0.5f, 0.5f),
@@ -353,17 +424,22 @@ namespace Gamex.Game
         // ============================================================
         public void Refresh(GamexGame g)
         {
-            Set(_genderPanel,      g.phase == AppPhase.GenderSelect);
-            Set(_cursePanel,       g.phase == AppPhase.CurseSelect);
-            Set(_firstMirrorPanel, g.phase == AppPhase.FirstMirror);
-            Set(_homePanel,        g.phase == AppPhase.Home);
-            Set(_trainPanel,       g.phase == AppPhase.Training);
-            Set(_shopPanel,        g.phase == AppPhase.Shop);
+            Set(_openingIntroPanel,       g.phase == AppPhase.OpeningIntro);
+            Set(_openingHeroShownPanel,   g.phase == AppPhase.OpeningHeroShown);
+            Set(_openingCurseLoomsPanel,  g.phase == AppPhase.OpeningCurseLooms);
+            Set(_openingAmnesiaPanel,     g.phase == AppPhase.OpeningAmnesia);
+            Set(_genderPanel,             g.phase == AppPhase.GenderSelect);
+            Set(_cursePanel,              g.phase == AppPhase.CurseSelect);
+            Set(_firstMirrorPanel,        g.phase == AppPhase.FirstMirror);
+            Set(_homePanel,               g.phase == AppPhase.Home);
+            Set(_trainPanel,              g.phase == AppPhase.Training);
+            Set(_shopPanel,               g.phase == AppPhase.Shop);
 
             var gender = (Gender)g.state.gender;
             var curse  = (Curse)g.state.curse;
+            var safeGender = gender == Gender.Unset ? Gender.Male : gender;
 
-            // curse select: show the avatar that matches chosen gender
+            // curse select: show the avatar that matches chosen gender (defaults to male while gender Unset)
             if (_curseMaleA != null)
             {
                 _curseMaleA.root.SetActive(gender != Gender.Female);
@@ -372,8 +448,10 @@ namespace Gamex.Game
                 _curseFemaleB.root.SetActive(gender == Gender.Female);
             }
 
-            if (_firstMirrorHero != null)
-                ApplyAvatarLook(_firstMirrorHero, gender == Gender.Unset ? Gender.Male : gender, Curse.Unset, stage: 5);
+            // First mirror reveals the cursed self (not the lost hero).
+            if (_firstMirrorSelf != null)
+                ApplyAvatarLook(_firstMirrorSelf, safeGender,
+                                curse == Curse.Unset ? Curse.Weakness : curse, stage: 0);
 
             if (g.phase == AppPhase.Home || g.phase == AppPhase.Training || g.phase == AppPhase.Shop)
             {
@@ -384,11 +462,9 @@ namespace Gamex.Game
                 _xpBar.rectTransform.sizeDelta = new Vector2(
                     700f * Mathf.Clamp01((float)g.state.xp / Mathf.Max(1, g.XpPerLevel)), 28f);
 
-                int stage = g.Stage;
-                ApplyAvatarLook(_homeAvatar, gender, curse, stage);
-                ApplyAvatarLook(_mirrorHero, gender, Curse.Unset, stage: 5);
-                float p = (g.state.level - 1) / 29f;
-                _mirrorHero.SetAlpha(0.30f + 0.70f * p);
+                // Mirror is the player at the current stage (cursed -> hero over time).
+                ApplyAvatarLook(_mirrorSelf, safeGender, curse, g.Stage);
+                _mirrorSelf.SetAlpha(1f);
             }
 
             if (g.phase == AppPhase.Training)

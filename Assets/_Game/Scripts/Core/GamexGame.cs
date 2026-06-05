@@ -22,16 +22,33 @@ namespace Gamex.Core
 
         // ---- phase navigation ----
 
-        public void SetGender(Gender g)
+        // Each tap on an opening text screen advances to the next narrative beat.
+        // OpeningIntro -> OpeningHeroShown -> OpeningCurseLooms -> CurseSelect
+        // (CurseAnim, M2b-2)            -> OpeningAmnesia -> GenderSelect
+        public void TapAdvanceOpening()
         {
-            state.gender = (int)g;
-            phase = AppPhase.CurseSelect;
+            switch (phase)
+            {
+                case AppPhase.OpeningIntro:      phase = AppPhase.OpeningHeroShown;  break;
+                case AppPhase.OpeningHeroShown:  phase = AppPhase.OpeningCurseLooms; break;
+                case AppPhase.OpeningCurseLooms: phase = AppPhase.CurseSelect;       break;
+                case AppPhase.OpeningAmnesia:    phase = AppPhase.GenderSelect;      break;
+            }
             onSave?.Invoke();
         }
 
         public void SetCurse(Curse c)
         {
             state.curse = (int)c;
+            // M2b-1: curse animation deferred; route straight to Amnesia.
+            // M2b-2 will insert AppPhase.CurseAnim between these two.
+            phase = AppPhase.OpeningAmnesia;
+            onSave?.Invoke();
+        }
+
+        public void SetGender(Gender g)
+        {
+            state.gender = (int)g;
             phase = AppPhase.FirstMirror;
             onSave?.Invoke();
         }

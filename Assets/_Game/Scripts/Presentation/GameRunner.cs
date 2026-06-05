@@ -32,11 +32,14 @@ namespace Gamex.Game
             _game.onSave = () => SaveSystem.Save(_game.state);
             _game.CatchUpDays();
 
-            // route to the right starting phase based on persisted state
-            if (_game.state.gender == 0)              _game.phase = AppPhase.GenderSelect;
-            else if (_game.state.curse == 0)          _game.phase = AppPhase.CurseSelect;
-            else if (!_game.state.firstMirrorDone)    _game.phase = AppPhase.FirstMirror;
-            else                                       _game.phase = AppPhase.Home;
+            // Route based on persisted state. The opening (Hero -> CurseIncoming -> CurseSelect
+            // -> Amnesia -> GenderSelect -> FirstMirror) runs once for new players; subsequent
+            // launches go straight to Home. If a player quits mid-opening we resume them at the
+            // furthest point we can derive from saved fields.
+            if (_game.state.firstMirrorDone)          _game.phase = AppPhase.Home;
+            else if (_game.state.gender != 0)         _game.phase = AppPhase.FirstMirror;
+            else if (_game.state.curse  != 0)         _game.phase = AppPhase.OpeningAmnesia;
+            else                                       _game.phase = AppPhase.OpeningIntro;
 
             var camGO = new GameObject("MainCamera") { tag = "MainCamera" };
             var cam = camGO.AddComponent<Camera>();
@@ -45,6 +48,7 @@ namespace Gamex.Game
             cam.backgroundColor = new Color(0.06f, 0.05f, 0.10f);
 
             _hud = new Hud(
+                onTapAdvanceOpening: () => _game.TapAdvanceOpening(),
                 onSelectGender:      g => _game.SetGender((Gender)g),
                 onSelectCurse:       c => _game.SetCurse((Curse)c),
                 onFinishFirstMirror: () => { _game.DoRep(Exercise.Pushup); _game.FinishFirstMirror(); },
