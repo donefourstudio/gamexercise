@@ -61,8 +61,9 @@ namespace Gamex.Pose
 
         static float AvgKneeAngle(PoseDetector.Keypoint[] kps)
         {
-            float l = KneeAngle(kps[11], kps[13], kps[15]);   // left hip/knee/ankle
-            float r = KneeAngle(kps[12], kps[14], kps[16]);
+            // BlazePose: 23/24 hips, 25/26 knees, 27/28 ankles.
+            float l = KneeAngle(kps[23], kps[25], kps[27]);
+            float r = KneeAngle(kps[24], kps[26], kps[28]);
             bool lv = !float.IsNaN(l), rv = !float.IsNaN(r);
             if (lv && rv) return (l + r) * 0.5f;
             if (lv) return l;

@@ -1010,8 +1010,8 @@ namespace Gamex.Game
             return "";
         }
 
-        // Identify which keypoint group is missing for the active exercise so the
-        // user can adjust framing instead of guessing why nothing's counting.
+        // BlazePose keypoint indexing. Identify which pair is missing for the
+        // active exercise so the user knows what to put in frame.
         static string WhatsMissing(Exercise ex, PoseDetector.Keypoint[] k)
         {
             const float G = 0.2f;
@@ -1019,19 +1019,19 @@ namespace Gamex.Game
             switch (ex)
             {
                 case Exercise.Pushup:
-                    if (L(5, 6))   return "shoulders";
-                    if (L(7, 8))   return "elbows";
-                    if (L(9, 10))  return "wrists";
+                    if (L(11, 12)) return "shoulders";
+                    if (L(13, 14)) return "elbows";
+                    if (L(15, 16)) return "wrists";
                     break;
                 case Exercise.Situp:
-                    if (L(5, 6))   return "shoulders";
-                    if (L(11, 12)) return "hips";
-                    if (L(13, 14)) return "knees";
+                    if (L(11, 12)) return "shoulders";
+                    if (L(23, 24)) return "hips";
+                    if (L(25, 26)) return "knees";
                     break;
                 case Exercise.Squat:
-                    if (L(11, 12)) return "hips";
-                    if (L(13, 14)) return "knees";
-                    if (L(15, 16)) return "ankles";
+                    if (L(23, 24)) return "hips";
+                    if (L(25, 26)) return "knees";
+                    if (L(27, 28)) return "ankles";
                     break;
             }
             return null;

@@ -73,8 +73,9 @@ namespace Gamex.Pose
 
         static float AvgElbowAngle(PoseDetector.Keypoint[] kps)
         {
-            float l = ElbowAngle(kps[5], kps[7], kps[9]);    // left
-            float r = ElbowAngle(kps[6], kps[8], kps[10]);   // right
+            // BlazePose indices: 11/12 shoulders, 13/14 elbows, 15/16 wrists.
+            float l = ElbowAngle(kps[11], kps[13], kps[15]);
+            float r = ElbowAngle(kps[12], kps[14], kps[16]);
             bool lv = !float.IsNaN(l), rv = !float.IsNaN(r);
             if (lv && rv) return (l + r) * 0.5f;
             if (lv) return l;
