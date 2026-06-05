@@ -319,9 +319,9 @@ PlayerSettings:
   enableInternalProfiler: 0
   logObjCUncaughtExceptions: 1
   enableCrashReportAPI: 0
-  cameraUsageDescription: 
-  locationUsageDescription: 
-  microphoneUsageDescription: 
+  cameraUsageDescription: We use the camera ONLY to count your reps locally on this device. No video ever leaves your phone.
+  locationUsageDescription:
+  microphoneUsageDescription:
   bluetoothUsageDescription: 
   macOSTargetOSVersion: 
   switchNMETAOverride: 

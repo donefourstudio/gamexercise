@@ -49,6 +49,11 @@ namespace Gamex.Game
         float _raceAnimT;
         const float RACE_ANIM_SWAP_AT = 0.7f;
 
+        // ---- camera preview (Training) ----
+        RawImage _camPreview;
+        WebCamTexture _camTexture;
+        Text _camStatus;
+
         // ---- daily ritual icons (Home) ----
         Image[] _candleImgs = new Image[4];   // 4 candles bracketing the mirror
         Image _crownImg;                       // hovers above the mirror character
@@ -496,13 +501,28 @@ namespace Gamex.Game
         {
             _trainPanel = MkFullPanel("TrainPanel", root);
 
-            // Top half: camera viewport with cartoon face overlay
+            // Top half: live camera viewport. Live front-camera feed renders into
+            // a RawImage that fills the panel; cartoon face mask sits on top as a
+            // privacy overlay (M4b will move it to track the detected face).
             var cam = MkSpritePanel("CamViewport", _trainPanel.transform, new Vector2(0.5f, 1f),
                 new Vector2(0f, -120f), new Vector2(900f, 700f), "panel_light", CamBg);
-            MkText("CamTag", cam.transform, new Vector2(0.5f, 1f), new Vector2(0f, -30f),
-                new Vector2(800f, 50f), FS_LABEL, TextAnchor.UpperCenter, TextDim).text = "Camera (placeholder)";
 
-            // cartoon face mask — orange disc with smiley
+            var rawGO = new GameObject("CamRaw");
+            rawGO.transform.SetParent(cam.transform, false);
+            _camPreview = rawGO.AddComponent<RawImage>();
+            _camPreview.color = Color.white;
+            _camPreview.raycastTarget = false;
+            var rrt = _camPreview.rectTransform;
+            rrt.anchorMin = Vector2.zero;
+            rrt.anchorMax = Vector2.one;
+            rrt.offsetMin = new Vector2(16f, 16f);
+            rrt.offsetMax = new Vector2(-16f, -60f);   // leave room for status tag at top
+
+            _camStatus = MkText("CamTag", cam.transform, new Vector2(0.5f, 1f), new Vector2(0f, -30f),
+                new Vector2(800f, 50f), FS_LABEL, TextAnchor.UpperCenter, TextDim);
+            _camStatus.text = "Camera off";
+
+            // cartoon face mask — orange disc with smiley, on top of the feed
             var mask = MkSpritePanel("Mask", cam.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 60f), new Vector2(220f, 220f), "panel", new Color(1f, 0.78f, 0.45f, 1f));
             MkText("Face", mask.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
@@ -595,6 +615,8 @@ namespace Gamex.Game
             Set(_shopPanel,               g.phase == AppPhase.Shop);
             Set(_raceSelectPanel,         g.phase == AppPhase.RaceSelect);
             Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
+
+            UpdateCamera(g);
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {
@@ -775,6 +797,62 @@ namespace Gamex.Game
         {
             if (go == null) return;
             if (go.activeSelf != active) go.SetActive(active);
+        }
+
+        // ============================================================
+        // Camera lifecycle — Training only.
+        // ============================================================
+        void UpdateCamera(GamexGame g)
+        {
+            bool wantsCam = g.phase == AppPhase.Training;
+            if (wantsCam && (_camTexture == null || !_camTexture.isPlaying))
+                StartCamera();
+            else if (!wantsCam && _camTexture != null && _camTexture.isPlaying)
+                StopCamera();
+
+            // Mirror the feed horizontally so the user sees themselves selfie-style.
+            // RawImage uvRect flip is cheap and survives rotation changes.
+            if (_camPreview != null && _camTexture != null && _camTexture.isPlaying)
+            {
+                _camPreview.uvRect = new Rect(1f, 0f, -1f, 1f);
+                if (_camStatus != null) _camStatus.text = "Live (front camera)";
+            }
+            else if (_camPreview != null && _camPreview.texture != null)
+            {
+                _camPreview.texture = null;
+            }
+        }
+
+        void StartCamera()
+        {
+            if (_camPreview == null) return;
+            var devices = WebCamTexture.devices;
+            if (devices == null || devices.Length == 0)
+            {
+                if (_camStatus != null) _camStatus.text = "No camera available";
+                return;
+            }
+            string deviceName = devices[0].name;
+            foreach (var d in devices) { if (d.isFrontFacing) { deviceName = d.name; break; } }
+            try
+            {
+                _camTexture = new WebCamTexture(deviceName, 640, 480, 30);
+                _camTexture.Play();
+                _camPreview.texture = _camTexture;
+            }
+            catch (System.Exception e)
+            {
+                if (_camStatus != null) _camStatus.text = "Camera error";
+                Debug.LogWarning("[Gamex] camera start failed: " + e.Message);
+            }
+        }
+
+        void StopCamera()
+        {
+            if (_camTexture != null)
+            {
+                try { _camTexture.Stop(); } catch { /* fine */ }
+            }
         }
 
         // ============================================================
