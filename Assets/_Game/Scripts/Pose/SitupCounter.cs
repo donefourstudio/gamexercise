@@ -16,7 +16,7 @@ namespace Gamex.Pose
         public float LastAngle { get; private set; } = float.NaN;
         public float RawLastAngle { get; private set; } = float.NaN;
 
-        const float DOWN_THRESHOLD = 145f;
+        const float DOWN_THRESHOLD = 140f;
         const float UP_THRESHOLD   = 135f;
         const float MIN_SCORE      = 0.2f;
         const float SMOOTH_ALPHA   = 0.35f;

@@ -21,10 +21,12 @@ namespace Gamex.Pose
         public float LastAngle { get; private set; } = float.NaN;          // smoothed
         public float RawLastAngle { get; private set; } = float.NaN;       // unsmoothed (debug)
 
-        // Permissive band. MoveNet keypoint jitter makes raw angles bounce 5-10°
-        // per frame, so we EWMA-smooth before the state machine touches anything.
-        const float DOWN_THRESHOLD = 140f;
-        const float UP_THRESHOLD   = 150f;
+        // VERY permissive — 5° dead band on smoothed signal. Any noticeable
+        // dip + return counts. Trades false positives for sensitivity (Jackson's
+        // playtest showed 1/4 detection rate; the smaller the band, the more
+        // borderline reps get caught).
+        const float DOWN_THRESHOLD = 155f;
+        const float UP_THRESHOLD   = 160f;
         const float MIN_SCORE      = 0.2f;
         const float SMOOTH_ALPHA   = 0.35f;
 
