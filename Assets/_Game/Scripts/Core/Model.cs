@@ -21,15 +21,20 @@ namespace Gamex.Core
         CurseSelect,
         CurseAnim,
         OpeningAmnesia,
-        GenderSelect,
         FirstMirror,
         Home,
         Training,
         Shop,
+        // Triggered by DoRep when level reaches 20 and race is Unset (gender + race
+        // are chosen together — Q2=C). RaceTransformAnim is the silhouette -> chosen
+        // race cinematic (M3c+M3d), then back to Home.
+        RaceSelect,
+        RaceTransformAnim,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
     public enum Curse  { Unset = 0, Weakness = 1, Gluttony = 2 }
+    public enum Race   { Unset = 0, Human = 1, Orc = 2 }   // M3d may add Elf, Dwarf
     public enum Exercise { Pushup, Situp, Squat }
 
     [Serializable]
@@ -46,8 +51,9 @@ namespace Gamex.Core
     [Serializable]
     public class GameState
     {
-        public int gender;             // 0=unset, 1=male, 2=female
+        public int gender;             // 0=unset, 1=male, 2=female  (chosen at Lv20 RaceSelect)
         public int curse;              // 0=unset, 1=weakness, 2=gluttony
+        public int race;               // 0=unset, 1=human, 2=orc  (chosen at Lv20)
         public int level = 1;          // 1..30
         public int xp;                 // toward next level, resets on level-up
         public long coins;

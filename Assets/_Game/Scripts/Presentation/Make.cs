@@ -20,18 +20,21 @@ namespace Gamex.Game
         public static Sprite UI(string name)   => Resources.Load<Sprite>("UI/" + name);
         public static Sprite Char(string name) => Resources.Load<Sprite>("Char/" + name);
 
-        // Cursed-stage portrait. Lv 1-20 (stages 0-3) render as the gender-neutral
-        // skeleton-growing-into-humanoid arc; Lv 21+ (stages 4-5) render as the chosen
-        // form (M3d will diversify these by race; for now they fall back to the
-        // gender+curse humanoid sprites baked in M2a).
-        public static Sprite Portrait(Gender gender, Curse curse, int stage)
+        // Portrait dispatch:
+        //   race == Unset (Lv 1-19, before transformation)    -> skeleton growth (M3a)
+        //   race != Unset (Lv 20+, after Race transformation) -> race form (M2a sprites
+        //     for now; M3d will branch on race for distinct Human / Orc art).
+        public static Sprite Portrait(Gender gender, Curse curse, Race race, int stage)
         {
-            if (stage < 4)
+            if (race == Race.Unset)
                 return Char($"skel_stage{Mathf.Clamp(stage + 1, 1, 4)}");
 
             string g = gender == Gender.Female ? "female" : "male";
             string c = curse == Curse.Gluttony ? "gluttony" : "weakness";
-            return Char($"{g}_{c}_stage{stage + 1}");   // stage 4 -> _stage5, stage 5 -> _stage6
+            // M3b: race chosen but race-specific sprites not yet diverse. Map Lv 20-25 to
+            // stage 5 sprite, Lv 26-30 to stage 6 (hero peak).
+            int s = stage >= 5 ? 6 : 5;
+            return Char($"{g}_{c}_stage{s}");
         }
     }
 }

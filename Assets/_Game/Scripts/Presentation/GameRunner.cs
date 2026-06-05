@@ -32,14 +32,19 @@ namespace Gamex.Game
             _game.onSave = () => SaveSystem.Save(_game.state);
             _game.CatchUpDays();
 
-            // Route based on persisted state. The opening (Hero -> CurseIncoming -> CurseSelect
-            // -> Amnesia -> GenderSelect -> FirstMirror) runs once for new players; subsequent
-            // launches go straight to Home. If a player quits mid-opening we resume them at the
-            // furthest point we can derive from saved fields.
-            if (_game.state.firstMirrorDone)          _game.phase = AppPhase.Home;
-            else if (_game.state.gender != 0)         _game.phase = AppPhase.FirstMirror;
-            else if (_game.state.curse  != 0)         _game.phase = AppPhase.OpeningAmnesia;
-            else                                       _game.phase = AppPhase.OpeningIntro;
+            // Route based on persisted state. Opening (Intro -> HeroShown -> CurseLooms ->
+            // CurseSelect -> CurseAnim -> Amnesia -> FirstMirror) runs once for new players.
+            // Gender + race chosen together at the Lv 20 RaceSelect, so we only need to
+            // detect "post-opening but pre-race" as a resume case.
+            if (_game.state.firstMirrorDone)
+            {
+                if (_game.state.race == 0 && _game.state.level >= 20)
+                    _game.phase = AppPhase.RaceSelect;
+                else
+                    _game.phase = AppPhase.Home;
+            }
+            else if (_game.state.curse != 0) _game.phase = AppPhase.OpeningAmnesia;
+            else                              _game.phase = AppPhase.OpeningIntro;
 
             var camGO = new GameObject("MainCamera") { tag = "MainCamera" };
             var cam = camGO.AddComponent<Camera>();
@@ -48,17 +53,18 @@ namespace Gamex.Game
             cam.backgroundColor = new Color(0.06f, 0.05f, 0.10f);
 
             _hud = new Hud(
-                onTapAdvanceOpening: () => _game.TapAdvanceOpening(),
-                onCurseAnimDone:     () => _game.CompleteCurseAnim(),
-                onSelectGender:      g => _game.SetGender((Gender)g),
-                onSelectCurse:       c => _game.SetCurse((Curse)c),
-                onFinishFirstMirror: () => { _game.DoRep(Exercise.Pushup); _game.FinishFirstMirror(); },
-                onGoTraining:        () => _game.GoTraining(),
-                onGoShop:            () => _game.GoShop(),
-                onGoHome:            () => _game.GoHome(),
-                onFakeRep:           () => _game.DoRep(Exercise.Pushup),
-                onBuy:               id => _game.TryBuy(FindDef(id)),
-                onToggleEquip:       id => _game.ToggleEquip(id));
+                onTapAdvanceOpening:  () => _game.TapAdvanceOpening(),
+                onCurseAnimDone:      () => _game.CompleteCurseAnim(),
+                onSelectCurse:        c => _game.SetCurse((Curse)c),
+                onSelectRaceAndGender:(r, g) => _game.SetRaceAndGender((Race)r, (Gender)g),
+                onRaceAnimDone:       () => _game.CompleteRaceAnim(),
+                onFinishFirstMirror:  () => { _game.DoRep(Exercise.Pushup); _game.FinishFirstMirror(); },
+                onGoTraining:         () => _game.GoTraining(),
+                onGoShop:             () => _game.GoShop(),
+                onGoHome:             () => _game.GoHome(),
+                onFakeRep:            () => _game.DoRep(Exercise.Pushup),
+                onBuy:                id => _game.TryBuy(FindDef(id)),
+                onToggleEquip:        id => _game.ToggleEquip(id));
         }
 
         void Update()

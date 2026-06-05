@@ -24,7 +24,8 @@ namespace Gamex.Core
 
         // Each tap on an opening text screen advances to the next narrative beat.
         // OpeningIntro -> OpeningHeroShown -> OpeningCurseLooms -> CurseSelect
-        // (CurseAnim, M2b-2)            -> OpeningAmnesia -> GenderSelect
+        // (CurseAnim)  -> OpeningAmnesia -> FirstMirror
+        // (Gender select removed from opening — chosen together with race at Lv 20.)
         public void TapAdvanceOpening()
         {
             switch (phase)
@@ -32,7 +33,7 @@ namespace Gamex.Core
                 case AppPhase.OpeningIntro:      phase = AppPhase.OpeningHeroShown;  break;
                 case AppPhase.OpeningHeroShown:  phase = AppPhase.OpeningCurseLooms; break;
                 case AppPhase.OpeningCurseLooms: phase = AppPhase.CurseSelect;       break;
-                case AppPhase.OpeningAmnesia:    phase = AppPhase.GenderSelect;      break;
+                case AppPhase.OpeningAmnesia:    phase = AppPhase.FirstMirror;       break;
             }
             onSave?.Invoke();
         }
@@ -55,7 +56,25 @@ namespace Gamex.Core
         public void SetGender(Gender g)
         {
             state.gender = (int)g;
-            phase = AppPhase.FirstMirror;
+            // Direct gender select no longer in the flow; kept for unit tests.
+            onSave?.Invoke();
+        }
+
+        // Lv 20 transformation — picks race + gender together (Q2=C), then enters
+        // the cinematic. CompleteRaceAnim flips back to Home.
+        public void SetRaceAndGender(Race r, Gender g)
+        {
+            if (phase != AppPhase.RaceSelect) return;
+            state.race   = (int)r;
+            state.gender = (int)g;
+            phase = AppPhase.RaceTransformAnim;
+            onSave?.Invoke();
+        }
+
+        public void CompleteRaceAnim()
+        {
+            if (phase != AppPhase.RaceTransformAnim) return;
+            phase = AppPhase.Home;
             onSave?.Invoke();
         }
 
@@ -86,6 +105,14 @@ namespace Gamex.Core
                     state.level++;
                 }
                 if (state.level >= MaxLevel) state.xp = 0;
+            }
+            // Hitting Lv 20 with no race chosen interrupts training (or wherever) and
+            // forces the transformation. We don't override RaceSelect / Anim if already in.
+            if (state.level >= 20 && state.race == 0 &&
+                phase != AppPhase.RaceSelect && phase != AppPhase.RaceTransformAnim)
+            {
+                phase = AppPhase.RaceSelect;
+                onSave?.Invoke();
             }
         }
 

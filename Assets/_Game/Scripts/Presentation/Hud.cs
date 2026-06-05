@@ -33,7 +33,9 @@ namespace Gamex.Game
         // ---- panels ----
         GameObject _openingIntroPanel, _openingHeroShownPanel, _openingCurseLoomsPanel, _openingAmnesiaPanel;
         GameObject _curseAnimPanel;
-        GameObject _genderPanel, _cursePanel, _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
+        GameObject _raceSelectPanel, _raceAnimPanel;
+        GameObject _cursePanel, _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
+        // _genderPanel removed — gender chosen at Lv 20 RaceSelect (Q2=C)
 
         // ---- avatars ----
         AvatarSprite _mirrorSelf;            // the player's reflection on Home — current cursed -> hero arc
@@ -41,7 +43,8 @@ namespace Gamex.Game
         AvatarSprite _openingHeroAvatar;     // muscular hero shown during OpeningHeroShown
         AvatarSprite _curseAnimAvatar;       // hero -> cursed in the curse cinematic
         AvatarSprite _curseMaleA, _curseFemaleA, _curseMaleB, _curseFemaleB;
-        AvatarSprite _genderHeroMale, _genderHeroFemale;
+        Text _raceAnimText;
+        float _raceAnimT;
 
         // ---- daily ritual icons (Home) ----
         Image[] _candleImgs = new Image[4];   // 4 candles bracketing the mirror
@@ -104,8 +107,9 @@ namespace Gamex.Game
         // ---- callbacks ----
         readonly Action         _onTapAdvanceOpening;
         readonly Action         _onCurseAnimDone;
-        readonly Action<int>    _onSelectGender;
         readonly Action<int>    _onSelectCurse;
+        readonly Action<int,int> _onSelectRaceAndGender;
+        readonly Action         _onRaceAnimDone;
         readonly Action         _onFinishFirstMirror;
         readonly Action         _onGoTraining, _onGoShop, _onGoHome, _onFakeRep;
         readonly Action<string> _onBuy, _onToggleEquip;
@@ -113,8 +117,9 @@ namespace Gamex.Game
         public Hud(
             Action onTapAdvanceOpening,
             Action onCurseAnimDone,
-            Action<int> onSelectGender,
             Action<int> onSelectCurse,
+            Action<int,int> onSelectRaceAndGender,
+            Action onRaceAnimDone,
             Action onFinishFirstMirror,
             Action onGoTraining,
             Action onGoShop,
@@ -123,17 +128,18 @@ namespace Gamex.Game
             Action<string> onBuy,
             Action<string> onToggleEquip)
         {
-            _onTapAdvanceOpening = onTapAdvanceOpening;
-            _onCurseAnimDone     = onCurseAnimDone;
-            _onSelectGender      = onSelectGender;
-            _onSelectCurse       = onSelectCurse;
-            _onFinishFirstMirror = onFinishFirstMirror;
-            _onGoTraining        = onGoTraining;
-            _onGoShop            = onGoShop;
-            _onGoHome            = onGoHome;
-            _onFakeRep           = onFakeRep;
-            _onBuy               = onBuy;
-            _onToggleEquip       = onToggleEquip;
+            _onTapAdvanceOpening   = onTapAdvanceOpening;
+            _onCurseAnimDone       = onCurseAnimDone;
+            _onSelectCurse         = onSelectCurse;
+            _onSelectRaceAndGender = onSelectRaceAndGender;
+            _onRaceAnimDone        = onRaceAnimDone;
+            _onFinishFirstMirror   = onFinishFirstMirror;
+            _onGoTraining          = onGoTraining;
+            _onGoShop              = onGoShop;
+            _onGoHome              = onGoHome;
+            _onFakeRep             = onFakeRep;
+            _onBuy                 = onBuy;
+            _onToggleEquip         = onToggleEquip;
 
             if (EventSystem.current == null)
             {
@@ -158,12 +164,73 @@ namespace Gamex.Game
             BuildOpeningCurseLooms(root);
             BuildCurseAnim(root);
             BuildOpeningAmnesia(root);
-            BuildGenderSelect(root);
             BuildCurseSelect(root);
             BuildFirstMirror(root);
             BuildHome(root);
             BuildTraining(root);
             BuildShop(root);
+            BuildRaceSelect(root);
+            BuildRaceTransformAnim(root);
+        }
+
+        // ============================================================
+        // Race select — 2x2 grid of race x gender cards. Fires at Lv 20.
+        // M3b uses text-only cards; M3d will add portraits.
+        // ============================================================
+        void BuildRaceSelect(Transform root)
+        {
+            _raceSelectPanel = MkFullPanel("RaceSelect", root);
+
+            MkText("Title", _raceSelectPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -180f),
+                new Vector2(960f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Choose your true form.";
+            MkText("Sub", _raceSelectPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -290f),
+                new Vector2(960f, 60f), FS_LABEL, TextAnchor.UpperCenter, TextDim)
+                .text = "\"...this is what I was meant to be.\"";
+
+            MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f,  220f), "Human", "Male",
+                "The classic hero.",   () => _onSelectRaceAndGender?.Invoke(1, 1));
+            MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f,  220f), "Human", "Female",
+                "The classic hero.",   () => _onSelectRaceAndGender?.Invoke(1, 2));
+            MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f, -220f), "Orc",   "Male",
+                "Strength and rage.",  () => _onSelectRaceAndGender?.Invoke(2, 1));
+            MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f, -220f), "Orc",   "Female",
+                "Strength and rage.",  () => _onSelectRaceAndGender?.Invoke(2, 2));
+        }
+
+        void MkRaceCard(Transform parent, Vector2 pos, string race, string gender, string flavor, Action onClick)
+        {
+            var card = MkSpritePanel("Race_" + race + "_" + gender, parent, new Vector2(0.5f, 0.5f), pos,
+                new Vector2(400f, 380f), "panel", PanelTint);
+            var btn = card.AddComponent<Button>();
+            btn.targetGraphic = card.GetComponent<Image>();
+            btn.transition = Selectable.Transition.ColorTint;
+            var cb = btn.colors; cb.highlightedColor = new Color(1f, 0.9f, 0.7f, 1f); btn.colors = cb;
+            btn.onClick.AddListener(() => onClick?.Invoke());
+
+            MkText("Race", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 80f),
+                new Vector2(360f, 80f), FS_BIG, TextAnchor.MiddleCenter, AccentGold).text = race;
+            MkText("Gender", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 10f),
+                new Vector2(360f, 60f), FS_TITLE, TextAnchor.MiddleCenter, TextWhite).text = gender;
+            MkText("Flavor", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -90f),
+                new Vector2(360f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim).text = flavor;
+        }
+
+        // ============================================================
+        // Race transformation animation — 1.5s placeholder (M3b).
+        // M3c will replace with silhouette -> race cinematic.
+        // ============================================================
+        const float RACE_ANIM_DURATION = 1.5f;
+
+        void BuildRaceTransformAnim(Transform root)
+        {
+            _raceAnimPanel = MkFullPanel("RaceAnim", root);
+            var img = _raceAnimPanel.GetComponent<Image>();
+            img.color = new Color(0f, 0f, 0f, 0.001f);
+            img.raycastTarget = false;
+
+            _raceAnimText = MkText("AnimText", _raceAnimPanel.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(960f, 200f), FS_BIG, TextAnchor.MiddleCenter, AccentGold);
+            _raceAnimText.text = "Awakening...";
         }
 
         // ============================================================
@@ -255,40 +322,6 @@ namespace Gamex.Game
             var img = go.GetComponent<Image>();
             img.color = BgDark;
             img.raycastTarget = false;
-        }
-
-        // ============================================================
-        // Gender select
-        // ============================================================
-        void BuildGenderSelect(Transform root)
-        {
-            _genderPanel = MkFullPanel("GenderPanel", root);
-
-            MkText("Title", _genderPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -240f),
-                new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Choose your form";
-            MkText("Sub", _genderPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f),
-                new Vector2(900f, 60f), FS_LABEL, TextAnchor.UpperCenter, TextDim)
-                .text = "\"...am I a man, or a woman?\"";
-
-            _genderHeroMale   = MkGenderOption(_genderPanel.transform, new Vector2(-260f, 80f), "Male",   Gender.Male,   () => _onSelectGender(1));
-            _genderHeroFemale = MkGenderOption(_genderPanel.transform, new Vector2( 260f, 80f), "Female", Gender.Female, () => _onSelectGender(2));
-        }
-
-        AvatarSprite MkGenderOption(Transform parent, Vector2 pos, string label, Gender gender, Action onClick)
-        {
-            var card = MkSpritePanel("Option_" + label, parent, new Vector2(0.5f, 0.5f), pos,
-                new Vector2(420f, 720f), "panel", PanelTint);
-            var btn = card.AddComponent<Button>();
-            btn.targetGraphic = card.GetComponent<Image>();
-            btn.transition = Selectable.Transition.ColorTint;
-            var cb = btn.colors; cb.highlightedColor = new Color(1f, 0.9f, 0.7f, 1f); btn.colors = cb;
-            btn.onClick.AddListener(() => onClick?.Invoke());
-
-            var avatar = BuildAvatar(card.transform, new Vector2(0f, 60f), 1.4f, gender, Curse.Unset, stage: 5);
-
-            MkText("Label", card.transform, new Vector2(0.5f, 0f), new Vector2(0f, 80f),
-                new Vector2(360f, 80f), FS_BIG, TextAnchor.MiddleCenter, AccentGold).text = label;
-            return avatar;
         }
 
         // ============================================================
@@ -522,7 +555,8 @@ namespace Gamex.Game
             // Phase entry — reset per-phase animation state.
             if (g.phase != _lastPhase)
             {
-                if (g.phase == AppPhase.CurseAnim) _curseAnimT = 0f;
+                if (g.phase == AppPhase.CurseAnim)         _curseAnimT = 0f;
+                if (g.phase == AppPhase.RaceTransformAnim) _raceAnimT  = 0f;
                 _lastPhase = g.phase;
             }
 
@@ -531,12 +565,19 @@ namespace Gamex.Game
             Set(_openingCurseLoomsPanel,  g.phase == AppPhase.OpeningCurseLooms);
             Set(_curseAnimPanel,          g.phase == AppPhase.CurseAnim);
             Set(_openingAmnesiaPanel,     g.phase == AppPhase.OpeningAmnesia);
-            Set(_genderPanel,             g.phase == AppPhase.GenderSelect);
             Set(_cursePanel,              g.phase == AppPhase.CurseSelect);
             Set(_firstMirrorPanel,        g.phase == AppPhase.FirstMirror);
             Set(_homePanel,               g.phase == AppPhase.Home);
             Set(_trainPanel,              g.phase == AppPhase.Training);
             Set(_shopPanel,               g.phase == AppPhase.Shop);
+            Set(_raceSelectPanel,         g.phase == AppPhase.RaceSelect);
+            Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
+
+            if (g.phase == AppPhase.RaceTransformAnim)
+            {
+                _raceAnimT += Time.unscaledDeltaTime;
+                if (_raceAnimT >= RACE_ANIM_DURATION) _onRaceAnimDone?.Invoke();
+            }
 
             var gender = (Gender)g.state.gender;
             var curse  = (Curse)g.state.curse;
@@ -565,6 +606,7 @@ namespace Gamex.Game
                 // sprite: hero (stage 5) before swap, cursed (stage 0 of chosen curse) after
                 ApplyAvatarLook(_curseAnimAvatar, safeGender,
                                 swapped ? (curse == Curse.Unset ? Curse.Weakness : curse) : Curse.Unset,
+                                Race.Unset,
                                 swapped ? 0 : 5);
 
                 if (_curseAnimT >= CURSE_ANIM_DURATION) _onCurseAnimDone?.Invoke();
@@ -582,7 +624,7 @@ namespace Gamex.Game
             // First mirror reveals the cursed self (not the lost hero).
             if (_firstMirrorSelf != null)
                 ApplyAvatarLook(_firstMirrorSelf, safeGender,
-                                curse == Curse.Unset ? Curse.Weakness : curse, stage: 0);
+                                curse == Curse.Unset ? Curse.Weakness : curse, Race.Unset, stage: 0);
 
             if (g.phase == AppPhase.Home || g.phase == AppPhase.Training || g.phase == AppPhase.Shop)
             {
@@ -593,8 +635,9 @@ namespace Gamex.Game
                 _xpBar.rectTransform.sizeDelta = new Vector2(
                     700f * Mathf.Clamp01((float)g.state.xp / Mathf.Max(1, g.XpPerLevel)), 28f);
 
-                // Mirror is the player at the current stage (cursed -> hero over time).
-                ApplyAvatarLook(_mirrorSelf, safeGender, curse, g.Stage);
+                // Mirror is the player at the current stage. race == Unset -> skeleton growth,
+                // race != Unset -> race form (post Lv 20 transformation).
+                ApplyAvatarLook(_mirrorSelf, safeGender, curse, (Race)g.state.race, g.Stage);
                 _mirrorSelf.SetAlpha(1f);
 
                 // Stage / level transition detection (Home only). First Refresh after Home
@@ -724,7 +767,7 @@ namespace Gamex.Game
         }
 
         AvatarSprite BuildAvatar(Transform parent, Vector2 anchoredPos, float scale,
-                                 Gender gender, Curse curse, int stage)
+                                 Gender gender, Curse curse, int stage, Race race = Race.Unset)
         {
             var root = new GameObject("Avatar");
             root.transform.SetParent(parent, false);
@@ -747,15 +790,15 @@ namespace Gamex.Game
             irt.offsetMax = Vector2.zero;
 
             var avatar = new AvatarSprite { root = root, portrait = img };
-            ApplyAvatarLook(avatar, gender, curse, stage);
+            ApplyAvatarLook(avatar, gender, curse, race, stage);
             return avatar;
         }
 
-        void ApplyAvatarLook(AvatarSprite avatar, Gender gender, Curse curse, int stage)
+        void ApplyAvatarLook(AvatarSprite avatar, Gender gender, Curse curse, Race race, int stage)
         {
             if (avatar == null || avatar.portrait == null) return;
             avatar.portrait.sprite = Make.Portrait(
-                gender == Gender.Unset ? Gender.Male : gender, curse, stage);
+                gender == Gender.Unset ? Gender.Male : gender, curse, race, stage);
             // preserve current alpha (mirror fade etc), reset RGB to white so sprite shows true colors
             float a = avatar.portrait.color.a;
             avatar.portrait.color = new Color(1f, 1f, 1f, a);

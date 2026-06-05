@@ -124,11 +124,8 @@ namespace Gamex.Game
             yield return new WaitForSecondsRealtime(0.9f);
             Capture("/tmp/gamex_op4_amnesia.png");
 
-            runner.Game.TapAdvanceOpening();   // -> GenderSelect
-            yield return null; yield return new WaitForSecondsRealtime(0.2f);
-            Capture("/tmp/gamex_gender.png");
-
-            runner.Game.SetGender(Gender.Male);   // -> FirstMirror
+            // Gender select dropped — Amnesia advances directly to FirstMirror now.
+            runner.Game.TapAdvanceOpening();   // -> FirstMirror
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_first_mirror.png");
 
@@ -161,6 +158,21 @@ namespace Gamex.Game
 
             // legacy filename for downstream tools that look for gamex_home.png
             Capture("/tmp/gamex_home.png");
+
+            // (d) Lv 20 race transformation flow
+            runner.Game.state.level = 20;
+            runner.Game.state.xp    = 0;
+            runner.Game.state.race  = 0;
+            runner.Game.DoRep(Exercise.Pushup);   // level >= 20 + race == 0 -> RaceSelect
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_race_select.png");
+            runner.Game.SetRaceAndGender(Race.Human, Gender.Male);   // -> RaceTransformAnim (1.5s)
+            yield return new WaitForSecondsRealtime(0.5f);
+            Capture("/tmp/gamex_race_anim.png");
+            yield return new WaitForSecondsRealtime(1.2f);            // let auto-advance to Home
+            runner.Game.state.repsToday = 100;                        // make ritual obviously done
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_home_after_race.png");
 
             runner.Game.GoTraining();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
