@@ -60,6 +60,7 @@ namespace Gamex.Game
         SquatCounter  _squatCounter;
         Exercise _currentExercise = Exercise.Pushup;
         readonly GameObject[] _exerciseButtons = new GameObject[3];
+        Text _tipText;
         readonly Image[] _poseDots = new Image[PoseDetector.KEYPOINT_COUNT];
         float _poseT;
         const float POSE_INTERVAL = 0.1f;        // 10 Hz inference
@@ -542,18 +543,20 @@ namespace Gamex.Game
             var rrt = _camPreview.rectTransform;
             rrt.anchorMin = Vector2.zero;
             rrt.anchorMax = Vector2.one;
-            rrt.offsetMin = new Vector2(16f, 16f);
-            rrt.offsetMax = new Vector2(-16f, -60f);   // leave room for status tag at top
+            rrt.offsetMin = new Vector2(16f, 70f);   // leave room for tip text at the bottom
+            rrt.offsetMax = new Vector2(-16f, -60f); // and for status tag at the top
 
             _camStatus = MkText("CamTag", cam.transform, new Vector2(0.5f, 1f), new Vector2(0f, -30f),
                 new Vector2(800f, 50f), FS_LABEL, TextAnchor.UpperCenter, TextDim);
             _camStatus.text = "Camera off";
 
-            // cartoon face mask — orange disc with smiley, on top of the feed
-            var mask = MkSpritePanel("Mask", cam.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 60f), new Vector2(220f, 220f), "panel", new Color(1f, 0.78f, 0.45f, 1f));
-            MkText("Face", mask.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(220f, 220f), 88, TextAnchor.MiddleCenter, new Color(0.2f, 0.1f, 0f)).text = "(•‿•)";
+            // Per-exercise placement tip at the bottom of the viewport. Swaps when the
+            // user changes exercise (SelectExercise). The cartoon face placeholder was
+            // removed — the user was confused about whether to face the camera or stand
+            // sideways, so the tip text now tells them exactly.
+            _tipText = MkText("Tip", cam.transform, new Vector2(0.5f, 0f), new Vector2(0f, 32f),
+                new Vector2(860f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim);
+            _tipText.text = TipForExercise(_currentExercise);
 
             // Center: huge rep counter
             _trainReps = MkText("Reps", _trainPanel.transform, new Vector2(0.5f, 0.5f),
@@ -977,6 +980,18 @@ namespace Gamex.Game
             _situpCounter?.Reset();
             _squatCounter?.Reset();
             UpdateExerciseButtonHighlight();
+            if (_tipText != null) _tipText.text = TipForExercise(ex);
+        }
+
+        static string TipForExercise(Exercise ex)
+        {
+            switch (ex)
+            {
+                case Exercise.Pushup: return "Tip: phone on the floor beside you · side view of your arm";
+                case Exercise.Situp:  return "Tip: lie down with phone beside you · side view of your body";
+                case Exercise.Squat:  return "Tip: phone 2 m away at hip height · full body in frame";
+            }
+            return "";
         }
 
         void UpdateExerciseButtonHighlight()
