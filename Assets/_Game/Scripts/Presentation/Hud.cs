@@ -753,10 +753,10 @@ namespace Gamex.Game
             {
                 _homeLevel.text   = $"Lv {g.state.level}";
                 _homeCoins.text   = $"{g.state.coins} Gold";
-                _homeStreak.text  = $"{g.state.streakDays}-day streak · {g.state.missedDays} missed";
-                _homeProgress.text = $"Today {g.state.repsToday} / {g.MaintenanceToday} (maintenance)";
+                _homeStreak.text  = $"{g.state.streakDays}-day streak";
+                _homeProgress.text = $"Today {g.state.todaySteps} steps";
                 _xpBar.rectTransform.sizeDelta = new Vector2(
-                    700f * Mathf.Clamp01((float)g.state.xp / Mathf.Max(1, g.XpPerLevel)), 28f);
+                    700f * Mathf.Clamp01((float)g.XpInCurrentLevel / Mathf.Max(1, g.XpToNextLevel)), 28f);
 
                 // Mirror is the player at the current stage. race == Unset -> skeleton growth,
                 // race != Unset -> race form (post Lv 20 transformation).
@@ -784,7 +784,8 @@ namespace Gamex.Game
                         }
                         // hitting max level for the first time fires the 6th line, even
                         // though Stage doesn't change (Lv 26-30 are all stage 5).
-                        if (_prevLevel < GamexGame.MaxLevel && g.state.level == GamexGame.MaxLevel)
+                        // Lv 30 milestone fires once when first hit (no level cap now).
+                        if (_prevLevel < 30 && g.state.level >= 30)
                         {
                             _stageUpT = STAGEUP_DURATION;
                             _milestoneText.text = MILESTONE_LINES[5];
@@ -825,7 +826,9 @@ namespace Gamex.Game
                 }
 
                 // Daily ritual: candles light + crown turns gold and drops when maintenance met.
-                bool ritualDone = g.state.repsToday >= g.MaintenanceToday;
+                // Ritual = today's daily quest progress. Crown + candles light up once any
+                // step-quest has been completed today; M5b will tie this to specific quests.
+                bool ritualDone = g.state.todaySteps >= 1000;
                 var candleSprite = Make.UI(ritualDone ? "candle_lit" : "candle_unlit");
                 foreach (var c in _candleImgs) if (c != null) c.sprite = candleSprite;
                 _crownImg.sprite = Make.UI(ritualDone ? "crown_gold" : "crown_grey");
@@ -835,9 +838,9 @@ namespace Gamex.Game
 
             if (g.phase == AppPhase.Training)
             {
-                _trainReps.text = g.state.repsToday.ToString();
-                _trainCoinsXp.text = $"+{g.state.coins} Gold   ·   Lv {g.state.level}  ({g.state.xp}/{g.XpPerLevel} XP)";
-                _trainMaintenance.text = $"Daily maintenance: {g.MaintenanceToday}";
+                _trainReps.text = g.state.todaySteps.ToString();
+                _trainCoinsXp.text = $"{g.state.coins} Gold   ·   Lv {g.state.level}  ({g.XpInCurrentLevel}/{g.XpToNextLevel} XP)";
+                _trainMaintenance.text = $"Run today: {g.state.todayRunSeconds / 60} min";
             }
 
             if (g.phase == AppPhase.Shop)

@@ -7,7 +7,7 @@ using Gamex.Core;
 
 namespace Gamex.Game
 {
-    // Pure-logic test of the sim — runs without playmode.
+    // Pure-logic test of the step-based sim.
     // Unity -batchmode -quit -projectPath . -executeMethod Gamex.Game.LogicTest.Run
     public static class LogicTest
     {
@@ -16,56 +16,90 @@ namespace Gamex.Game
             int fails = 0;
             void Check(bool cond, string msg) { if (!cond) { Debug.LogError("[LOGIC FAIL] " + msg); fails++; } }
 
+            // Linear XP: 5000 steps per level, no curve.
             var g = new GamexGame();
-            // basic rep / xp / level
             Check(g.state.level == 1, "starts at lv 1");
-            Check(g.XpPerLevel == 20, "stage 0 cost 20");
-            for (int i = 0; i < 20; i++) g.DoRep(Exercise.Pushup);
-            Check(g.state.level == 2, "lv up after 20 reps, got " + g.state.level);
-            Check(g.state.xp == 0, "xp wrapped");
-            Check(g.state.coins == 20, "20 coins, got " + g.state.coins);
+            g.AddActivity(5000, 0, 0);
+            Check(g.state.level == 2, "5000 steps -> lv 2, got " + g.state.level);
+            g.AddActivity(15000, 0, 0);
+            Check(g.state.level == 5, "20000 total steps -> lv 5, got " + g.state.level);
 
-            // stage transitions
+            // Running counts 2x: 2500 run steps = 5000 effective XP.
             var g2 = new GamexGame();
-            for (int i = 0; i < 100; i++) g2.DoRep(Exercise.Pushup);
-            Check(g2.state.level == 6, "100 reps → lv 6, got " + g2.state.level);
-            Check(g2.XpPerLevel == 50, "stage 1 cost 50");
-            Check(g2.MaintenanceToday == 10, "stage 1 maintenance 10");
+            g2.AddActivity(2500, 2500, 0);   // all 2500 steps are running
+            Check(g2.state.level == 2, "2500 run steps -> lv 2, got " + g2.state.level);
 
-            // maintenance + decay
+            // Lv 20 race trigger
             var g3 = new GamexGame { phase = AppPhase.Home };
-            for (int i = 0; i < 100; i++) g3.DoRep(Exercise.Pushup);   // lv 6
-            int lvBefore = g3.state.level;
-            g3.state.repsToday = 0;
-            g3.EndDay();                       // miss 1
-            Check(g3.state.level == lvBefore, "1 missed day = no decay yet");
-            g3.EndDay();                       // miss 2 → decay
-            Check(g3.state.level == lvBefore - 1, "2 missed days → -1 level, got " + g3.state.level);
+            g3.AddActivity(95000, 0, 0);     // 95000 / 5000 = 19 levels, so lv 20
+            Check(g3.state.level == 20, "Lv 20 reached, got " + g3.state.level);
+            Check(g3.phase == AppPhase.RaceSelect, "race select triggered, got " + g3.phase);
 
-            // shop: buy + equip
+            // Daily quests
             var g4 = new GamexGame();
-            g4.state.coins = 1000;
-            var wood = System.Array.Find(GamexGame.Catalog, d => d.id == "sword_wood");
-            Check(g4.TryBuy(wood), "buy wood sword");
-            Check(g4.state.coins == 950, "coins deducted");
-            Check(g4.IsOwned("sword_wood"), "owned wood sword");
-            g4.ToggleEquip("sword_wood");
-            Check(g4.IsEquipped("sword_wood"), "equipped");
-            g4.ToggleEquip("sword_wood");
-            Check(!g4.IsEquipped("sword_wood"), "unequipped");
+            g4.AddActivity(999, 0, 0);
+            Check(g4.state.coins == 0, "no quest done at 999 steps");
+            g4.AddActivity(1, 0, 0);                    // total 1000
+            Check(g4.state.coins == 1, "walk 1000 -> 1 coin, got " + g4.state.coins);
+            g4.AddActivity(4000, 0, 0);                 // total 5000
+            Check(g4.state.coins == 2, "walk 5000 -> +1 coin, got " + g4.state.coins);
+            g4.AddActivity(5000, 0, 0);                 // total 10000
+            Check(g4.state.coins == 3, "walk 10000 -> +1 coin, got " + g4.state.coins);
+            g4.AddActivity(0, 0, 15 * 60);              // run 15 min
+            Check(g4.state.coins == 4, "run 15 -> +1 coin, got " + g4.state.coins);
+            g4.AddActivity(0, 0, 15 * 60);              // total 30 min run
+            Check(g4.state.coins == 5, "run 30 -> +1 coin, got " + g4.state.coins);
 
-            // level requirement gate
+            // EndDay resets daily counters, advances streak, weekly bonus
             var g5 = new GamexGame();
-            g5.state.coins = 100000;
-            var iron = System.Array.Find(GamexGame.Catalog, d => d.id == "sword_iron");
-            Check(!g5.TryBuy(iron), "can't buy iron sword at lv 1");
+            for (int i = 0; i < 6; i++)
+            {
+                g5.AddActivity(1000, 0, 0);
+                g5.EndDay();
+            }
+            Check(g5.state.streakDays == 6, "6-day streak, got " + g5.state.streakDays);
+            int coinsBefore = (int)g5.state.coins;
+            g5.AddActivity(1000, 0, 0);                 // day 7
+            g5.EndDay();
+            Check(g5.state.streakDays == 7, "7-day streak, got " + g5.state.streakDays);
+            // EndDay should also have credited +5 streak bonus
+            int dailyQuestCoinsAdded = 1;               // just walk-1000 today
+            Check(g5.state.coins == coinsBefore + dailyQuestCoinsAdded + 5,
+                  "weekly streak bonus credited, got " + g5.state.coins);
 
-            // save round-trip
-            g4.state.gender = (int)Gender.Female;
-            g4.state.curse  = (int)Curse.Gluttony;
-            string json = JsonUtility.ToJson(g4.state);
+            // Inactive day breaks streak
+            var g6 = new GamexGame();
+            g6.AddActivity(1000, 0, 0); g6.EndDay();
+            Check(g6.state.streakDays == 1, "streak 1 after active day");
+            g6.EndDay();                                 // no steps -> reset
+            Check(g6.state.streakDays == 0, "streak resets on inactive day");
+
+            // Shop: new prices, buy + equip
+            var g7 = new GamexGame();
+            g7.state.coins = 2000;
+            var wood = System.Array.Find(GamexGame.Catalog, d => d.id == "sword_wood");
+            Check(wood.price == 10, "wood sword = 10 coins, got " + wood.price);
+            Check(g7.TryBuy(wood), "buy wood sword");
+            Check(g7.state.coins == 1990, "1990 after wood, got " + g7.state.coins);
+            g7.ToggleEquip("sword_wood");
+            Check(g7.IsEquipped("sword_wood"), "equipped");
+            g7.ToggleEquip("sword_wood");
+            Check(!g7.IsEquipped("sword_wood"), "unequipped");
+
+            // Level requirement gate still works
+            var g8 = new GamexGame();
+            g8.state.coins = 100000;
+            var legend = System.Array.Find(GamexGame.Catalog, d => d.id == "sword_legend");
+            Check(legend.price == 1500, "legend sword = 1500, got " + legend.price);
+            Check(!g8.TryBuy(legend), "can't buy legend sword at lv 1");
+
+            // Save round-trip
+            g7.state.gender = (int)Gender.Female;
+            g7.state.curse  = (int)Curse.Gluttony;
+            string json = JsonUtility.ToJson(g7.state);
             var loaded = JsonUtility.FromJson<GameState>(json);
-            Check(loaded.gender == 2 && loaded.curse == 2 && loaded.owned.Contains("sword_wood"), "save round-trip");
+            Check(loaded.gender == 2 && loaded.curse == 2 && loaded.owned.Contains("sword_wood"),
+                  "save round-trip");
 
             if (fails == 0) Debug.Log("[LOGIC OK]");
             else Debug.LogError("[LOGIC FAILED] count=" + fails);
@@ -104,74 +138,45 @@ namespace Gamex.Game
 
             // Opening sequence (first-run only).
             Capture("/tmp/gamex_op1_intro.png");
-            runner.Game.TapAdvanceOpening();   // -> OpeningHeroShown
+            runner.Game.TapAdvanceOpening();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_op2_hero.png");
 
-            runner.Game.TapAdvanceOpening();   // -> OpeningCurseLooms
+            runner.Game.TapAdvanceOpening();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_op3_curse_looms.png");
 
-            runner.Game.TapAdvanceOpening();   // -> CurseSelect
+            runner.Game.TapAdvanceOpening();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_curse.png");
 
-            runner.Game.SetCurse(Curse.Weakness);   // -> CurseAnim (auto-advances after ~1.5s)
-            // capture mid-animation just past the sprite swap so the cursed self + shake are visible
+            runner.Game.SetCurse(Curse.Weakness);
             yield return new WaitForSecondsRealtime(0.9f);
             Capture("/tmp/gamex_curse_anim.png");
-            // wait for the auto-advance to land on OpeningAmnesia
             yield return new WaitForSecondsRealtime(0.9f);
             Capture("/tmp/gamex_op4_amnesia.png");
 
-            // Gender select dropped — Amnesia advances directly to FirstMirror now.
-            runner.Game.TapAdvanceOpening();   // -> FirstMirror
+            runner.Game.TapAdvanceOpening();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_first_mirror.png");
 
             runner.Game.FinishFirstMirror();
-            // Push to Lv 6 (stage 1, maintenance = 10) so the ritual icons have a
-            // meaningful threshold to compare against. Then capture two states.
-            runner.Game.state.level = 6;
-            runner.Game.state.xp = 0;
+
+            // Push to Lv 6 (still pre-race) so the home shot has a non-trivial avatar.
+            runner.Game.AddActivity(25000, 0, 0);   // 5 levels worth
             runner.Game.state.coins = 60;
             runner.Game.state.streakDays = 7;
-
-            // (a) ritual not yet done — candles unlit, crown floating + grey
-            runner.Game.state.repsToday = 3;
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
-            Capture("/tmp/gamex_home_undone.png");
-
-            // (b) ritual done — candles lit, crown lands gold on the head
-            runner.Game.state.repsToday = 15;
-            yield return null; yield return new WaitForSecondsRealtime(0.2f);
-            Capture("/tmp/gamex_home_done.png");
-
-            // (c) trigger a Stage 0 -> Stage 1 transition so the milestone line
-            // + stage-up flash are visible in the capture.
-            runner.Game.state.level = 5;
-            runner.Game.state.repsToday = 5;
-            yield return null; yield return null;   // let Refresh consume the down-transition
-            runner.Game.state.level = 6;            // stage 0 -> 1 fires milestone
-            yield return new WaitForSecondsRealtime(0.25f);
-            Capture("/tmp/gamex_home_milestone.png");
-
-            // legacy filename for downstream tools that look for gamex_home.png
             Capture("/tmp/gamex_home.png");
 
-            // (d) Lv 20 race transformation flow
-            runner.Game.state.level = 20;
-            runner.Game.state.xp    = 0;
-            runner.Game.state.race  = 0;
-            runner.Game.DoRep(Exercise.Pushup);   // level >= 20 + race == 0 -> RaceSelect
+            // Lv 20 race-select flow
+            runner.Game.AddActivity(75000, 0, 0);   // total 100k -> lv 21
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_race_select.png");
-            runner.Game.SetRaceAndGender(Race.Human, Gender.Male);   // -> RaceTransformAnim (1.5s)
+            runner.Game.SetRaceAndGender(Race.Human, Gender.Male);
             yield return new WaitForSecondsRealtime(0.5f);
             Capture("/tmp/gamex_race_anim.png");
-            yield return new WaitForSecondsRealtime(1.2f);            // let auto-advance to Home
-            runner.Game.state.repsToday = 100;                        // make ritual obviously done
-            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            yield return new WaitForSecondsRealtime(1.2f);
             Capture("/tmp/gamex_home_after_race.png");
 
             runner.Game.GoTraining();
@@ -179,7 +184,7 @@ namespace Gamex.Game
             Capture("/tmp/gamex_training.png");
 
             runner.Game.GoShop();
-            runner.Game.state.coins = 5000;
+            runner.Game.state.coins = 2000;
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_shop.png");
 
@@ -194,7 +199,6 @@ namespace Gamex.Game
             if (cam == null) cam = FindAnyObjectByType<Camera>();
             if (cam == null) { Debug.LogWarning("[Smoke] no camera"); return; }
 
-            // overlay canvases don't draw into the RT — swap to ScreenSpaceCamera briefly
             var canvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
             var savedMode = new System.Collections.Generic.Dictionary<Canvas, RenderMode>();
             var savedCam  = new System.Collections.Generic.Dictionary<Canvas, Camera>();

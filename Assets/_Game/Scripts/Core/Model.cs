@@ -25,7 +25,7 @@ namespace Gamex.Core
         Home,
         Training,
         Shop,
-        // Triggered by DoRep when level reaches 20 and race is Unset (gender + race
+        // Triggered when level reaches 20 and race is Unset (gender + race
         // are chosen together — Q2=C). RaceTransformAnim is the silhouette -> chosen
         // race cinematic (M3c+M3d), then back to Home.
         RaceSelect,
@@ -35,7 +35,19 @@ namespace Gamex.Core
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
     public enum Curse  { Unset = 0, Weakness = 1, Gluttony = 2 }
     public enum Race   { Unset = 0, Human = 1, Orc = 2 }   // M3d may add Elf, Dwarf
-    public enum Exercise { Pushup, Situp, Squat }
+    public enum Exercise { Pushup, Situp, Squat }          // kept for legacy save compat
+
+    // Daily quests — each rewards 1 coin once per day, resets on EndDay.
+    // The 7-day streak bonus is separate (5 coins every 7 active days).
+    public enum Quest
+    {
+        Walk1000,
+        Walk5000,
+        Walk10000,
+        Run15Min,
+        Run30Min,
+        Count            // sentinel for sizing arrays
+    }
 
     [Serializable]
     public class EquipmentDef
@@ -54,13 +66,22 @@ namespace Gamex.Core
         public int gender;             // 0=unset, 1=male, 2=female  (chosen at Lv20 RaceSelect)
         public int curse;              // 0=unset, 1=weakness, 2=gluttony
         public int race;               // 0=unset, 1=human, 2=orc  (chosen at Lv20)
-        public int level = 1;          // 1..30
-        public int xp;                 // toward next level, resets on level-up
+        public int level = 1;          // 1..unlimited (no cap in step-based model)
         public long coins;
-        public int repsToday;          // any of the 3 exercises, resets at day end
-        public int streakDays;
-        public int missedDays;         // consecutive days under maintenance
+
+        // ---- step counters (M5a) ----
+        public long totalSteps;        // lifetime walking + running steps
+        public long totalRunSteps;     // lifetime running-only (also counted in totalSteps; running gets 2x XP)
+        public long totalRunSeconds;   // lifetime running duration (for "run X min" quests)
+
+        public int  todaySteps;        // resets at EndDay
+        public int  todayRunSteps;
+        public int  todayRunSeconds;
+
+        public int  streakDays;        // consecutive days with >=500 steps
         public long lastDayEnd;        // unix seconds of last day-end rollover
+        public bool[] questDone = new bool[(int)Quest.Count];  // per-day quest completion
+
         public List<string> owned = new();
         public List<string> equipped = new();
         public bool firstMirrorDone;

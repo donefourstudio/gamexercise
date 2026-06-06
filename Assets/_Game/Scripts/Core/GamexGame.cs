@@ -4,28 +4,42 @@ using System.Collections.Generic;
 namespace Gamex.Core
 {
     // Pure-C# game logic. No Unity types. Presentation layer reads state every frame
-    // and routes player intents (button clicks / fake reps) back through this class.
+    // and routes player intents (button clicks / step ingestion) back through this class.
     public class GamexGame
     {
         public AppPhase phase = AppPhase.Boot;
         public GameState state = new GameState();
         public System.Action onSave;
 
-        // 6 stages × 5 levels = 30 max. Stage 0 is levels 1-5.
-        public const int MaxLevel = 30;
-        static readonly int[] StageXpCost = { 20, 50, 100, 200, 400, 800 };
-        static readonly int[] StageMaintenance = { 0, 10, 25, 50, 90, 150 };
+        // ---- step-based mechanic (M5a) ----
+        // Linear XP: every 5000 effective steps = 1 level. Running counts 2x via
+        // EffectiveSteps = totalSteps + totalRunSteps (running steps are double-counted).
+        // No level cap. Visual body stages still split into the same 6 buckets, but
+        // anything beyond Stage 3 (Lv 20) is the chosen race form — no further auto
+        // body change.
+        public const int STEPS_PER_LEVEL = 5000;
 
-        public int Stage => Math.Min((state.level - 1) / 5, 5);
-        public int XpPerLevel => StageXpCost[Stage];
-        public int MaintenanceToday => StageMaintenance[Stage];
+        // Daily quest thresholds + reward
+        const int Q_WALK_1000     = 1000;
+        const int Q_WALK_5000     = 5000;
+        const int Q_WALK_10000    = 10000;
+        const int Q_RUN_15_MIN_S  = 15 * 60;
+        const int Q_RUN_30_MIN_S  = 30 * 60;
+        const int QUEST_COIN_REWARD = 1;
+        const int STREAK_ACTIVE_THRESHOLD = 500;   // 500 steps = "active day" for streak
+        const int STREAK_WEEKLY_BONUS     = 5;     // every 7 streak days
+
+        public long EffectiveSteps => state.totalSteps + state.totalRunSteps;
+
+        // Stage caps at 3 (skeleton end / pre-race). After race choice the visual
+        // is race form regardless — Make.Portrait ignores stage when race != Unset.
+        public int Stage => Math.Min((state.level - 1) / 5, 3);
+        public int XpInCurrentLevel => (int)(EffectiveSteps % STEPS_PER_LEVEL);
+        public int XpToNextLevel    => STEPS_PER_LEVEL;
 
         // ---- phase navigation ----
 
         // Each tap on an opening text screen advances to the next narrative beat.
-        // OpeningIntro -> OpeningHeroShown -> OpeningCurseLooms -> CurseSelect
-        // (CurseAnim)  -> OpeningAmnesia -> FirstMirror
-        // (Gender select removed from opening — chosen together with race at Lv 20.)
         public void TapAdvanceOpening()
         {
             switch (phase)
@@ -41,11 +55,10 @@ namespace Gamex.Core
         public void SetCurse(Curse c)
         {
             state.curse = (int)c;
-            phase = AppPhase.CurseAnim;       // Hud auto-advances after the animation finishes
+            phase = AppPhase.CurseAnim;
             onSave?.Invoke();
         }
 
-        // Called by Hud when the curse transformation cinematic ends.
         public void CompleteCurseAnim()
         {
             if (phase != AppPhase.CurseAnim) return;
@@ -56,12 +69,9 @@ namespace Gamex.Core
         public void SetGender(Gender g)
         {
             state.gender = (int)g;
-            // Direct gender select no longer in the flow; kept for unit tests.
             onSave?.Invoke();
         }
 
-        // Lv 20 transformation — picks race + gender together (Q2=C), then enters
-        // the cinematic. CompleteRaceAnim flips back to Home.
         public void SetRaceAndGender(Race r, Gender g)
         {
             if (phase != AppPhase.RaceSelect) return;
@@ -89,53 +99,94 @@ namespace Gamex.Core
         public void GoTraining() => phase = AppPhase.Training;
         public void GoShop()     => phase = AppPhase.Shop;
 
-        // ---- gameplay ----
+        // ---- step ingestion (M5a) ----
 
-        // Called once per detected rep (real pose detection or fake button click).
-        public void DoRep(Exercise e)
+        // Single entry point for any activity. On iOS this is fed from HealthKit;
+        // in Editor from the debug "+1000 steps" key. All three counters increment
+        // both today and the lifetime totals.
+        //   newSteps      — total new steps this tick (includes any running steps)
+        //   newRunSteps   — running steps within newSteps (counted again for the 2x XP)
+        //   newRunSeconds — running session time within this tick
+        public void AddActivity(int newSteps, int newRunSteps, int newRunSeconds)
         {
-            state.coins += 1;
-            state.repsToday += 1;
-            if (state.level < MaxLevel)
-            {
-                state.xp += 1;
-                while (state.xp >= XpPerLevel && state.level < MaxLevel)
-                {
-                    state.xp -= XpPerLevel;
-                    state.level++;
-                }
-                if (state.level >= MaxLevel) state.xp = 0;
-            }
-            // Hitting Lv 20 with no race chosen interrupts training (or wherever) and
-            // forces the transformation. We don't override RaceSelect / Anim if already in.
+            if (newSteps    < 0) newSteps    = 0;
+            if (newRunSteps < 0) newRunSteps = 0;
+            if (newRunSeconds < 0) newRunSeconds = 0;
+            if (newRunSteps > newSteps) newRunSteps = newSteps;
+
+            state.todaySteps      += newSteps;
+            state.todayRunSteps   += newRunSteps;
+            state.todayRunSeconds += newRunSeconds;
+            state.totalSteps      += newSteps;
+            state.totalRunSteps   += newRunSteps;
+            state.totalRunSeconds += newRunSeconds;
+
+            // Recompute level from effective steps (steps + run-steps, with running
+            // double-counted). Linear, no cap.
+            int prevLevel = state.level;
+            int newLevel  = 1 + (int)(EffectiveSteps / STEPS_PER_LEVEL);
+            state.level   = newLevel;
+
+            // Race transformation trigger — fires the first time level crosses 20.
             if (state.level >= 20 && state.race == 0 &&
                 phase != AppPhase.RaceSelect && phase != AppPhase.RaceTransformAnim)
             {
                 phase = AppPhase.RaceSelect;
-                onSave?.Invoke();
             }
+
+            CheckQuests();
+            onSave?.Invoke();
         }
 
-        // Day rollover: check if today met maintenance, count missed days, apply decay.
-        // Called when a real-world day boundary is crossed (or by the debug 'advance day' key).
+        // Legacy debug entry: each "rep" = 1 walking step.
+        public void DoRep(Exercise e) => AddActivity(1, 0, 0);
+
+        void CheckQuests()
+        {
+            // Each completion grants QUEST_COIN_REWARD coins and flips the flag so
+            // the same quest can't be re-claimed today. EndDay resets the flags.
+            void Try(Quest q, bool met)
+            {
+                int idx = (int)q;
+                if (!state.questDone[idx] && met)
+                {
+                    state.questDone[idx] = true;
+                    state.coins += QUEST_COIN_REWARD;
+                }
+            }
+            Try(Quest.Walk1000,  state.todaySteps      >= Q_WALK_1000);
+            Try(Quest.Walk5000,  state.todaySteps      >= Q_WALK_5000);
+            Try(Quest.Walk10000, state.todaySteps      >= Q_WALK_10000);
+            Try(Quest.Run15Min,  state.todayRunSeconds >= Q_RUN_15_MIN_S);
+            Try(Quest.Run30Min,  state.todayRunSeconds >= Q_RUN_30_MIN_S);
+        }
+
+        // Day rollover: advance streak (if today was active), reset daily counters
+        // and per-day quest flags. No decay — the step model removes the punitive
+        // "lose a level if you miss" mechanic Jackson asked to drop.
         public void EndDay()
         {
-            bool metMaintenance = state.repsToday >= MaintenanceToday;
-            if (metMaintenance)
+            bool activeToday = state.todaySteps >= STREAK_ACTIVE_THRESHOLD;
+            if (activeToday)
             {
                 state.streakDays += 1;
-                state.missedDays = 0;
+                // Weekly streak bonus
+                if (state.streakDays > 0 && state.streakDays % 7 == 0)
+                    state.coins += STREAK_WEEKLY_BONUS;
             }
             else
             {
-                state.missedDays += 1;
-                if (state.missedDays >= 2 && state.level > 1)
-                {
-                    state.level -= 1;
-                    state.missedDays = 0;
-                }
+                state.streakDays = 0;
             }
-            state.repsToday = 0;
+
+            state.todaySteps      = 0;
+            state.todayRunSteps   = 0;
+            state.todayRunSeconds = 0;
+            if (state.questDone == null || state.questDone.Length != (int)Quest.Count)
+                state.questDone = new bool[(int)Quest.Count];
+            else
+                Array.Clear(state.questDone, 0, state.questDone.Length);
+
             state.lastDayEnd = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             onSave?.Invoke();
         }
@@ -152,16 +203,18 @@ namespace Gamex.Core
 
         // ---- shop ----
 
+        // M5a repricing — Legendary tier aimed at ~1 year for a steady 5 coin/day player.
+        // Wood sword 10 coins = 2-3 days, keeps early ownership reachable.
         public static readonly EquipmentDef[] Catalog = new[]
         {
-            new EquipmentDef { id = "sword_wood",   name = "Wooden Sword",    tier = 1, minLevel = 1,  price = 50 },
-            new EquipmentDef { id = "armor_cloth",  name = "Cloth Robe",      tier = 1, minLevel = 1,  price = 80 },
-            new EquipmentDef { id = "sword_iron",   name = "Iron Sword",      tier = 2, minLevel = 10, price = 300 },
-            new EquipmentDef { id = "armor_leather",name = "Leather Armor",   tier = 2, minLevel = 10, price = 400 },
-            new EquipmentDef { id = "sword_silver", name = "Silver Sword",    tier = 3, minLevel = 20, price = 1500 },
-            new EquipmentDef { id = "armor_silver", name = "Silver Armor",    tier = 3, minLevel = 20, price = 1800 },
-            new EquipmentDef { id = "sword_legend", name = "Legendary Sword", tier = 4, minLevel = 30, price = 8000 },
-            new EquipmentDef { id = "armor_legend", name = "Legendary Armor", tier = 4, minLevel = 30, price = 10000 },
+            new EquipmentDef { id = "sword_wood",   name = "Wooden Sword",    tier = 1, minLevel = 1,  price = 10 },
+            new EquipmentDef { id = "armor_cloth",  name = "Cloth Robe",      tier = 1, minLevel = 1,  price = 15 },
+            new EquipmentDef { id = "sword_iron",   name = "Iron Sword",      tier = 2, minLevel = 10, price = 80 },
+            new EquipmentDef { id = "armor_leather",name = "Leather Armor",   tier = 2, minLevel = 10, price = 100 },
+            new EquipmentDef { id = "sword_silver", name = "Silver Sword",    tier = 3, minLevel = 20, price = 400 },
+            new EquipmentDef { id = "armor_silver", name = "Silver Armor",    tier = 3, minLevel = 20, price = 500 },
+            new EquipmentDef { id = "sword_legend", name = "Legendary Sword", tier = 4, minLevel = 30, price = 1500 },
+            new EquipmentDef { id = "armor_legend", name = "Legendary Armor", tier = 4, minLevel = 30, price = 1800 },
         };
 
         public bool TryBuy(EquipmentDef def)
