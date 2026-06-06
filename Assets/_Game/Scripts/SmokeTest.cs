@@ -220,6 +220,20 @@ namespace Gamex.Game
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_shop.png");
 
+            // M5f Inventory — own every Knight Set piece (chain-quest reward)
+            // plus a couple of tier-2 shop items so the storage grid has more
+            // than just the four already-equipped items.
+            foreach (var (id, _) in GamexGame.KnightSet)
+                if (!runner.Game.state.owned.Contains(id))
+                    runner.Game.state.owned.Add(id);
+            if (!runner.Game.state.owned.Contains("sword_iron"))
+                runner.Game.state.owned.Add("sword_iron");
+            if (!runner.Game.state.owned.Contains("armor_leather"))
+                runner.Game.state.owned.Add("armor_leather");
+            runner.Game.GoInventory();
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_inventory.png");
+
             yield return new WaitForSecondsRealtime(0.2f);
             Debug.Log("[SmokeTest] ran cleanly, exiting");
             EditorApplication.Exit(0);

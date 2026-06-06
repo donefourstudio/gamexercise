@@ -62,6 +62,7 @@ namespace Gamex.Game
                 onGoQuests:           () => _game.GoQuests(),
                 onGoShop:             () => _game.GoShop(),
                 onGoHome:             () => _game.GoHome(),
+                onGoInventory:        () => _game.GoInventory(),
                 onFakeRep:            () => _game.DoRep(Exercise.Pushup),
                 onBuy:                id => _game.TryBuy(FindDef(id)),
                 onToggleEquip:        id => _game.ToggleEquip(id));

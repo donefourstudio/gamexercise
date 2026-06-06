@@ -98,6 +98,7 @@ namespace Gamex.Core
         public void GoHome()     => phase = AppPhase.Home;
         public void GoQuests()   => phase = AppPhase.Quests;
         public void GoShop()     => phase = AppPhase.Shop;
+        public void GoInventory(){ phase = AppPhase.Inventory; onSave?.Invoke(); }
 
         // ---- step ingestion (M5a) ----
 
@@ -274,11 +275,55 @@ namespace Gamex.Core
             return true;
         }
 
+        // Equipment slots — the Inventory paper-doll has exactly one cell per slot,
+        // so equipping a new item replaces whatever else is in that slot. Catalog
+        // IDs follow naming conventions so this routing can be done by string
+        // prefix; the Knight Set is hand-mapped because it doesn't share prefixes.
+        public enum EquipSlot { None, Weapon, Chest, Head, Legs, Wrists, Feet }
+        public static readonly EquipSlot[] AllSlots = {
+            EquipSlot.Head, EquipSlot.Chest, EquipSlot.Wrists,
+            EquipSlot.Weapon, EquipSlot.Legs, EquipSlot.Feet,
+        };
+        public static EquipSlot SlotOf(string id)
+        {
+            if (id == null) return EquipSlot.None;
+            if (id.StartsWith("sword_"))    return EquipSlot.Weapon;
+            if (id.StartsWith("armor_"))    return EquipSlot.Chest;
+            if (id == "knight_chest")       return EquipSlot.Chest;
+            if (id == "knight_helmet")      return EquipSlot.Head;
+            if (id == "knight_leggings")    return EquipSlot.Legs;
+            if (id == "knight_gauntlets")   return EquipSlot.Wrists;
+            if (id == "knight_boots")       return EquipSlot.Feet;
+            return EquipSlot.None;
+        }
+        public string EquippedInSlot(EquipSlot slot)
+        {
+            for (int i = state.equipped.Count - 1; i >= 0; i--)
+                if (SlotOf(state.equipped[i]) == slot) return state.equipped[i];
+            return null;
+        }
+
+        // Equipping a new item evicts the previous occupant of the same slot so
+        // the paper-doll never shows two of the same kind. Unequip is just remove.
+        public void EquipItem(string id)
+        {
+            if (!state.owned.Contains(id)) return;
+            var slot = SlotOf(id);
+            if (slot == EquipSlot.None) return;
+            state.equipped.RemoveAll(e => SlotOf(e) == slot);
+            state.equipped.Add(id);
+            onSave?.Invoke();
+        }
+        public void Unequip(string id)
+        {
+            if (state.equipped.Remove(id)) onSave?.Invoke();
+        }
+        // Kept for back-compat (shop list still toggles). Routes through the
+        // slot-aware Equip path so multi-equip can't happen via shop either.
         public void ToggleEquip(string id)
         {
-            if (state.equipped.Contains(id)) state.equipped.Remove(id);
-            else if (state.owned.Contains(id)) state.equipped.Add(id);
-            onSave?.Invoke();
+            if (state.equipped.Contains(id)) Unequip(id);
+            else                              EquipItem(id);
         }
 
         public bool IsOwned(string id)    => state.owned.Contains(id);

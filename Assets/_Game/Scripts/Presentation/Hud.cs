@@ -35,6 +35,7 @@ namespace Gamex.Game
         GameObject _curseAnimPanel;
         GameObject _raceSelectPanel, _raceAnimPanel;
         GameObject _cursePanel, _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
+        GameObject _inventoryPanel;
         // _genderPanel removed — gender chosen at Lv 20 RaceSelect (Q2=C)
 
         // ---- avatars ----
@@ -114,6 +115,18 @@ namespace Gamex.Game
         Text _shopCoins;
         readonly HashSet<string> _ownedSnapshot = new();
 
+        // ---- inventory refs ----
+        AvatarSprite _inventoryAvatar;
+        readonly Image[] _invSlotIcons = new Image[6];     // per-slot occupant sprite (item or null)
+        readonly Image[] _invSlotBgs   = new Image[6];     // per-slot background (greyed if empty)
+        readonly Text[]  _invSlotLabels = new Text[6];     // slot-name label, shown only when slot is empty
+        readonly string[] _invSlotEquippedIds = new string[6]; // tracks current occupant id for tap-to-unequip
+        // Bottom storage grid — one cell per Catalog + KnightSet entry. Cells the player
+        // doesn't own are hidden via SetActive(false), the others light up + show sprite.
+        // equippedBadge is a "✓" text shown only while the item is in state.equipped.
+        readonly List<(string id, GameObject root, Image icon, GameObject equippedBadge)> _invItems = new();
+        Text _invInventoryHeader;
+
         // ---- callbacks ----
         readonly Action         _onTapAdvanceOpening;
         readonly Action         _onCurseAnimDone;
@@ -121,7 +134,7 @@ namespace Gamex.Game
         readonly Action<int,int> _onSelectRaceAndGender;
         readonly Action         _onRaceAnimDone;
         readonly Action         _onFinishFirstMirror;
-        readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onFakeRep;
+        readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onGoInventory, _onFakeRep;
         readonly Action<string> _onBuy, _onToggleEquip;
 
         public Hud(
@@ -134,6 +147,7 @@ namespace Gamex.Game
             Action onGoQuests,
             Action onGoShop,
             Action onGoHome,
+            Action onGoInventory,
             Action onFakeRep,
             Action<string> onBuy,
             Action<string> onToggleEquip)
@@ -147,6 +161,7 @@ namespace Gamex.Game
             _onGoQuests            = onGoQuests;
             _onGoShop              = onGoShop;
             _onGoHome              = onGoHome;
+            _onGoInventory         = onGoInventory;
             _onFakeRep             = onFakeRep;
             _onBuy                 = onBuy;
             _onToggleEquip         = onToggleEquip;
@@ -179,6 +194,7 @@ namespace Gamex.Game
             BuildHome(root);
             BuildQuests(root);
             BuildShop(root);
+            BuildInventory(root);
             BuildRaceSelect(root);
             BuildRaceTransformAnim(root);
         }
@@ -441,6 +457,14 @@ namespace Gamex.Game
             var inner = MkSpritePanel("MirrorInner", frame.transform, new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(460f, 600f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
             _mirrorSelf = BuildAvatar(inner.transform, Vector2.zero, 1.8f, Gender.Male, Curse.Weakness, stage: 0);
+            // Tap the mirror to open Inventory (paper-doll + storage grid).
+            // Sits over the entire inner mirror — the avatar/candles/crown are siblings
+            // of the frame, not inner, so the button's raycast catches the whole
+            // reflection area without blocking the candle/crown decorations.
+            var mirrorTap = inner.AddComponent<Button>();
+            mirrorTap.targetGraphic = inner.GetComponent<Image>();
+            mirrorTap.transition    = Selectable.Transition.None;
+            mirrorTap.onClick.AddListener(() => _onGoInventory?.Invoke());
 
             // Stage-up flash overlay (above the avatar inside the mirror).
             _stageUpFlash = MkPanel("StageUpFlash", inner.transform, new Vector2(0.5f, 0.5f),
@@ -603,6 +627,119 @@ namespace Gamex.Game
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
+        // ============================================================
+        // Inventory (M5f) — paper-doll on top, storage grid on bottom.
+        // Reached by tapping the home mirror; equipping is one-shot
+        // (tap an item in the grid -> swaps into its slot, evicting the
+        // previous occupant) and unequipping is tapping the slot icon
+        // on the paper-doll.
+        // ============================================================
+        void BuildInventory(Transform root)
+        {
+            _inventoryPanel = MkFullPanel("InventoryPanel", root);
+
+            // Top header — title + gold (mirrors home/shop styling)
+            MkText("Title", _inventoryPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
+                new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Inventory";
+
+            // Paper-doll — large avatar inside a framed panel, anchored to upper third.
+            var dollFrame = MkSpritePanel("DollFrame", _inventoryPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 440f), new Vector2(500f, 600f), "panel", new Color(0.95f, 0.78f, 0.42f, 1f));
+            var dollInner = MkSpritePanel("DollInner", dollFrame.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(440f, 540f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
+            dollInner.GetComponent<Image>().raycastTarget = false;
+            _inventoryAvatar = BuildAvatar(dollInner.transform, Vector2.zero, 1.6f,
+                Gender.Male, Curse.Weakness, stage: 0);
+
+            // Six slot icons in a row underneath the paper-doll. Order matches
+            // GamexGame.AllSlots: Head, Chest, Wrists, Weapon, Legs, Feet.
+            // Tap an occupied slot -> unequip.
+            string[] slotShortLabels = { "Head", "Chest", "Wrists", "Weapon", "Legs", "Feet" };
+            for (int i = 0; i < 6; i++)
+            {
+                float x = -325f + i * 130f;
+                var slotBg = MkSpritePanel("Slot_" + slotShortLabels[i], _inventoryPanel.transform,
+                    new Vector2(0.5f, 0.5f), new Vector2(x, 90f), new Vector2(110f, 110f),
+                    "panel_light", new Color(0.22f, 0.24f, 0.32f, 1f));
+                _invSlotBgs[i] = slotBg.GetComponent<Image>();
+                // Slot-name label — dimmed text shown when empty, hidden when item present.
+                _invSlotLabels[i] = MkText("Label", slotBg.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                    new Vector2(100f, 100f), FS_BODY, TextAnchor.MiddleCenter, TextDim);
+                _invSlotLabels[i].text = slotShortLabels[i];
+                // Item-occupant icon (sits centered, hidden until equipped).
+                var iconGO = MkSpriteIcon("Icon", slotBg.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                    new Vector2(100f, 100f), (Sprite)null, Color.white);
+                _invSlotIcons[i] = iconGO.GetComponent<Image>();
+                iconGO.SetActive(false);
+                // Tap to unequip whatever's in this slot — looked up at click time from
+                // _invSlotEquippedIds, which UpdateInventory keeps in sync with state.equipped.
+                int capIdx = i;
+                var btn = slotBg.AddComponent<Button>();
+                btn.targetGraphic = _invSlotBgs[i];
+                btn.transition    = Selectable.Transition.ColorTint;
+                var cb = btn.colors;
+                cb.highlightedColor = new Color(0.32f, 0.34f, 0.44f, 1f);
+                btn.colors = cb;
+                btn.onClick.AddListener(() =>
+                {
+                    var equipped = _invSlotEquippedIds[capIdx];
+                    if (equipped != null) _onToggleEquip?.Invoke(equipped);
+                });
+            }
+
+            // "Storage" header
+            _invInventoryHeader = MkText("StorageHdr", _inventoryPanel.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -10f),
+                new Vector2(800f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+            _invInventoryHeader.text = "Storage  ·  tap to equip";
+
+            // Bottom storage grid — 4 columns, up to 4 rows, one cell per item.
+            // Catalog items first (sword/armor tiers), then knight pieces. All cells
+            // pre-built; UpdateInventory shows/hides based on owned set.
+            var allIds = new List<string>();
+            foreach (var def in GamexGame.Catalog) allIds.Add(def.id);
+            foreach (var (id, _) in GamexGame.KnightSet) allIds.Add(id);
+
+            const int COLS = 4, CELL = 130, GAP = 14;
+            float gridLeft = -(COLS * CELL + (COLS - 1) * GAP) / 2f + CELL / 2f;
+            float gridTop  = -100f;   // top edge of the grid
+            for (int i = 0; i < allIds.Count; i++)
+            {
+                int col = i % COLS;
+                int row = i / COLS;
+                float x = gridLeft + col * (CELL + GAP);
+                float y = gridTop  - row * (CELL + GAP);
+
+                var cell = MkSpritePanel("Cell_" + allIds[i], _inventoryPanel.transform,
+                    new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(CELL, CELL),
+                    "panel_light", new Color(0.22f, 0.24f, 0.32f, 1f));
+                var icon = MkSpriteIcon("Icon", cell.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                    new Vector2(CELL - 16f, CELL - 16f), Make.Equipment(allIds[i]), Color.white)
+                    .GetComponent<Image>();
+                // Small "✓" badge in the corner for currently-equipped items.
+                var badge = MkText("Eq", cell.transform, new Vector2(1f, 1f),
+                    new Vector2(-10f, -10f), new Vector2(40f, 40f),
+                    FS_BODY, TextAnchor.UpperRight, AccentGold);
+                badge.text = "✓";
+                var badgeGo = badge.gameObject;
+                badgeGo.SetActive(false);
+
+                string capId = allIds[i];
+                var btn = cell.AddComponent<Button>();
+                btn.targetGraphic = cell.GetComponent<Image>();
+                btn.transition    = Selectable.Transition.ColorTint;
+                var cb = btn.colors;
+                cb.highlightedColor = new Color(0.32f, 0.34f, 0.44f, 1f);
+                btn.colors = cb;
+                btn.onClick.AddListener(() => _onToggleEquip?.Invoke(capId));
+
+                _invItems.Add((capId, cell, icon, badgeGo));
+            }
+
+            MkButton("Back", _inventoryPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+        }
+
         bool IsOwned(string id) => _ownedSnapshot.Contains(id);
 
         // ============================================================
@@ -628,6 +765,7 @@ namespace Gamex.Game
             Set(_homePanel,               g.phase == AppPhase.Home);
             Set(_trainPanel,              g.phase == AppPhase.Quests);
             Set(_shopPanel,               g.phase == AppPhase.Shop);
+            Set(_inventoryPanel,          g.phase == AppPhase.Inventory);
             Set(_raceSelectPanel,         g.phase == AppPhase.RaceSelect);
             Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
 
@@ -806,6 +944,64 @@ namespace Gamex.Game
                     _shopBtns[def.id].interactable = equipped || owned || (unlocked && affordable);
                 }
             }
+
+            if (g.phase == AppPhase.Inventory)
+            {
+                UpdateInventory(g);
+            }
+        }
+
+        // ============================================================
+        // Inventory panel refresh — repaints the paper-doll avatar, the
+        // 6 slot icons, and the storage grid (own / equipped state).
+        // ============================================================
+        void UpdateInventory(GamexGame g)
+        {
+            var gender = (Gender)g.state.gender;
+            var safeGender = gender == Gender.Unset ? Gender.Male : gender;
+            var curse  = (Curse)g.state.curse;
+            var race   = (Race)g.state.race;
+            ApplyAvatarLook(_inventoryAvatar, safeGender, curse, race, g.Stage, g.state.equipped);
+            _inventoryAvatar.SetAlpha(1f);
+
+            // Paper-doll slot icons — one per AllSlots entry. Show the equipped
+            // item's sprite if any, otherwise the slot's name label.
+            for (int i = 0; i < GamexGame.AllSlots.Length; i++)
+            {
+                var slot = GamexGame.AllSlots[i];
+                string equippedId = g.EquippedInSlot(slot);
+                _invSlotEquippedIds[i] = equippedId;
+
+                if (equippedId != null)
+                {
+                    var spr = Make.Equipment(equippedId);
+                    if (spr != null)
+                    {
+                        _invSlotIcons[i].sprite = spr;
+                        if (!_invSlotIcons[i].gameObject.activeSelf)
+                            _invSlotIcons[i].gameObject.SetActive(true);
+                        if (_invSlotLabels[i].gameObject.activeSelf)
+                            _invSlotLabels[i].gameObject.SetActive(false);
+                    }
+                }
+                else
+                {
+                    if (_invSlotIcons[i].gameObject.activeSelf)
+                        _invSlotIcons[i].gameObject.SetActive(false);
+                    if (!_invSlotLabels[i].gameObject.activeSelf)
+                        _invSlotLabels[i].gameObject.SetActive(true);
+                }
+            }
+
+            // Storage grid — hide cells for items the player doesn't own; show + mark
+            // equipped state for the rest.
+            foreach (var item in _invItems)
+            {
+                bool owned    = g.IsOwned(item.id);
+                bool equipped = g.IsEquipped(item.id);
+                if (item.root.activeSelf != owned) item.root.SetActive(owned);
+                if (item.equippedBadge.activeSelf != equipped) item.equippedBadge.SetActive(equipped);
+            }
         }
 
         static void Set(GameObject go, bool active)
@@ -952,21 +1148,24 @@ namespace Gamex.Game
 
             // Equipment overlays: only on race-form characters (Lv 20+). Pre-race
             // skeleton / zombie bodies don't wear armour — and the overlay sprites
-            // are positioned for the race-form silhouette anyway.
+            // are positioned for the race-form silhouette anyway. Slot routing
+            // is centralised in GamexGame.SlotOf so the Inventory paper-doll
+            // and the avatar overlay agree on where each item lives.
             string swordId = null, armorId = null, helmetId = null,
                    leggingsId = null, gauntletsId = null, bootsId = null;
             if (race != Race.Unset && equipped != null)
             {
                 foreach (var id in equipped)
                 {
-                    if (id == null) continue;
-                    if      (id.StartsWith("sword_"))     swordId     = id;
-                    else if (id.StartsWith("armor_"))     armorId     = id;
-                    else if (id == "knight_chest")        armorId     = id;
-                    else if (id == "knight_helmet")       helmetId    = id;
-                    else if (id == "knight_leggings")     leggingsId  = id;
-                    else if (id == "knight_gauntlets")    gauntletsId = id;
-                    else if (id == "knight_boots")        bootsId     = id;
+                    switch (GamexGame.SlotOf(id))
+                    {
+                        case GamexGame.EquipSlot.Weapon: swordId     = id; break;
+                        case GamexGame.EquipSlot.Chest:  armorId     = id; break;
+                        case GamexGame.EquipSlot.Head:   helmetId    = id; break;
+                        case GamexGame.EquipSlot.Legs:   leggingsId  = id; break;
+                        case GamexGame.EquipSlot.Wrists: gauntletsId = id; break;
+                        case GamexGame.EquipSlot.Feet:   bootsId     = id; break;
+                    }
                 }
             }
             SetOverlay(avatar.sword,     swordId,     a);

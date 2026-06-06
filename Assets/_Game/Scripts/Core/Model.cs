@@ -25,6 +25,11 @@ namespace Gamex.Core
         Home,
         Quests,
         Shop,
+        // Tap-on-mirror destination: top half is the avatar with its 6 equipped
+        // slot icons (paper-doll), bottom half is the storage grid of every item
+        // the player owns. Tapping a stored item equips/swaps in its slot;
+        // tapping an equipped slot icon unequips it.
+        Inventory,
         // Triggered when level reaches 20 and race is Unset (gender + race
         // are chosen together — Q2=C). RaceTransformAnim is the silhouette -> chosen
         // race cinematic (M3c+M3d), then back to Home.
