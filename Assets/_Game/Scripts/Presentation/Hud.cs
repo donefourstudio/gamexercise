@@ -98,8 +98,9 @@ namespace Gamex.Game
         Text _homeLevel, _homeCoins, _homeProgress, _homeStreak;
         Image _xpBar;
 
-        // ---- quests refs (M5b) ----
-        Text _questsStreak, _questsTotalSteps, _questsTotalRun;
+        // ---- quests refs (M5b/d) ----
+        Text _questsStreak, _questsTotalSteps, _questsTotalRun, _questsKnight;
+        GameObject _questsKnightRow;
         readonly Image[] _questCheckmarks = new Image[(int)Quest.Count];
         readonly Text[]  _questRowLabels  = new Text[(int)Quest.Count];
 
@@ -537,13 +538,21 @@ namespace Gamex.Game
                 _questCheckmarks[i].gameObject.SetActive(false);
             }
 
-            // Totals — lifetime steps + running time + streak — under the quest rows.
+            // Special row: Knight Set chain progress. Hidden until Lv 20 unlocks it.
+            // Sits just below the daily quests.
+            _questsKnightRow = MkSpritePanel("Q_Knight", _trainPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -60f), new Vector2(920f, 110f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
+            _questsKnight = MkText("KnightLabel", _questsKnightRow.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(880f, 90f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.18f, 0.08f, 0.20f));
+            _questsKnightRow.SetActive(false);
+
+            // Totals — lifetime steps + running time + streak — under the special row.
             _questsTotalSteps = MkText("TotalSteps", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -160f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+                new Vector2(0f, -200f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
             _questsTotalRun   = MkText("TotalRun",   _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -220f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+                new Vector2(0f, -260f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
             _questsStreak     = MkText("Streak",     _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -280f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+                new Vector2(0f, -320f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
 
             MkButton("Back", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
@@ -836,6 +845,28 @@ namespace Gamex.Game
                 _questsTotalRun.text = $"Total running: {totalMin / 60}h {totalMin % 60}m";
             }
             if (_questsStreak != null) _questsStreak.text = $"{g.state.streakDays}-day streak";
+
+            // Knight Set chain row: only visible once Lv 20 is reached. Shows the
+            // next piece + day progress, or a celebratory line once all 5 are earned.
+            if (_questsKnightRow != null)
+            {
+                bool show = g.state.level >= GamexGame.KNIGHT_CHAIN_UNLOCK_LEVEL;
+                _questsKnightRow.SetActive(show);
+                if (show && _questsKnight != null)
+                {
+                    if (g.state.knightChainStage >= GamexGame.KnightSet.Length)
+                    {
+                        _questsKnight.text = "Knight Set complete ✓";
+                    }
+                    else
+                    {
+                        var piece = GamexGame.KnightSet[g.state.knightChainStage];
+                        int days = g.state.knightChainProgress;
+                        int needed = GamexGame.KNIGHT_CHAIN_DAYS;
+                        _questsKnight.text = $"Knight Set — Next: {piece.name}\n{days}/{needed} days (5k+ steps each)";
+                    }
+                }
+            }
         }
 
         // ============================================================

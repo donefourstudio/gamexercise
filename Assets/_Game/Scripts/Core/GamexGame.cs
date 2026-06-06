@@ -179,6 +179,28 @@ namespace Gamex.Core
                 state.streakDays = 0;
             }
 
+            // Knight Set chain — only ticks once Lv 20 is reached and chain not complete.
+            // Hit 5000 today -> +1 progress day; miss -> reset to 0. At 10 days the
+            // current piece is granted and the next slot opens.
+            if (state.level >= KNIGHT_CHAIN_UNLOCK_LEVEL && state.knightChainStage < KnightSet.Length)
+            {
+                if (state.todaySteps >= KNIGHT_CHAIN_DAILY_STEPS)
+                {
+                    state.knightChainProgress += 1;
+                    if (state.knightChainProgress >= KNIGHT_CHAIN_DAYS)
+                    {
+                        string pieceId = KnightSet[state.knightChainStage].id;
+                        if (!state.owned.Contains(pieceId)) state.owned.Add(pieceId);
+                        state.knightChainStage    += 1;
+                        state.knightChainProgress  = 0;
+                    }
+                }
+                else
+                {
+                    state.knightChainProgress = 0;
+                }
+            }
+
             state.todaySteps      = 0;
             state.todayRunSteps   = 0;
             state.todayRunSeconds = 0;
@@ -204,23 +226,36 @@ namespace Gamex.Core
         // ---- shop ----
 
         // M5a repricing — Legendary tier aimed at ~1 year for a steady 5 coin/day player.
-        // Wood sword 10 coins = 2-3 days, keeps early ownership reachable.
+        // M5d: minLevel dropped to 1 on every item per Jackson — anyone can buy if they
+        // have the coins. Progression gating now lives entirely in the gold economy.
         public static readonly EquipmentDef[] Catalog = new[]
         {
-            new EquipmentDef { id = "sword_wood",   name = "Wooden Sword",    tier = 1, minLevel = 1,  price = 10 },
-            new EquipmentDef { id = "armor_cloth",  name = "Cloth Robe",      tier = 1, minLevel = 1,  price = 15 },
-            new EquipmentDef { id = "sword_iron",   name = "Iron Sword",      tier = 2, minLevel = 10, price = 80 },
-            new EquipmentDef { id = "armor_leather",name = "Leather Armor",   tier = 2, minLevel = 10, price = 100 },
-            new EquipmentDef { id = "sword_silver", name = "Silver Sword",    tier = 3, minLevel = 20, price = 400 },
-            new EquipmentDef { id = "armor_silver", name = "Silver Armor",    tier = 3, minLevel = 20, price = 500 },
-            new EquipmentDef { id = "sword_legend", name = "Legendary Sword", tier = 4, minLevel = 30, price = 1500 },
-            new EquipmentDef { id = "armor_legend", name = "Legendary Armor", tier = 4, minLevel = 30, price = 1800 },
+            new EquipmentDef { id = "sword_wood",   name = "Wooden Sword",    tier = 1, minLevel = 1, price = 10 },
+            new EquipmentDef { id = "armor_cloth",  name = "Cloth Robe",      tier = 1, minLevel = 1, price = 15 },
+            new EquipmentDef { id = "sword_iron",   name = "Iron Sword",      tier = 2, minLevel = 1, price = 80 },
+            new EquipmentDef { id = "armor_leather",name = "Leather Armor",   tier = 2, minLevel = 1, price = 100 },
+            new EquipmentDef { id = "sword_silver", name = "Silver Sword",    tier = 3, minLevel = 1, price = 400 },
+            new EquipmentDef { id = "armor_silver", name = "Silver Armor",    tier = 3, minLevel = 1, price = 500 },
+            new EquipmentDef { id = "sword_legend", name = "Legendary Sword", tier = 4, minLevel = 1, price = 1500 },
+            new EquipmentDef { id = "armor_legend", name = "Legendary Armor", tier = 4, minLevel = 1, price = 1800 },
         };
+
+        // Knight Set — earned through the M5d chain quest, not via the shop.
+        public static readonly (string id, string name)[] KnightSet = new[]
+        {
+            ("knight_chest",     "Knight Chestplate"),
+            ("knight_helmet",    "Knight Helmet"),
+            ("knight_leggings",  "Knight Leggings"),
+            ("knight_gauntlets", "Knight Gauntlets"),
+            ("knight_boots",     "Knight Boots"),
+        };
+        public const int KNIGHT_CHAIN_DAILY_STEPS = 5000;
+        public const int KNIGHT_CHAIN_DAYS        = 10;
+        public const int KNIGHT_CHAIN_UNLOCK_LEVEL = 20;
 
         public bool TryBuy(EquipmentDef def)
         {
             if (def == null) return false;
-            if (state.level < def.minLevel) return false;
             if (state.coins < def.price) return false;
             if (state.owned.Contains(def.id)) return false;
             state.coins -= def.price;

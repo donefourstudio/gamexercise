@@ -86,12 +86,32 @@ namespace Gamex.Game
             g7.ToggleEquip("sword_wood");
             Check(!g7.IsEquipped("sword_wood"), "unequipped");
 
-            // Level requirement gate still works
+            // No level gate (M5d): legend sword buyable at Lv 1 if you have the gold.
             var g8 = new GamexGame();
             g8.state.coins = 100000;
             var legend = System.Array.Find(GamexGame.Catalog, d => d.id == "sword_legend");
             Check(legend.price == 1500, "legend sword = 1500, got " + legend.price);
-            Check(!g8.TryBuy(legend), "can't buy legend sword at lv 1");
+            Check(g8.TryBuy(legend), "buy legend sword at lv 1 (no level gate)");
+
+            // Knight Set chain — 10 consecutive 5k days unlock each piece.
+            // Pre-load lifetime steps so AddActivity's level recompute lands at Lv 20+.
+            var g9 = new GamexGame();
+            g9.state.totalSteps = 95_000;        // -> Lv 20 after the first 5k tick
+            for (int i = 0; i < 10; i++)
+            {
+                g9.AddActivity(5000, 0, 0);
+                g9.EndDay();
+            }
+            Check(g9.IsOwned("knight_chest"), "10 days @ 5k+ -> chest earned");
+            Check(g9.state.knightChainStage == 1, "chain advanced to helmet slot, got " + g9.state.knightChainStage);
+            // Miss a day -> progress resets
+            g9.AddActivity(5000, 0, 0); g9.EndDay();   // progress = 1
+            g9.EndDay();                                // no steps -> reset
+            Check(g9.state.knightChainProgress == 0, "missed day resets chain progress");
+            // Chain inactive below Lv 20: pre-empty totalSteps stays at level 1.
+            var g10 = new GamexGame();
+            for (int i = 0; i < 10; i++) { g10.AddActivity(1000, 0, 0); g10.EndDay(); }
+            Check(g10.state.knightChainStage == 0, "chain ignored below Lv 20");
 
             // Save round-trip
             g7.state.gender = (int)Gender.Female;

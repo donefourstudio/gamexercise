@@ -82,6 +82,13 @@ namespace Gamex.Core
         public long lastDayEnd;        // unix seconds of last day-end rollover
         public bool[] questDone = new bool[(int)Quest.Count];  // per-day quest completion
 
+        // ---- Knight Set chain quest (M5d) ----
+        // Lv 20+ unlock: 10 consecutive days of >=5000 steps each grants the next
+        // piece of the Knight Set in order (chest -> helmet -> leggings ->
+        // gauntlets -> boots). Missing a day resets progress.
+        public int knightChainStage;    // 0..5 (5 = all 5 pieces earned)
+        public int knightChainProgress; // 0..10 days into the current piece
+
         public List<string> owned = new();
         public List<string> equipped = new();
         public bool firstMirrorDone;
