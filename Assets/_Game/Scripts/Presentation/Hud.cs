@@ -62,6 +62,19 @@ namespace Gamex.Game
         readonly GameObject[] _exerciseButtons = new GameObject[3];
         Text _tipText;
         readonly Image[] _poseDots = new Image[PoseDetector.KEYPOINT_COUNT];
+
+        // Adaptive pushup session (model 3-module spec): silhouette overlay,
+        // traffic-light tint, calibration FSM, dynamic-threshold counter,
+        // procedural audio for all five hook events. Only used when
+        // _currentExercise == Pushup.
+        AdaptivePushupSystem _adaptive;
+        ProcAudio.Clips _audioClips;
+        AudioSource _audioSrc;
+        Image _silhouetteOverlay;
+        Image _trafficLightTint;
+        Image _goldFlash;
+        Text  _adaptiveStatus;
+        float _goldFlashT;
         float _poseT;
         const float POSE_INTERVAL = 0.1f;        // 10 Hz inference
         const float POSE_SCORE_GATE = 0.3f;
@@ -552,6 +565,34 @@ namespace Gamex.Game
                 new Vector2(880f, 80f), FS_BIG, TextAnchor.UpperCenter, AccentGold);
             _camStatus.text = "Camera off";
 
+            // --- AdaptivePushupSystem visual layer (pushup only) ---------------
+            // (1) Full-viewport traffic-light tint — under silhouette, over camera.
+            //     Colour driven by AdaptivePushupSystem.BackgroundTintForAlignment.
+            _trafficLightTint = MkPanel("TrafficLight", cam.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(900f, 700f), new Color(0f, 0f, 0f, 0f)).GetComponent<Image>();
+            _trafficLightTint.raycastTarget = false;
+
+            // (2) Side-view pushup silhouette overlay — visible during alignment phases.
+            _silhouetteOverlay = MkSpriteIcon("Silhouette", cam.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(820f, 615f), Make.UI("pushup_silhouette"), Color.white).GetComponent<Image>();
+            _silhouetteOverlay.gameObject.SetActive(false);
+
+            // (3) Adaptive status banner — replaces _camStatus content when pushup is active.
+            //     Sits below the camera tag.
+            _adaptiveStatus = MkText("AdaptiveStatus", cam.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 90f), new Vector2(880f, 50f), FS_LABEL, TextAnchor.LowerCenter, TextDim);
+            _adaptiveStatus.text = "";
+
+            // (4) Full-screen gold flash for rep success — under selector strip.
+            _goldFlash = MkPanel("GoldFlash", _trainPanel.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(4000f, 4000f), new Color(1f, 0.8f, 0.3f, 0f)).GetComponent<Image>();
+            _goldFlash.raycastTarget = false;
+
+            // AudioSource for the five procedural clips.
+            _audioSrc = _trainPanel.AddComponent<AudioSource>();
+            _audioSrc.playOnAwake = false;
+            _audioSrc.spatialBlend = 0f;
+
             // Per-exercise placement tip at the bottom of the viewport. Swaps when the
             // user changes exercise (SelectExercise). The cartoon face placeholder was
             // removed — the user was confused about whether to face the camera or stand
@@ -851,6 +892,7 @@ namespace Gamex.Game
                 if (_pushupCounter == null)   _pushupCounter   = new PushupCounter();
                 if (_situpCounter == null)    _situpCounter    = new SitupCounter();
                 if (_squatCounter == null)    _squatCounter    = new SquatCounter();
+                if (_adaptive == null)        SetupAdaptive();
 
                 if (_pose.IsReady && _camTexture.didUpdateThisFrame)
                 {
@@ -861,16 +903,17 @@ namespace Gamex.Game
                         _pose.Detect(_camTexture);
                         UpdatePoseOverlay();
 
-                        // Run the counter matching the selected exercise.
+                        // Pushup goes through the adaptive 3-module system.
+                        // Situp + Squat still use the dynamic-range counters.
                         bool repDone = false;
                         float angle = float.NaN;
                         string stateLabel = "—";
                         switch (_currentExercise)
                         {
                             case Exercise.Pushup:
-                                repDone = _pushupCounter.Update(_pose.Keypoints);
-                                angle = _pushupCounter.LastAngle;
-                                stateLabel = _pushupCounter.CurrentState.ToString();
+                                _adaptive.Update(_pose.Keypoints, _poseT == 0 ? POSE_INTERVAL : Time.unscaledDeltaTime);
+                                angle = _adaptive.SmoothedAngle;
+                                stateLabel = _adaptive.State.ToString();
                                 break;
                             case Exercise.Situp:
                                 repDone = _situpCounter.Update(_pose.Keypoints);
@@ -884,6 +927,7 @@ namespace Gamex.Game
                                 break;
                         }
                         if (repDone) _onFakeRep?.Invoke();
+                        UpdateAdaptiveUI();
 
                         if (_camStatus != null)
                         {
@@ -997,9 +1041,82 @@ namespace Gamex.Game
             _pushupCounter?.Reset();
             _situpCounter?.Reset();
             _squatCounter?.Reset();
+            _adaptive?.Reset();
             UpdateExerciseButtonHighlight();
             if (_tipText != null) _tipText.text = TipForExercise(ex);
         }
+
+        // ============================================================
+        // Adaptive system setup + per-frame UI
+        // ============================================================
+        void SetupAdaptive()
+        {
+            _audioClips = ProcAudio.BuildAll();
+            _adaptive = new AdaptivePushupSystem();
+
+            // Zones in 0..1 sprite-relative coords (from PushupSilhouetteZones.txt).
+            // These match the silhouette PNG — adjust together if the art changes.
+            _adaptive.SilhouetteZones[11] = new Rect(0.178f, 0.320f, 0.095f, 0.127f);  // shoulder
+            _adaptive.SilhouetteZones[13] = new Rect(0.178f, 0.487f, 0.095f, 0.127f);  // elbow
+            _adaptive.SilhouetteZones[15] = new Rect(0.178f, 0.703f, 0.095f, 0.127f);  // wrist
+            _adaptive.SilhouetteZones[23] = new Rect(0.515f, 0.337f, 0.095f, 0.127f);  // hip
+            _adaptive.SilhouetteZones[27] = new Rect(0.828f, 0.420f, 0.095f, 0.127f);  // ankle
+
+            _adaptive.OnAlignmentTierChanged = _ =>
+                _trafficLightTint.color = _adaptive.BackgroundTintForAlignment();
+            _adaptive.OnAlignmentSuccess        = () => _audioSrc.PlayOneShot(_audioClips.alignmentDing);
+            _adaptive.OnCalibrationPromptStart  = () => _audioSrc.PlayOneShot(_audioClips.calibrationPrompt);
+            _adaptive.OnCalibrationComplete     = () => _audioSrc.PlayOneShot(_audioClips.readyGo);
+            _adaptive.OnRepSuccess              = () =>
+            {
+                _audioSrc.PlayOneShot(_audioClips.repSuccess);
+                _goldFlashT = 0.4f;
+                _onFakeRep?.Invoke();          // commits the rep into GamexGame
+            };
+            _adaptive.OnRepError                = () => _audioSrc.PlayOneShot(_audioClips.repError);
+        }
+
+        void UpdateAdaptiveUI()
+        {
+            if (_adaptive == null) return;
+
+            bool isPushup = _currentExercise == Exercise.Pushup;
+            bool alignmentPhase = isPushup && (
+                _adaptive.State == AdaptivePushupSystem.SessionState.WaitingForAlignment ||
+                _adaptive.State == AdaptivePushupSystem.SessionState.AlignmentCountdown);
+
+            if (_silhouetteOverlay != null) _silhouetteOverlay.gameObject.SetActive(alignmentPhase);
+            if (_trafficLightTint != null)
+            {
+                if (alignmentPhase) _trafficLightTint.color = _adaptive.BackgroundTintForAlignment();
+                else                _trafficLightTint.color = new Color(0f, 0f, 0f, 0f);
+            }
+
+            if (_adaptiveStatus != null)
+            {
+                if (!isPushup) { _adaptiveStatus.text = ""; }
+                else _adaptiveStatus.text = _adaptive.State switch
+                {
+                    AdaptivePushupSystem.SessionState.WaitingForAlignment => "Get into position — match the silhouette",
+                    AdaptivePushupSystem.SessionState.AlignmentCountdown  => "Hold steady...",
+                    AdaptivePushupSystem.SessionState.CalibrationPrompt   => "Do one standard pushup — slowly",
+                    AdaptivePushupSystem.SessionState.Calibrating         => $"Calibrating... {SafeAngle(_adaptive.CurrentAngle)}°",
+                    AdaptivePushupSystem.SessionState.ReadyToCount        => "Ready! Go!",
+                    AdaptivePushupSystem.SessionState.Counting            => $"Range {SafeAngle(_adaptive.MinAngle)}-{SafeAngle(_adaptive.MaxAngle)}° · {_adaptive.Reps} reps",
+                    _ => ""
+                };
+            }
+
+            // Gold-flash decay
+            if (_goldFlashT > 0f)
+            {
+                _goldFlashT -= Time.unscaledDeltaTime;
+                _goldFlash.color = new Color(1f, 0.8f, 0.3f, Mathf.Max(0f, _goldFlashT) * 0.8f);
+                if (_goldFlashT <= 0f) _goldFlash.color = new Color(1f, 0.8f, 0.3f, 0f);
+            }
+        }
+
+        static string SafeAngle(float a) => float.IsNaN(a) ? "—" : ((int)a).ToString();
 
         static string TipForExercise(Exercise ex)
         {
