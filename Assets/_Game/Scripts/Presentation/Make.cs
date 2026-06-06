@@ -20,6 +20,14 @@ namespace Gamex.Game
         public static Sprite UI(string name)        => Resources.Load<Sprite>("UI/" + name);
         public static Sprite Char(string name)      => Resources.Load<Sprite>("Char/" + name);
         public static Sprite Equipment(string id)   => Resources.Load<Sprite>("Equip/" + id);
+        // Icon variant — tight-bbox cropped sprite for inventory cells / paper-doll
+        // slot icons. Falls back to the 256x256 overlay if the icon hasn't been
+        // baked yet (e.g. during a partial asset import).
+        public static Sprite EquipmentIcon(string id)
+        {
+            var s = Resources.Load<Sprite>("Equip/" + id + "_icon");
+            return s != null ? s : Equipment(id);
+        }
         public static Sprite Silhouette()           => UI("silhouette");
 
         // Portrait dispatch (M5c rework):

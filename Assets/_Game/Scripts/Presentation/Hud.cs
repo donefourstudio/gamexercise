@@ -714,7 +714,7 @@ namespace Gamex.Game
                     new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(CELL, CELL),
                     "panel_light", new Color(0.22f, 0.24f, 0.32f, 1f));
                 var icon = MkSpriteIcon("Icon", cell.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                    new Vector2(CELL - 16f, CELL - 16f), Make.Equipment(allIds[i]), Color.white)
+                    new Vector2(CELL - 16f, CELL - 16f), Make.EquipmentIcon(allIds[i]), Color.white)
                     .GetComponent<Image>();
                 // Small "✓" badge in the corner for currently-equipped items.
                 var badge = MkText("Eq", cell.transform, new Vector2(1f, 1f),
@@ -974,7 +974,7 @@ namespace Gamex.Game
 
                 if (equippedId != null)
                 {
-                    var spr = Make.Equipment(equippedId);
+                    var spr = Make.EquipmentIcon(equippedId);
                     if (spr != null)
                     {
                         _invSlotIcons[i].sprite = spr;
