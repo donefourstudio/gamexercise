@@ -34,7 +34,7 @@ namespace Gamex.Core
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
     public enum Curse  { Unset = 0, Weakness = 1, Gluttony = 2 }
-    public enum Race   { Unset = 0, Human = 1, Orc = 2 }   // M3d may add Elf, Dwarf
+    public enum Race   { Unset = 0, Elf = 1, Orc = 2 }     // Human dropped in M5c; Dwarf future
     public enum Exercise { Pushup, Situp, Squat }          // kept for legacy save compat
 
     // Daily quests — each rewards 1 coin once per day, resets on EndDay.

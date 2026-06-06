@@ -196,18 +196,18 @@ namespace Gamex.Game
                 new Vector2(960f, 60f), FS_LABEL, TextAnchor.UpperCenter, TextDim)
                 .text = "\"...this is what I was meant to be.\"";
 
-            MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f,  220f), "Human", "Male",
-                Make.Portrait(Gender.Male, Curse.Unset, Race.Human, 5),
-                "The classic hero.",   () => _onSelectRaceAndGender?.Invoke(1, 1));
-            MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f,  220f), "Human", "Female",
-                Make.Portrait(Gender.Female, Curse.Unset, Race.Human, 5),
-                "The classic hero.",   () => _onSelectRaceAndGender?.Invoke(1, 2));
+            MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f,  220f), "Elf", "Male",
+                Make.Portrait(Gender.Male, Curse.Unset, Race.Elf, 5),
+                "Slender and ancient.",  () => _onSelectRaceAndGender?.Invoke(1, 1));
+            MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f,  220f), "Elf", "Female",
+                Make.Portrait(Gender.Female, Curse.Unset, Race.Elf, 5),
+                "Slender and ancient.",  () => _onSelectRaceAndGender?.Invoke(1, 2));
             MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f, -220f), "Orc", "Male",
                 Make.Portrait(Gender.Male, Curse.Unset, Race.Orc, 5),
-                "Strength and rage.",  () => _onSelectRaceAndGender?.Invoke(2, 1));
+                "Strength and rage.",    () => _onSelectRaceAndGender?.Invoke(2, 1));
             MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f, -220f), "Orc", "Female",
                 Make.Portrait(Gender.Female, Curse.Unset, Race.Orc, 5),
-                "Strength and rage.",  () => _onSelectRaceAndGender?.Invoke(2, 2));
+                "Strength and rage.",    () => _onSelectRaceAndGender?.Invoke(2, 2));
         }
 
         void MkRaceCard(Transform parent, Vector2 pos, string race, string gender, Sprite portrait, string flavor, Action onClick)

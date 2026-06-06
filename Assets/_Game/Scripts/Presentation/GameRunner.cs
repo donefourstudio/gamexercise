@@ -72,7 +72,9 @@ namespace Gamex.Game
             _hud?.Refresh(_game);
             // debug keys for fast iteration
             if (Input.GetKeyDown(KeyCode.E)) _game.EndDay();                  // advance one day
-            if (Input.GetKeyDown(KeyCode.R) && _game.phase == AppPhase.Quests) _game.DoRep(Exercise.Pushup); // alt fake rep
+            if (Input.GetKeyDown(KeyCode.R) &&
+                !Input.GetKey(KeyCode.LeftShift) && !Input.GetKey(KeyCode.RightShift))
+                _game.AddActivity(1000, 0, 0);                                 // R = +1000 steps (debug)
             // Shift+R from anywhere: nuke save + replay opening (dev / QA only).
             if (Input.GetKeyDown(KeyCode.R) &&
                 (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))

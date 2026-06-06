@@ -173,7 +173,7 @@ namespace Gamex.Game
             runner.Game.AddActivity(75000, 0, 0);   // total 100k -> lv 21
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_race_select.png");
-            runner.Game.SetRaceAndGender(Race.Human, Gender.Male);
+            runner.Game.SetRaceAndGender(Race.Elf, Gender.Male);
             yield return new WaitForSecondsRealtime(0.5f);
             Capture("/tmp/gamex_race_anim.png");
             yield return new WaitForSecondsRealtime(1.2f);
