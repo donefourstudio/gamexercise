@@ -58,6 +58,7 @@ namespace Gamex.Game
         PushupCounter _pushupCounter;
         SitupCounter  _situpCounter;
         SquatCounter  _squatCounter;
+        FaceMotionCounter _faceCounter;          // 新主力:基于脸部 Y 震荡的次数统计
         Exercise _currentExercise = Exercise.Pushup;
         readonly GameObject[] _exerciseButtons = new GameObject[3];
         Text _tipText;
@@ -888,11 +889,8 @@ namespace Gamex.Game
                 _camPreview.uvRect = new Rect(1f, 0f, -1f, 1f);   // selfie mirror
 
                 // Lazily spin up the pose detector + counters.
-                if (_pose == null)            _pose            = new PoseDetector();
-                if (_pushupCounter == null)   _pushupCounter   = new PushupCounter();
-                if (_situpCounter == null)    _situpCounter    = new SitupCounter();
-                if (_squatCounter == null)    _squatCounter    = new SquatCounter();
-                if (_adaptive == null)        SetupAdaptive();
+                if (_pose == null)         _pose          = new PoseDetector();
+                if (_faceCounter == null)  _faceCounter   = new FaceMotionCounter();
 
                 if (_pose.IsReady && _camTexture.didUpdateThisFrame)
                 {
@@ -903,56 +901,36 @@ namespace Gamex.Game
                         _pose.Detect(_camTexture);
                         UpdatePoseOverlay();
 
-                        // Pushup goes through the adaptive 3-module system.
-                        // Situp + Squat still use the dynamic-range counters.
-                        bool repDone = false;
-                        float angle = float.NaN;
-                        string stateLabel = "—";
-                        switch (_currentExercise)
-                        {
-                            case Exercise.Pushup:
-                                _adaptive.Update(_pose.Keypoints, _poseT == 0 ? POSE_INTERVAL : Time.unscaledDeltaTime);
-                                angle = _adaptive.SmoothedAngle;
-                                stateLabel = _adaptive.State.ToString();
-                                break;
-                            case Exercise.Situp:
-                                repDone = _situpCounter.Update(_pose.Keypoints);
-                                angle = _situpCounter.LastAngle;
-                                stateLabel = _situpCounter.CurrentState.ToString();
-                                break;
-                            case Exercise.Squat:
-                                repDone = _squatCounter.Update(_pose.Keypoints);
-                                angle = _squatCounter.LastAngle;
-                                stateLabel = _squatCounter.CurrentState.ToString();
-                                break;
-                        }
+                        // 全部三个运动都用 FaceMotionCounter 数 reps —— BlazePose 对脸的
+                        // 检测远比对身体关节的检测稳定,不管做什么动作脸都会规律上下,
+                        // 比追踪肘/胯角度更可靠。
+                        bool repDone = _faceCounter.Update(_pose.Keypoints);
                         if (repDone) _onFakeRep?.Invoke();
-                        UpdateAdaptiveUI();
+                        float angle = float.NaN;
+                        string stateLabel = _faceCounter.CurrentState.ToString();
 
                         if (_camStatus != null)
                         {
-                            float top = _pose.TopScore();
-                            if (top <= POSE_SCORE_GATE)
+                            // FaceMotionCounter-aware status banner. Three things matter
+                            // to the user: (1) is the face detected, (2) is the system
+                            // calibrating, (3) what state are we in + current rep count.
+                            if (float.IsNaN(_faceCounter.SmoothedY))
                             {
-                                _camStatus.text = "Looking...";
-                                _camStatus.color = TextDim;
-                            }
-                            else if (float.IsNaN(angle))
-                            {
-                                string missing = WhatsMissing(_currentExercise, _pose.Keypoints);
-                                _camStatus.text = missing != null ? $"Show {missing}" : "Get into position";
+                                _camStatus.text = "Show your face";
                                 _camStatus.color = new Color(1f, 0.55f, 0.45f, 1f);
+                            }
+                            else if (_faceCounter.CurrentState == FaceMotionCounter.State.Unknown)
+                            {
+                                _camStatus.text = "Start moving — calibrating...";
+                                _camStatus.color = TextDim;
                             }
                             else
                             {
-                                bool isUp = stateLabel == "Up";
-                                bool isUnknown = stateLabel == "Unknown";
-                                _camStatus.color = isUnknown
-                                    ? TextDim
-                                    : (isUp ? new Color(0.55f, 1f, 0.55f, 1f)
-                                            : new Color(1f, 0.70f, 0.35f, 1f));
-                                string label = isUnknown ? "calibrating..." : stateLabel.ToUpper();
-                                _camStatus.text = $"{(int)angle}°  {label}";
+                                bool isHigh = _faceCounter.CurrentState == FaceMotionCounter.State.High;
+                                _camStatus.color = isHigh
+                                    ? new Color(0.55f, 1f, 0.55f, 1f)
+                                    : new Color(1f, 0.70f, 0.35f, 1f);
+                                _camStatus.text = $"{_faceCounter.Reps} reps · {(isHigh ? "UP" : "DOWN")}";
                             }
                         }
                     }
@@ -1042,6 +1020,7 @@ namespace Gamex.Game
             _situpCounter?.Reset();
             _squatCounter?.Reset();
             _adaptive?.Reset();
+            _faceCounter?.Reset();
             UpdateExerciseButtonHighlight();
             if (_tipText != null) _tipText.text = TipForExercise(ex);
         }
