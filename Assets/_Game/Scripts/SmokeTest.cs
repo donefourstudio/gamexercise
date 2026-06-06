@@ -197,6 +197,18 @@ namespace Gamex.Game
             yield return new WaitForSecondsRealtime(0.5f);
             Capture("/tmp/gamex_race_anim.png");
             yield return new WaitForSecondsRealtime(1.2f);
+
+            // Equip a sample loadout so the home capture shows the M5e overlay
+            // system: legendary sword + silver armor + knight helmet/boots.
+            runner.Game.state.owned.Add("sword_legend");
+            runner.Game.state.owned.Add("armor_silver");
+            runner.Game.state.owned.Add("knight_helmet");
+            runner.Game.state.owned.Add("knight_boots");
+            runner.Game.state.equipped.Add("sword_legend");
+            runner.Game.state.equipped.Add("armor_silver");
+            runner.Game.state.equipped.Add("knight_helmet");
+            runner.Game.state.equipped.Add("knight_boots");
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_home_after_race.png");
 
             runner.Game.GoQuests();

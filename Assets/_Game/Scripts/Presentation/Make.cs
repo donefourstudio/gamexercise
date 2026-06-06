@@ -17,9 +17,10 @@ namespace Gamex.Game
             return _font;
         }
 
-        public static Sprite UI(string name)   => Resources.Load<Sprite>("UI/" + name);
-        public static Sprite Char(string name) => Resources.Load<Sprite>("Char/" + name);
-        public static Sprite Silhouette()      => UI("silhouette");
+        public static Sprite UI(string name)        => Resources.Load<Sprite>("UI/" + name);
+        public static Sprite Char(string name)      => Resources.Load<Sprite>("Char/" + name);
+        public static Sprite Equipment(string id)   => Resources.Load<Sprite>("Equip/" + id);
+        public static Sprite Silhouette()           => UI("silhouette");
 
         // Portrait dispatch (M5c rework):
         //   race == Unset (Lv 1-19) -> per-curse stage sprite:

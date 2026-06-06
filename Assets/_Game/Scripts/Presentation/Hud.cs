@@ -642,7 +642,7 @@ namespace Gamex.Game
                     if (swapped)
                         ApplyAvatarLook(_raceAnimAvatar,
                             (Gender)g.state.gender, (Curse)g.state.curse,
-                            (Race)g.state.race, g.Stage);
+                            (Race)g.state.race, g.Stage, g.state.equipped);
                 }
                 if (_raceAnimT >= RACE_ANIM_DURATION) _onRaceAnimDone?.Invoke();
             }
@@ -699,7 +699,8 @@ namespace Gamex.Game
 
                 // Mirror is the player at the current stage. race == Unset -> skeleton growth,
                 // race != Unset -> race form (post Lv 20 transformation).
-                ApplyAvatarLook(_mirrorSelf, safeGender, curse, (Race)g.state.race, g.Stage);
+                ApplyAvatarLook(_mirrorSelf, safeGender, curse, (Race)g.state.race, g.Stage,
+                                g.state.equipped);
                 _mirrorSelf.SetAlpha(1f);
 
                 // Stage / level transition detection (Home only). First Refresh after Home
@@ -870,18 +871,32 @@ namespace Gamex.Game
         }
 
         // ============================================================
-        // Avatar — LPC portrait sprite + (future) equipment overlays
+        // Avatar — LPC portrait sprite + equipment overlays (M5e)
         // ============================================================
         public class AvatarSprite
         {
             public GameObject root;
             public Image portrait;
+            // 6 equipment slots, all stacked on top of the portrait in the same rect.
+            // The sprites themselves are 256x256 with content only in the right
+            // anatomical region, so layering "just works".
+            public Image sword;
+            public Image armor;
+            public Image helmet;
+            public Image leggings;
+            public Image gauntlets;
+            public Image boots;
 
             public void SetAlpha(float a)
             {
-                if (portrait == null) return;
-                var c = portrait.color;
-                portrait.color = new Color(c.r, c.g, c.b, a);
+                Set(portrait, a);
+                Set(sword, a); Set(armor, a); Set(helmet, a);
+                Set(leggings, a); Set(gauntlets, a); Set(boots, a);
+            }
+            static void Set(Image img, float a)
+            {
+                if (img == null) return;
+                var c = img.color; img.color = new Color(c.r, c.g, c.b, a);
             }
         }
 
@@ -897,30 +912,90 @@ namespace Gamex.Game
             rrt.sizeDelta = new Vector2(256f, 256f) * scale;
             rrt.localScale = Vector3.one;
 
-            var goImg = new GameObject("Portrait");
-            goImg.transform.SetParent(root.transform, false);
-            var img = goImg.AddComponent<Image>();
-            img.preserveAspect = true;
-            img.raycastTarget = false;
-            var irt = img.rectTransform;
-            irt.anchorMin = Vector2.zero;
-            irt.anchorMax = Vector2.one;
-            irt.offsetMin = Vector2.zero;
-            irt.offsetMax = Vector2.zero;
+            Image MkLayer(string name, bool hiddenInitially)
+            {
+                var go = new GameObject(name);
+                go.transform.SetParent(root.transform, false);
+                var img = go.AddComponent<Image>();
+                img.preserveAspect = true;
+                img.raycastTarget = false;
+                var rt = img.rectTransform;
+                rt.anchorMin = Vector2.zero;
+                rt.anchorMax = Vector2.one;
+                rt.offsetMin = Vector2.zero;
+                rt.offsetMax = Vector2.zero;
+                if (hiddenInitially) go.SetActive(false);   // wholly disabled until SetOverlay activates
+                return img;
+            }
 
-            var avatar = new AvatarSprite { root = root, portrait = img };
+            var avatar = new AvatarSprite { root = root };
+            avatar.portrait  = MkLayer("Portrait",  false);
+            avatar.armor     = MkLayer("Armor",     true);   // torso layer (over body)
+            avatar.leggings  = MkLayer("Leggings",  true);
+            avatar.boots     = MkLayer("Boots",     true);
+            avatar.gauntlets = MkLayer("Gauntlets", true);
+            avatar.helmet    = MkLayer("Helmet",    true);
+            avatar.sword     = MkLayer("Sword",     true);
+
             ApplyAvatarLook(avatar, gender, curse, race, stage);
             return avatar;
         }
 
-        void ApplyAvatarLook(AvatarSprite avatar, Gender gender, Curse curse, Race race, int stage)
+        void ApplyAvatarLook(AvatarSprite avatar, Gender gender, Curse curse, Race race, int stage,
+                             List<string> equipped = null)
         {
             if (avatar == null || avatar.portrait == null) return;
             avatar.portrait.sprite = Make.Portrait(
                 gender == Gender.Unset ? Gender.Male : gender, curse, race, stage);
-            // preserve current alpha (mirror fade etc), reset RGB to white so sprite shows true colors
             float a = avatar.portrait.color.a;
             avatar.portrait.color = new Color(1f, 1f, 1f, a);
+
+            // Equipment overlays: only on race-form characters (Lv 20+). Pre-race
+            // skeleton / zombie bodies don't wear armour — and the overlay sprites
+            // are positioned for the race-form silhouette anyway.
+            string swordId = null, armorId = null, helmetId = null,
+                   leggingsId = null, gauntletsId = null, bootsId = null;
+            if (race != Race.Unset && equipped != null)
+            {
+                foreach (var id in equipped)
+                {
+                    if (id == null) continue;
+                    if      (id.StartsWith("sword_"))     swordId     = id;
+                    else if (id.StartsWith("armor_"))     armorId     = id;
+                    else if (id == "knight_chest")        armorId     = id;
+                    else if (id == "knight_helmet")       helmetId    = id;
+                    else if (id == "knight_leggings")     leggingsId  = id;
+                    else if (id == "knight_gauntlets")    gauntletsId = id;
+                    else if (id == "knight_boots")        bootsId     = id;
+                }
+            }
+            SetOverlay(avatar.sword,     swordId,     a);
+            SetOverlay(avatar.armor,     armorId,     a);
+            SetOverlay(avatar.helmet,    helmetId,    a);
+            SetOverlay(avatar.leggings,  leggingsId,  a);
+            SetOverlay(avatar.gauntlets, gauntletsId, a);
+            SetOverlay(avatar.boots,     bootsId,     a);
+        }
+
+        static void SetOverlay(Image ov, string id, float alpha)
+        {
+            if (ov == null) return;
+            if (id == null)
+            {
+                if (ov.gameObject.activeSelf) ov.gameObject.SetActive(false);
+                return;
+            }
+            var spr = Make.Equipment(id);
+            if (spr == null)
+            {
+                // Asset not imported yet — keep the overlay disabled so we don't
+                // get the default white-quad render.
+                if (ov.gameObject.activeSelf) ov.gameObject.SetActive(false);
+                return;
+            }
+            if (!ov.gameObject.activeSelf) ov.gameObject.SetActive(true);
+            ov.sprite = spr;
+            ov.color  = new Color(1f, 1f, 1f, alpha);
         }
 
         // ============================================================

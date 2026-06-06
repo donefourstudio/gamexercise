@@ -31,6 +31,17 @@ namespace Gamex.EditorTools
             ti.alphaIsTransparency = true;
             ti.wrapMode           = TextureWrapMode.Clamp;
 
+            // Equipment overlays are 256x256 with content only in a small region —
+            // force FullRect mesh so the sprite renders at its full canvas size
+            // (not cropped to visible bounds, which would offset alignment).
+            if (isEquip)
+            {
+                var s = new TextureImporterSettings();
+                ti.ReadTextureSettings(s);
+                s.spriteMeshType = SpriteMeshType.FullRect;
+                ti.SetTextureSettings(s);
+            }
+
             // 9-slice for stretchable panels and buttons
             if (isUI && (System.IO.Path.GetFileName(p).StartsWith("btn_") ||
                          System.IO.Path.GetFileName(p).StartsWith("panel")))
