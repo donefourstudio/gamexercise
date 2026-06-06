@@ -59,7 +59,7 @@ namespace Gamex.Game
                 onSelectRaceAndGender:(r, g) => _game.SetRaceAndGender((Race)r, (Gender)g),
                 onRaceAnimDone:       () => _game.CompleteRaceAnim(),
                 onFinishFirstMirror:  () => { _game.DoRep(Exercise.Pushup); _game.FinishFirstMirror(); },
-                onGoTraining:         () => _game.GoTraining(),
+                onGoQuests:           () => _game.GoQuests(),
                 onGoShop:             () => _game.GoShop(),
                 onGoHome:             () => _game.GoHome(),
                 onFakeRep:            () => _game.DoRep(Exercise.Pushup),
@@ -72,7 +72,7 @@ namespace Gamex.Game
             _hud?.Refresh(_game);
             // debug keys for fast iteration
             if (Input.GetKeyDown(KeyCode.E)) _game.EndDay();                  // advance one day
-            if (Input.GetKeyDown(KeyCode.R) && _game.phase == AppPhase.Training) _game.DoRep(Exercise.Pushup); // alt fake rep
+            if (Input.GetKeyDown(KeyCode.R) && _game.phase == AppPhase.Quests) _game.DoRep(Exercise.Pushup); // alt fake rep
             // Shift+R from anywhere: nuke save + replay opening (dev / QA only).
             if (Input.GetKeyDown(KeyCode.R) &&
                 (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))

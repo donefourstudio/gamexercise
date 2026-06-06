@@ -179,7 +179,7 @@ namespace Gamex.Game
             yield return new WaitForSecondsRealtime(1.2f);
             Capture("/tmp/gamex_home_after_race.png");
 
-            runner.Game.GoTraining();
+            runner.Game.GoQuests();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_training.png");
 

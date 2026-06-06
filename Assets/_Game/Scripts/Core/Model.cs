@@ -23,7 +23,7 @@ namespace Gamex.Core
         OpeningAmnesia,
         FirstMirror,
         Home,
-        Training,
+        Quests,
         Shop,
         // Triggered when level reaches 20 and race is Unset (gender + race
         // are chosen together — Q2=C). RaceTransformAnim is the silhouette -> chosen

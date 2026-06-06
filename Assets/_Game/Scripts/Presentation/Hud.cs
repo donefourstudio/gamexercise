@@ -4,7 +4,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using Gamex.Core;
-using Gamex.Pose;
 
 namespace Gamex.Game
 {
@@ -50,35 +49,9 @@ namespace Gamex.Game
         float _raceAnimT;
         const float RACE_ANIM_SWAP_AT = 0.7f;
 
-        // ---- camera preview + pose detection (Training) ----
-        RawImage _camPreview;
-        WebCamTexture _camTexture;
-        Text _camStatus;
-        PoseDetector _pose;
-        PushupCounter _pushupCounter;
-        SitupCounter  _situpCounter;
-        SquatCounter  _squatCounter;
-        FaceMotionCounter _faceCounter;          // 新主力:基于脸部 Y 震荡的次数统计
-        Exercise _currentExercise = Exercise.Pushup;
-        readonly GameObject[] _exerciseButtons = new GameObject[3];
-        Text _tipText;
-        readonly Image[] _poseDots = new Image[PoseDetector.KEYPOINT_COUNT];
-
-        // Adaptive pushup session (model 3-module spec): silhouette overlay,
-        // traffic-light tint, calibration FSM, dynamic-threshold counter,
-        // procedural audio for all five hook events. Only used when
-        // _currentExercise == Pushup.
-        AdaptivePushupSystem _adaptive;
-        ProcAudio.Clips _audioClips;
-        AudioSource _audioSrc;
-        Image _silhouetteOverlay;
-        Image _trafficLightTint;
-        Image _goldFlash;
-        Text  _adaptiveStatus;
-        float _goldFlashT;
-        float _poseT;
-        const float POSE_INTERVAL = 0.1f;        // 10 Hz inference
-        const float POSE_SCORE_GATE = 0.3f;
+        // (Pose detection scaffolding deleted in M5b — rep counting was abandoned in
+        // favour of step-based progression. The Quests panel below replaces the old
+        // Training viewport entirely.)
 
         // ---- daily ritual icons (Home) ----
         Image[] _candleImgs = new Image[4];   // 4 candles bracketing the mirror
@@ -125,8 +98,10 @@ namespace Gamex.Game
         Text _homeLevel, _homeCoins, _homeProgress, _homeStreak;
         Image _xpBar;
 
-        // ---- training refs ----
-        Text _trainReps, _trainCoinsXp, _trainMaintenance;
+        // ---- quests refs (M5b) ----
+        Text _questsStreak, _questsTotalSteps, _questsTotalRun;
+        readonly Image[] _questCheckmarks = new Image[(int)Quest.Count];
+        readonly Text[]  _questRowLabels  = new Text[(int)Quest.Count];
 
         // ---- first mirror refs ----
         Text _firstMirrorLine;
@@ -145,7 +120,7 @@ namespace Gamex.Game
         readonly Action<int,int> _onSelectRaceAndGender;
         readonly Action         _onRaceAnimDone;
         readonly Action         _onFinishFirstMirror;
-        readonly Action         _onGoTraining, _onGoShop, _onGoHome, _onFakeRep;
+        readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onFakeRep;
         readonly Action<string> _onBuy, _onToggleEquip;
 
         public Hud(
@@ -155,7 +130,7 @@ namespace Gamex.Game
             Action<int,int> onSelectRaceAndGender,
             Action onRaceAnimDone,
             Action onFinishFirstMirror,
-            Action onGoTraining,
+            Action onGoQuests,
             Action onGoShop,
             Action onGoHome,
             Action onFakeRep,
@@ -168,7 +143,7 @@ namespace Gamex.Game
             _onSelectRaceAndGender = onSelectRaceAndGender;
             _onRaceAnimDone        = onRaceAnimDone;
             _onFinishFirstMirror   = onFinishFirstMirror;
-            _onGoTraining          = onGoTraining;
+            _onGoQuests            = onGoQuests;
             _onGoShop              = onGoShop;
             _onGoHome              = onGoHome;
             _onFakeRep             = onFakeRep;
@@ -201,7 +176,7 @@ namespace Gamex.Game
             BuildCurseSelect(root);
             BuildFirstMirror(root);
             BuildHome(root);
-            BuildTraining(root);
+            BuildQuests(root);
             BuildShop(root);
             BuildRaceSelect(root);
             BuildRaceTransformAnim(root);
@@ -513,108 +488,65 @@ namespace Gamex.Game
             xrt.anchorMin = xrt.anchorMax = new Vector2(0f, 0.5f);
             xrt.anchoredPosition = Vector2.zero;   // pivot sits AT the anchor (parent's left-center)
 
-            // bottom buttons
-            MkButton("Train", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
-                new Vector2(800f, 160f), "Start Training", () => _onGoTraining?.Invoke());
+            // bottom buttons — Quests opens the daily-task list, Shop is cosmetics
+            MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
+                new Vector2(800f, 160f), "Quests", () => _onGoQuests?.Invoke());
             MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
-        // Training
+        // Quests — daily-task list + lifetime totals (M5b).
+        // Replaces the old Training screen entirely. Each quest is a row
+        // showing label + status (✓ / progress fraction). Refresh updates
+        // the rows from g.state every frame.
         // ============================================================
-        void BuildTraining(Transform root)
+        static readonly (Quest quest, string label, int goal, bool runMinutes)[] QUEST_SPEC =
         {
-            _trainPanel = MkFullPanel("TrainPanel", root);
+            (Quest.Walk1000,  "Walk 1,000 steps",  1000,  false),
+            (Quest.Walk5000,  "Walk 5,000 steps",  5000,  false),
+            (Quest.Walk10000, "Walk 10,000 steps", 10000, false),
+            (Quest.Run15Min,  "Run 15 minutes",    15,    true),
+            (Quest.Run30Min,  "Run 30 minutes",    30,    true),
+        };
 
-            // Exercise selector row at the top of the screen (above the camera).
-            string[] names = { "Pushup", "Situp", "Squat" };
-            const float btnW = 220f, gap = 30f;
-            float totalW = btnW * 3f + gap * 2f;
-            for (int i = 0; i < 3; i++)
+        void BuildQuests(Transform root)
+        {
+            _trainPanel = MkFullPanel("QuestsPanel", root);
+
+            MkText("Title", _trainPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
+                new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Daily Quests";
+
+            // 5 quest rows, stacked. Each is a tan-tinted panel with label left, status right.
+            const float rowH = 130f, rowGap = 16f, rowW = 920f;
+            float startY = 660f;
+            for (int i = 0; i < QUEST_SPEC.Length; i++)
             {
-                Exercise ex = (Exercise)i;
-                float x = -totalW * 0.5f + btnW * 0.5f + i * (btnW + gap);
-                _exerciseButtons[i] = MkButton("Ex_" + ex, _trainPanel.transform,
-                    new Vector2(0.5f, 1f), new Vector2(x, -60f),
-                    new Vector2(btnW, 80f), names[i],
-                    () => SelectExercise(ex),
-                    "btn_grey", "btn_grey_down");
+                float y = startY - i * (rowH + rowGap);
+                var row = MkSpritePanel("Q_" + i, _trainPanel.transform, new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, y), new Vector2(rowW, rowH), "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
+
+                _questRowLabels[i] = MkText("Label", row.transform, new Vector2(0f, 0.5f),
+                    new Vector2(50f, 0f), new Vector2(rowW - 220f, rowH - 20f),
+                    FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
+
+                // ✓ checkmark / gold reward chip on the right
+                _questCheckmarks[i] = MkSpriteIcon("Tick", row.transform, new Vector2(1f, 0.5f),
+                    new Vector2(-70f, 0f), new Vector2(72f, 72f),
+                    "panel_light", new Color(1f, 0.84f, 0.42f, 1f)).GetComponent<Image>();
+                _questCheckmarks[i].gameObject.SetActive(false);
             }
-            UpdateExerciseButtonHighlight();
 
-            // Top half: live camera viewport. Live front-camera feed renders into
-            // a RawImage that fills the panel; cartoon face mask sits on top as a
-            // privacy overlay.
-            var cam = MkSpritePanel("CamViewport", _trainPanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -200f), new Vector2(900f, 640f), "panel_light", CamBg);
+            // Totals — lifetime steps + running time + streak — under the quest rows.
+            _questsTotalSteps = MkText("TotalSteps", _trainPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -160f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+            _questsTotalRun   = MkText("TotalRun",   _trainPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -220f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+            _questsStreak     = MkText("Streak",     _trainPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -280f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
 
-            var rawGO = new GameObject("CamRaw");
-            rawGO.transform.SetParent(cam.transform, false);
-            _camPreview = rawGO.AddComponent<RawImage>();
-            _camPreview.color = Color.white;
-            _camPreview.raycastTarget = false;
-            var rrt = _camPreview.rectTransform;
-            rrt.anchorMin = Vector2.zero;
-            rrt.anchorMax = Vector2.one;
-            rrt.offsetMin = new Vector2(16f, 70f);   // leave room for tip text at the bottom
-            rrt.offsetMax = new Vector2(-16f, -60f); // and for status tag at the top
-
-            // Big, prominent status banner across the top of the camera viewport
-            // so the user can see live angle + state from across the room.
-            _camStatus = MkText("CamTag", cam.transform, new Vector2(0.5f, 1f), new Vector2(0f, -40f),
-                new Vector2(880f, 80f), FS_BIG, TextAnchor.UpperCenter, AccentGold);
-            _camStatus.text = "Camera off";
-
-            // --- AdaptivePushupSystem visual layer (pushup only) ---------------
-            // (1) Full-viewport traffic-light tint — under silhouette, over camera.
-            //     Colour driven by AdaptivePushupSystem.BackgroundTintForAlignment.
-            _trafficLightTint = MkPanel("TrafficLight", cam.transform, new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(900f, 700f), new Color(0f, 0f, 0f, 0f)).GetComponent<Image>();
-            _trafficLightTint.raycastTarget = false;
-
-            // (2) Side-view pushup silhouette overlay — visible during alignment phases.
-            _silhouetteOverlay = MkSpriteIcon("Silhouette", cam.transform, new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(820f, 615f), Make.UI("pushup_silhouette"), Color.white).GetComponent<Image>();
-            _silhouetteOverlay.gameObject.SetActive(false);
-
-            // (3) Adaptive status banner — replaces _camStatus content when pushup is active.
-            //     Sits below the camera tag.
-            _adaptiveStatus = MkText("AdaptiveStatus", cam.transform, new Vector2(0.5f, 0f),
-                new Vector2(0f, 90f), new Vector2(880f, 50f), FS_LABEL, TextAnchor.LowerCenter, TextDim);
-            _adaptiveStatus.text = "";
-
-            // (4) Full-screen gold flash for rep success — under selector strip.
-            _goldFlash = MkPanel("GoldFlash", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(4000f, 4000f), new Color(1f, 0.8f, 0.3f, 0f)).GetComponent<Image>();
-            _goldFlash.raycastTarget = false;
-
-            // AudioSource for the five procedural clips.
-            _audioSrc = _trainPanel.AddComponent<AudioSource>();
-            _audioSrc.playOnAwake = false;
-            _audioSrc.spatialBlend = 0f;
-
-            // Per-exercise placement tip at the bottom of the viewport. Swaps when the
-            // user changes exercise (SelectExercise). The cartoon face placeholder was
-            // removed — the user was confused about whether to face the camera or stand
-            // sideways, so the tip text now tells them exactly.
-            _tipText = MkText("Tip", cam.transform, new Vector2(0.5f, 0f), new Vector2(0f, 32f),
-                new Vector2(860f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim);
-            _tipText.text = TipForExercise(_currentExercise);
-
-            // Center: huge rep counter
-            _trainReps = MkText("Reps", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -120f), new Vector2(900f, 220f), FS_HUGE, TextAnchor.MiddleCenter, AccentGold);
-            _trainCoinsXp = MkText("CoinsXp", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -260f), new Vector2(900f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
-            _trainMaintenance = MkText("Maint", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -320f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
-
-            // Bottom: buttons
-            MkButton("FakeRep", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
-                new Vector2(720f, 140f), "Fake a Rep", () => _onFakeRep?.Invoke());
-            MkButton("Done", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(420f, 100f), "Done", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+            MkButton("Back", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
@@ -685,12 +617,10 @@ namespace Gamex.Game
             Set(_cursePanel,              g.phase == AppPhase.CurseSelect);
             Set(_firstMirrorPanel,        g.phase == AppPhase.FirstMirror);
             Set(_homePanel,               g.phase == AppPhase.Home);
-            Set(_trainPanel,              g.phase == AppPhase.Training);
+            Set(_trainPanel,              g.phase == AppPhase.Quests);
             Set(_shopPanel,               g.phase == AppPhase.Shop);
             Set(_raceSelectPanel,         g.phase == AppPhase.RaceSelect);
             Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
-
-            UpdateCamera(g);
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {
@@ -749,7 +679,7 @@ namespace Gamex.Game
                 ApplyAvatarLook(_firstMirrorSelf, safeGender,
                                 curse == Curse.Unset ? Curse.Weakness : curse, Race.Unset, stage: 0);
 
-            if (g.phase == AppPhase.Home || g.phase == AppPhase.Training || g.phase == AppPhase.Shop)
+            if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop)
             {
                 _homeLevel.text   = $"Lv {g.state.level}";
                 _homeCoins.text   = $"{g.state.coins} Gold";
@@ -836,11 +766,9 @@ namespace Gamex.Game
                     ritualDone ? CROWN_Y_LANDED : CROWN_Y_FLOATING);
             }
 
-            if (g.phase == AppPhase.Training)
+            if (g.phase == AppPhase.Quests)
             {
-                _trainReps.text = g.state.todaySteps.ToString();
-                _trainCoinsXp.text = $"{g.state.coins} Gold   ·   Lv {g.state.level}  ({g.XpInCurrentLevel}/{g.XpToNextLevel} XP)";
-                _trainMaintenance.text = $"Run today: {g.state.todayRunSeconds / 60} min";
+                UpdateQuests(g);
             }
 
             if (g.phase == AppPhase.Shop)
@@ -877,277 +805,37 @@ namespace Gamex.Game
         }
 
         // ============================================================
-        // Camera lifecycle + pose detection — Training only.
+        // Quests panel — per-row checkmark + total counters refresh.
         // ============================================================
-        void UpdateCamera(GamexGame g)
+        void UpdateQuests(GamexGame g)
         {
-            bool wantsCam = g.phase == AppPhase.Training;
-            if (wantsCam && (_camTexture == null || !_camTexture.isPlaying))
-                StartCamera();
-            else if (!wantsCam && _camTexture != null && _camTexture.isPlaying)
-                StopCamera();
-
-            if (_camPreview != null && _camTexture != null && _camTexture.isPlaying)
+            for (int i = 0; i < QUEST_SPEC.Length; i++)
             {
-                _camPreview.uvRect = new Rect(1f, 0f, -1f, 1f);   // selfie mirror
+                var spec = QUEST_SPEC[i];
+                int progress = spec.runMinutes ? g.state.todayRunSeconds / 60 : g.state.todaySteps;
+                bool done = g.state.questDone != null
+                            && spec.quest < (Quest)g.state.questDone.Length
+                            && g.state.questDone[(int)spec.quest];
 
-                // Lazily spin up the pose detector + counters.
-                if (_pose == null)         _pose          = new PoseDetector();
-                if (_faceCounter == null)  _faceCounter   = new FaceMotionCounter();
-
-                if (_pose.IsReady && _camTexture.didUpdateThisFrame)
+                if (_questRowLabels[i] != null)
                 {
-                    _poseT += Time.unscaledDeltaTime;
-                    if (_poseT >= POSE_INTERVAL)
-                    {
-                        _poseT = 0f;
-                        _pose.Detect(_camTexture);
-                        UpdatePoseOverlay();
-
-                        // 全部三个运动都用 FaceMotionCounter 数 reps —— BlazePose 对脸的
-                        // 检测远比对身体关节的检测稳定,不管做什么动作脸都会规律上下,
-                        // 比追踪肘/胯角度更可靠。
-                        bool repDone = _faceCounter.Update(_pose.Keypoints);
-                        if (repDone) _onFakeRep?.Invoke();
-                        float angle = float.NaN;
-                        string stateLabel = _faceCounter.CurrentState.ToString();
-
-                        if (_camStatus != null)
-                        {
-                            // FaceMotionCounter-aware status banner. Three things matter
-                            // to the user: (1) is the face detected, (2) is the system
-                            // calibrating, (3) what state are we in + current rep count.
-                            if (float.IsNaN(_faceCounter.SmoothedY))
-                            {
-                                _camStatus.text = "Show your face";
-                                _camStatus.color = new Color(1f, 0.55f, 0.45f, 1f);
-                            }
-                            else if (_faceCounter.CurrentState == FaceMotionCounter.State.Unknown)
-                            {
-                                _camStatus.text = "Start moving — calibrating...";
-                                _camStatus.color = TextDim;
-                            }
-                            else
-                            {
-                                bool isHigh = _faceCounter.CurrentState == FaceMotionCounter.State.High;
-                                _camStatus.color = isHigh
-                                    ? new Color(0.55f, 1f, 0.55f, 1f)
-                                    : new Color(1f, 0.70f, 0.35f, 1f);
-                                _camStatus.text = $"{_faceCounter.Reps} reps · {(isHigh ? "UP" : "DOWN")}";
-                            }
-                        }
-                    }
+                    string status = done
+                        ? "✓ done"
+                        : (spec.runMinutes
+                            ? $"{progress} / {spec.goal} min"
+                            : $"{progress} / {spec.goal} steps");
+                    _questRowLabels[i].text = $"{spec.label}\n{status}   +1 Gold";
                 }
-            }
-            else
-            {
-                if (_camPreview != null && _camPreview.texture != null) _camPreview.texture = null;
-                for (int i = 0; i < _poseDots.Length; i++)
-                    if (_poseDots[i] != null) _poseDots[i].gameObject.SetActive(false);
-            }
-        }
-
-        void UpdatePoseOverlay()
-        {
-            if (_pose == null || _camPreview == null) return;
-            var rect = _camPreview.rectTransform.rect;
-
-            for (int i = 0; i < PoseDetector.KEYPOINT_COUNT; i++)
-            {
-                if (_poseDots[i] == null)
-                {
-                    var go = new GameObject("Pose_" + i);
-                    go.transform.SetParent(_camPreview.transform, false);
-                    var img = go.AddComponent<Image>();
-                    img.color = new Color(0.45f, 1f, 0.50f, 0.85f);
-                    img.raycastTarget = false;
-                    var rt = img.rectTransform;
-                    rt.anchorMin = rt.anchorMax = new Vector2(0f, 0f);  // bottom-left of preview
-                    rt.pivot = new Vector2(0.5f, 0.5f);
-                    rt.sizeDelta = new Vector2(14f, 14f);
-                    _poseDots[i] = img;
-                }
-
-                var kp = _pose.Keypoints[i];
-                if (kp.score >= POSE_SCORE_GATE)
-                {
-                    // MoveNet: y down, x right. UI: y up. We also mirrored the feed.
-                    float ux = (1f - kp.x) * rect.width;
-                    float uy = (1f - kp.y) * rect.height;
-                    _poseDots[i].rectTransform.anchoredPosition = new Vector2(ux, uy);
-                    if (!_poseDots[i].gameObject.activeSelf) _poseDots[i].gameObject.SetActive(true);
-                }
-                else if (_poseDots[i].gameObject.activeSelf)
-                {
-                    _poseDots[i].gameObject.SetActive(false);
-                }
-            }
-        }
-
-        void StartCamera()
-        {
-            if (_camPreview == null) return;
-            var devices = WebCamTexture.devices;
-            if (devices == null || devices.Length == 0)
-            {
-                if (_camStatus != null) _camStatus.text = "No camera available";
-                return;
-            }
-            string deviceName = devices[0].name;
-            foreach (var d in devices) { if (d.isFrontFacing) { deviceName = d.name; break; } }
-            try
-            {
-                _camTexture = new WebCamTexture(deviceName, 640, 480, 30);
-                _camTexture.Play();
-                _camPreview.texture = _camTexture;
-            }
-            catch (System.Exception e)
-            {
-                if (_camStatus != null) _camStatus.text = "Camera error";
-                Debug.LogWarning("[Gamex] camera start failed: " + e.Message);
-            }
-        }
-
-        void StopCamera()
-        {
-            if (_camTexture != null)
-            {
-                try { _camTexture.Stop(); } catch { /* fine */ }
-            }
-        }
-
-        void SelectExercise(Exercise ex)
-        {
-            _currentExercise = ex;
-            _pushupCounter?.Reset();
-            _situpCounter?.Reset();
-            _squatCounter?.Reset();
-            _adaptive?.Reset();
-            _faceCounter?.Reset();
-            UpdateExerciseButtonHighlight();
-            if (_tipText != null) _tipText.text = TipForExercise(ex);
-        }
-
-        // ============================================================
-        // Adaptive system setup + per-frame UI
-        // ============================================================
-        void SetupAdaptive()
-        {
-            _audioClips = ProcAudio.BuildAll();
-            _adaptive = new AdaptivePushupSystem();
-
-            // Zones in 0..1 sprite-relative coords (from PushupSilhouetteZones.txt).
-            // These match the silhouette PNG — adjust together if the art changes.
-            _adaptive.SilhouetteZones[11] = new Rect(0.178f, 0.320f, 0.095f, 0.127f);  // shoulder
-            _adaptive.SilhouetteZones[13] = new Rect(0.178f, 0.487f, 0.095f, 0.127f);  // elbow
-            _adaptive.SilhouetteZones[15] = new Rect(0.178f, 0.703f, 0.095f, 0.127f);  // wrist
-            _adaptive.SilhouetteZones[23] = new Rect(0.515f, 0.337f, 0.095f, 0.127f);  // hip
-            _adaptive.SilhouetteZones[27] = new Rect(0.828f, 0.420f, 0.095f, 0.127f);  // ankle
-
-            _adaptive.OnAlignmentTierChanged = _ =>
-                _trafficLightTint.color = _adaptive.BackgroundTintForAlignment();
-            _adaptive.OnAlignmentSuccess        = () => _audioSrc.PlayOneShot(_audioClips.alignmentDing);
-            _adaptive.OnCalibrationPromptStart  = () => _audioSrc.PlayOneShot(_audioClips.calibrationPrompt);
-            _adaptive.OnCalibrationComplete     = () => _audioSrc.PlayOneShot(_audioClips.readyGo);
-            _adaptive.OnRepSuccess              = () =>
-            {
-                _audioSrc.PlayOneShot(_audioClips.repSuccess);
-                _goldFlashT = 0.4f;
-                _onFakeRep?.Invoke();          // commits the rep into GamexGame
-            };
-            _adaptive.OnRepError                = () => _audioSrc.PlayOneShot(_audioClips.repError);
-        }
-
-        void UpdateAdaptiveUI()
-        {
-            if (_adaptive == null) return;
-
-            bool isPushup = _currentExercise == Exercise.Pushup;
-            bool alignmentPhase = isPushup && (
-                _adaptive.State == AdaptivePushupSystem.SessionState.WaitingForAlignment ||
-                _adaptive.State == AdaptivePushupSystem.SessionState.AlignmentCountdown);
-
-            if (_silhouetteOverlay != null) _silhouetteOverlay.gameObject.SetActive(alignmentPhase);
-            if (_trafficLightTint != null)
-            {
-                if (alignmentPhase) _trafficLightTint.color = _adaptive.BackgroundTintForAlignment();
-                else                _trafficLightTint.color = new Color(0f, 0f, 0f, 0f);
+                if (_questCheckmarks[i] != null) _questCheckmarks[i].gameObject.SetActive(done);
             }
 
-            if (_adaptiveStatus != null)
+            if (_questsTotalSteps != null) _questsTotalSteps.text = $"Total steps: {g.state.totalSteps:N0}";
+            if (_questsTotalRun != null)
             {
-                if (!isPushup) { _adaptiveStatus.text = ""; }
-                else _adaptiveStatus.text = _adaptive.State switch
-                {
-                    AdaptivePushupSystem.SessionState.WaitingForAlignment => "Get into position — match the silhouette",
-                    AdaptivePushupSystem.SessionState.AlignmentCountdown  => "Hold steady...",
-                    AdaptivePushupSystem.SessionState.CalibrationPrompt   => "Do one standard pushup — slowly",
-                    AdaptivePushupSystem.SessionState.Calibrating         => $"Calibrating... {SafeAngle(_adaptive.CurrentAngle)}°",
-                    AdaptivePushupSystem.SessionState.ReadyToCount        => "Ready! Go!",
-                    AdaptivePushupSystem.SessionState.Counting            => $"Range {SafeAngle(_adaptive.MinAngle)}-{SafeAngle(_adaptive.MaxAngle)}° · {_adaptive.Reps} reps",
-                    _ => ""
-                };
+                int totalMin = (int)(g.state.totalRunSeconds / 60);
+                _questsTotalRun.text = $"Total running: {totalMin / 60}h {totalMin % 60}m";
             }
-
-            // Gold-flash decay
-            if (_goldFlashT > 0f)
-            {
-                _goldFlashT -= Time.unscaledDeltaTime;
-                _goldFlash.color = new Color(1f, 0.8f, 0.3f, Mathf.Max(0f, _goldFlashT) * 0.8f);
-                if (_goldFlashT <= 0f) _goldFlash.color = new Color(1f, 0.8f, 0.3f, 0f);
-            }
-        }
-
-        static string SafeAngle(float a) => float.IsNaN(a) ? "—" : ((int)a).ToString();
-
-        static string TipForExercise(Exercise ex)
-        {
-            switch (ex)
-            {
-                case Exercise.Pushup: return "Tip: phone on the floor beside you · side view of your arm";
-                case Exercise.Situp:  return "Tip: lie down with phone beside you · side view of your body";
-                case Exercise.Squat:  return "Tip: phone 2 m away at hip height · full body in frame";
-            }
-            return "";
-        }
-
-        // BlazePose keypoint indexing. Identify which pair is missing for the
-        // active exercise so the user knows what to put in frame.
-        static string WhatsMissing(Exercise ex, PoseDetector.Keypoint[] k)
-        {
-            const float G = 0.2f;
-            bool L(int a, int b) => k[a].score < G && k[b].score < G;
-            switch (ex)
-            {
-                case Exercise.Pushup:
-                    if (L(11, 12)) return "shoulders";
-                    if (L(13, 14)) return "elbows";
-                    if (L(15, 16)) return "wrists";
-                    break;
-                case Exercise.Situp:
-                    if (L(11, 12)) return "shoulders";
-                    if (L(23, 24)) return "hips";
-                    if (L(25, 26)) return "knees";
-                    break;
-                case Exercise.Squat:
-                    if (L(23, 24)) return "hips";
-                    if (L(25, 26)) return "knees";
-                    if (L(27, 28)) return "ankles";
-                    break;
-            }
-            return null;
-        }
-
-        void UpdateExerciseButtonHighlight()
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                if (_exerciseButtons[i] == null) continue;
-                bool selected = (Exercise)i == _currentExercise;
-                var img = _exerciseButtons[i].GetComponent<Image>();
-                if (img != null)
-                    img.color = selected ? new Color(1f, 0.85f, 0.42f, 1f) : new Color(0.75f, 0.75f, 0.75f, 1f);
-            }
+            if (_questsStreak != null) _questsStreak.text = $"{g.state.streakDays}-day streak";
         }
 
         // ============================================================

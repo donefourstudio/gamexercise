@@ -96,7 +96,7 @@ namespace Gamex.Core
         }
 
         public void GoHome()     => phase = AppPhase.Home;
-        public void GoTraining() => phase = AppPhase.Training;
+        public void GoQuests()   => phase = AppPhase.Quests;
         public void GoShop()     => phase = AppPhase.Shop;
 
         // ---- step ingestion (M5a) ----
