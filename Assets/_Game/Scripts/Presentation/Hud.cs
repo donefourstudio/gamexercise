@@ -416,7 +416,7 @@ namespace Gamex.Game
             _firstMirrorLine.text = "\"...so this is who I am now.\"";
 
             MkButton("Begin", _firstMirrorPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 180f),
-                new Vector2(540f, 130f), "Do a Pushup", () => _onFinishFirstMirror?.Invoke());
+                new Vector2(540f, 130f), "Take the First Step", () => _onFinishFirstMirror?.Invoke());
         }
 
         // ============================================================
