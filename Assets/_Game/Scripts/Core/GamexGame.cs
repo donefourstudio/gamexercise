@@ -213,14 +213,24 @@ namespace Gamex.Core
             onSave?.Invoke();
         }
 
-        // Crosses any midnights between lastDayEnd and now.
+        // Crosses any LOCAL-CALENDAR midnights between lastDayEnd and now.
+        // (Was 24-hour elapsed seconds — that mis-fires the common "play late at
+        // night, reopen early morning of the next day" case where <24 h has
+        // elapsed but a real day boundary has been crossed.)
+        // Called from GameRunner.Awake() on every cold start.
         public void CatchUpDays()
         {
-            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            if (state.lastDayEnd == 0) { state.lastDayEnd = now; return; }
-            long elapsed = now - state.lastDayEnd;
-            int days = (int)(elapsed / 86400L);
-            for (int i = 0; i < days; i++) EndDay();
+            DateTime todayLocal = DateTime.Now.Date;
+
+            if (state.lastDayEnd == 0)
+            {
+                state.lastDayEnd = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                return;
+            }
+
+            DateTime lastLocal = DateTimeOffset.FromUnixTimeSeconds(state.lastDayEnd).LocalDateTime.Date;
+            int daysBetween = (todayLocal - lastLocal).Days;
+            for (int i = 0; i < daysBetween; i++) EndDay();
         }
 
         // ---- shop ----
