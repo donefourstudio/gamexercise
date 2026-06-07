@@ -97,6 +97,10 @@ namespace Gamex.Game
 
         // ---- home refs ----
         Text _homeLevel, _homeCoins, _homeProgress, _homeStreak, _homeNextHint;
+        // Coin sprite references — repositioned every Refresh to track the
+        // gold number's left edge so "0" and "9500" both sit flush against
+        // the digits with the same gap.
+        Image _homeCoinIcon, _shopCoinIcon, _setDetailCoinIcon;
         Image _xpBar;
 
         // ---- quests refs (M5b/d) ----
@@ -521,8 +525,8 @@ namespace Gamex.Game
             // down 8px to compensate for Cubic 11's top-heavy glyph metrics
             // — without it the coin reads as floating above the digits even
             // though the rect centres match mathematically.
-            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -54f),
-                new Vector2(80f, 80f), "coin", Color.white);
+            _homeCoinIcon = MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -54f),
+                new Vector2(80f, 80f), "coin", Color.white).GetComponent<Image>();
             _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -60f),
                 new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
@@ -716,8 +720,8 @@ namespace Gamex.Game
 
             MkText("Title", _shopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Shop";
-            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f),
-                new Vector2(80f, 80f), "coin", Color.white);
+            _shopCoinIcon = MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f),
+                new Vector2(80f, 80f), "coin", Color.white).GetComponent<Image>();
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -90f),
                 new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
@@ -916,8 +920,8 @@ namespace Gamex.Game
             _setDetailTitle = MkText("Title", _setDetailPanel.transform, new Vector2(0f, 1f),
                 new Vector2(40f, -80f), new Vector2(620f, 80f),
                 FS_TITLE, TextAnchor.UpperLeft, AccentGold);
-            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f),
-                new Vector2(80f, 80f), "coin", Color.white);
+            _setDetailCoinIcon = MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f),
+                new Vector2(80f, 80f), "coin", Color.white).GetComponent<Image>();
             _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
                 new Vector2(-40f, -90f), new Vector2(200f, 60f),
                 FS_BIG, TextAnchor.MiddleRight, AccentGold);
@@ -1195,6 +1199,7 @@ namespace Gamex.Game
             {
                 _homeLevel.text   = $"Lv {g.state.level}";
                 _homeCoins.text   = $"{g.state.coins}";
+                LayoutCoinNextToText(_homeCoinIcon, _homeCoins, marginRight: 40f, coinYOffset: -54f);
                 _homeStreak.text  = $"{g.state.streakDays}-day streak";
                 _homeProgress.text = $"Today {g.state.todaySteps} steps";
                 _xpBar.rectTransform.sizeDelta = new Vector2(
@@ -1297,6 +1302,7 @@ namespace Gamex.Game
             if (g.phase == AppPhase.Shop)
             {
                 _shopCoins.text = $"{g.state.coins}";
+                LayoutCoinNextToText(_shopCoinIcon, _shopCoins, marginRight: 40f, coinYOffset: -84f);
                 _ownedSnapshot.Clear();
                 foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
 
@@ -1439,6 +1445,7 @@ namespace Gamex.Game
             _ownedSnapshot.Clear();
             foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
             _setDetailCoins.text = $"{g.state.coins}";
+            LayoutCoinNextToText(_setDetailCoinIcon, _setDetailCoins, marginRight: 40f, coinYOffset: -84f);
 
             var set = GamexGame.FindSet(_currentSetId);
             if (set == null) return;
@@ -1528,6 +1535,22 @@ namespace Gamex.Game
         {
             if (go == null) return;
             if (go.activeSelf != active) go.SetActive(active);
+        }
+
+        // Position the coin sprite immediately to the left of the gold number
+        // with a 10px gap. Reading text.preferredWidth after the text is set
+        // lets the coin track varying digit counts (e.g. "0" vs "9500").
+        // anchor (1,1) pivot (1,1) means pos.x is measured leftward from the
+        // panel's right edge: coin's right edge sits at
+        //    marginRight + textVisualWidth + gap
+        // away from the panel right.
+        const float COIN_GAP = 10f;
+        static void LayoutCoinNextToText(Image coin, Text text, float marginRight, float coinYOffset)
+        {
+            if (coin == null || text == null) return;
+            float textW = text.preferredWidth;
+            var rt = coin.rectTransform;
+            rt.anchoredPosition = new Vector2(-(marginRight + textW + COIN_GAP), coinYOffset);
         }
 
         // ============================================================
