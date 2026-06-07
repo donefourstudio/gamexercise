@@ -25,15 +25,31 @@ namespace Gamex.Core
         const int Q_WALK_10000    = 10000;
         const int Q_RUN_15_MIN_S  = 15 * 60;
         const int Q_RUN_30_MIN_S  = 30 * 60;
-        const int QUEST_COIN_REWARD = 1;
+        // Per-quest rewards tuned for "the harder the goal, the bigger the
+        // pay-off". Walk 1k is a starter cookie; walk 10k or run 30min are
+        // proper achievements. Full clear (all 5 in a day) adds a bonus.
+        const int Q_REWARD_WALK_1000  = 1;
+        const int Q_REWARD_WALK_5000  = 3;
+        const int Q_REWARD_WALK_10000 = 8;
+        const int Q_REWARD_RUN_15     = 3;
+        const int Q_REWARD_RUN_30     = 8;
+        const int Q_REWARD_ALL_BONUS  = 10;
+        public  const int Q_REWARD_DAILY_MAX = Q_REWARD_WALK_1000 + Q_REWARD_WALK_5000 + Q_REWARD_WALK_10000
+                                             + Q_REWARD_RUN_15  + Q_REWARD_RUN_30 + Q_REWARD_ALL_BONUS;  // 33
         const int STREAK_ACTIVE_THRESHOLD = 500;   // 500 steps = "active day" for streak
         const int STREAK_WEEKLY_BONUS     = 5;     // every 7 streak days
 
         public long EffectiveSteps => state.totalSteps + state.totalRunSteps;
 
-        // Stage caps at 3 (skeleton end / pre-race). After race choice the visual
-        // is race form regardless — Make.Portrait ignores stage when race != Unset.
-        public int Stage => Math.Min((state.level - 1) / 5, 3);
+        // Stage transitions land EXACTLY on Lv 10 / 15 / 20 per Jackson —
+        // the previous "(level - 1) / 5" gave the same brackets but offset
+        // by one level (changes happened at Lv 6 / 11 / 16, which felt
+        // mistuned to him). Caps at 3 = race-ready.
+        //   Lv 1-9   stage 0
+        //   Lv 10-14 stage 1
+        //   Lv 15-19 stage 2
+        //   Lv 20+   stage 3
+        public int Stage => Math.Max(0, Math.Min(state.level / 5 - 1, 3));
         public int XpInCurrentLevel => (int)(EffectiveSteps % STEPS_PER_LEVEL);
         public int XpToNextLevel    => STEPS_PER_LEVEL;
 
@@ -150,22 +166,38 @@ namespace Gamex.Core
 
         void CheckQuests()
         {
-            // Each completion grants QUEST_COIN_REWARD coins and flips the flag so
-            // the same quest can't be re-claimed today. EndDay resets the flags.
-            void Try(Quest q, bool met)
+            // Each completion grants a per-quest reward and flips the flag so
+            // the same quest can't be re-claimed today. EndDay resets the
+            // flags. Clearing all 5 in a single day fires a one-off bonus.
+            bool justClearedAll = false;
+            void Try(Quest q, bool met, int reward)
             {
                 int idx = (int)q;
                 if (!state.questDone[idx] && met)
                 {
                     state.questDone[idx] = true;
-                    state.coins += QUEST_COIN_REWARD;
+                    state.coins += reward;
                 }
             }
-            Try(Quest.Walk1000,  state.todaySteps      >= Q_WALK_1000);
-            Try(Quest.Walk5000,  state.todaySteps      >= Q_WALK_5000);
-            Try(Quest.Walk10000, state.todaySteps      >= Q_WALK_10000);
-            Try(Quest.Run15Min,  state.todayRunSeconds >= Q_RUN_15_MIN_S);
-            Try(Quest.Run30Min,  state.todayRunSeconds >= Q_RUN_30_MIN_S);
+            Try(Quest.Walk1000,  state.todaySteps      >= Q_WALK_1000,    Q_REWARD_WALK_1000);
+            Try(Quest.Walk5000,  state.todaySteps      >= Q_WALK_5000,    Q_REWARD_WALK_5000);
+            Try(Quest.Walk10000, state.todaySteps      >= Q_WALK_10000,   Q_REWARD_WALK_10000);
+            Try(Quest.Run15Min,  state.todayRunSeconds >= Q_RUN_15_MIN_S, Q_REWARD_RUN_15);
+            Try(Quest.Run30Min,  state.todayRunSeconds >= Q_RUN_30_MIN_S, Q_REWARD_RUN_30);
+            // All-clear bonus — checked AFTER the per-quest grants so the
+            // 5th completion in a single sequence also fires the bonus.
+            // state.questAllBonusToday guards against double-payout if the
+            // player crosses thresholds in multiple AddActivity calls.
+            bool allDone = state.questDone[(int)Quest.Walk1000]
+                        && state.questDone[(int)Quest.Walk5000]
+                        && state.questDone[(int)Quest.Walk10000]
+                        && state.questDone[(int)Quest.Run15Min]
+                        && state.questDone[(int)Quest.Run30Min];
+            if (allDone && !state.questAllBonusToday)
+            {
+                state.questAllBonusToday = true;
+                state.coins += Q_REWARD_ALL_BONUS;
+            }
         }
 
         // Day rollover: advance streak (if today was active), reset daily counters
@@ -215,6 +247,7 @@ namespace Gamex.Core
                 state.questDone = new bool[(int)Quest.Count];
             else
                 Array.Clear(state.questDone, 0, state.questDone.Length);
+            state.questAllBonusToday = false;
 
             state.lastDayEnd = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             onSave?.Invoke();

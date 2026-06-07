@@ -96,7 +96,7 @@ namespace Gamex.Game
         const float CURSE_ANIM_SWAP_AT  = 0.7f;
 
         // ---- home refs ----
-        Text _homeLevel, _homeCoins, _homeProgress, _homeStreak;
+        Text _homeLevel, _homeCoins, _homeProgress, _homeStreak, _homeNextHint;
         Image _xpBar;
 
         // ---- quests refs (M5b/d) ----
@@ -583,6 +583,14 @@ namespace Gamex.Game
             xrt.anchorMin = xrt.anchorMax = new Vector2(0f, 0.5f);
             xrt.anchoredPosition = Vector2.zero;   // pivot sits AT the anchor (parent's left-center)
 
+            // Transformation hint — small dim text below the XP bar so the
+            // player knows their next visual milestone (Lv 10/15/20) without
+            // having to discover it. Stops players quitting before the
+            // skeleton -> flesh visual landmark at Lv 10.
+            _homeNextHint = MkText("NextHint", _homePanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -360f), new Vector2(900f, 40f),
+                FS_BODY, TextAnchor.MiddleCenter, TextDim);
+
             // bottom buttons — Quests opens the daily-task list, Shop is cosmetics
             MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
                 new Vector2(800f, 160f), "Quests", () => _onGoQuests?.Invoke());
@@ -666,7 +674,9 @@ namespace Gamex.Game
             { "pet",      "Pets" },
         };
         // Order matters — sections render top-to-bottom in this sequence.
-        static readonly string[] SectionOrder = { "champion", "legend", "cyberpunk", "pet" };
+        // "pet" section dropped per Jackson — pets stay in code (state +
+        // bake) but aren't sold or shown anywhere right now.
+        static readonly string[] SectionOrder = { "champion", "legend", "cyberpunk" };
 
         void BuildShop(Transform root)
         {
@@ -1154,6 +1164,16 @@ namespace Gamex.Game
                 _xpBar.rectTransform.sizeDelta = new Vector2(
                     700f * Mathf.Clamp01((float)g.XpInCurrentLevel / Mathf.Max(1, g.XpToNextLevel)), 28f);
 
+                // Next-milestone hint — guides the player toward the Lv 10
+                // form shift, Lv 15 fuller body, Lv 20 race transformation.
+                int next = g.state.level < 10 ? 10
+                         : g.state.level < 15 ? 15
+                         : g.state.level < 20 ? 20
+                         : -1;
+                _homeNextHint.text = next > 0
+                    ? $"Next form change at Lv {next}"
+                    : ((Race)g.state.race != Race.Unset ? "" : "Race awakens at Lv 20");
+
                 // Mirror is the player at the current stage. race == Unset -> skeleton growth,
                 // race != Unset -> race form (post Lv 20 transformation).
                 ApplyAvatarLook(_mirrorSelf, safeGender, curse, (Race)g.state.race, g.Stage,
@@ -1225,12 +1245,12 @@ namespace Gamex.Game
                 // Daily ritual: candles light + crown turns gold and drops when maintenance met.
                 // Ritual = today's daily quest progress. Crown + candles light up once any
                 // step-quest has been completed today; M5b will tie this to specific quests.
-                bool ritualDone = g.state.todaySteps >= 1000;
+                bool ritualDone = g.state.todaySteps >= 5000;   // 5k step daily goal lights the ritual
                 var candleSprite = Make.UI(ritualDone ? "candle_lit" : "candle_unlit");
                 foreach (var c in _candleImgs) if (c != null) c.sprite = candleSprite;
                 _crownImg.sprite = Make.UI(ritualDone ? "crown_gold" : "crown_grey");
-                ((RectTransform)_crownImg.transform).anchoredPosition = new Vector2(0f,
-                    ritualDone ? CROWN_Y_LANDED : CROWN_Y_FLOATING);
+                // Crown stays put per Jackson — only the sprite flips between
+                // grey and gold; no more landing animation.
             }
 
             if (g.phase == AppPhase.Quests)

@@ -161,6 +161,7 @@ namespace Gamex.Core
         public int  streakDays;        // consecutive days with >=500 steps
         public long lastDayEnd;        // unix seconds of last day-end rollover
         public bool[] questDone = new bool[(int)Quest.Count];  // per-day quest completion
+        public bool   questAllBonusToday;                       // all-5-clear bonus already paid today
 
         // ---- Knight Set chain quest (M5d) ----
         // Lv 20+ unlock: 10 consecutive days of >=5000 steps each grants the next
