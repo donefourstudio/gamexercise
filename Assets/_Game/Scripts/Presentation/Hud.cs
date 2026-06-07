@@ -157,6 +157,18 @@ namespace Gamex.Game
         // equippedBadge is a "✓" text shown only while the item is in state.equipped.
         readonly List<(string id, GameObject root, Image icon, GameObject equippedBadge)> _invItems = new();
         Text _invInventoryHeader;
+        // Phase 5 polish 6 — owned skin / pet rows below the storage grid.
+        // Cells are pre-built (capacity SK_ROW_CAPACITY each) and re-populated
+        // from state.ownedSkins / state.ownedPets in UpdateInventory.
+        const int SK_ROW_CAPACITY = 4;
+        readonly Image[]    _invSkinIcons   = new Image[SK_ROW_CAPACITY];
+        readonly GameObject[] _invSkinRoots = new GameObject[SK_ROW_CAPACITY];
+        readonly GameObject[] _invSkinActiveMarks = new GameObject[SK_ROW_CAPACITY];
+        readonly string[] _invSkinIds = new string[SK_ROW_CAPACITY];
+        readonly Image[]    _invPetIcons    = new Image[SK_ROW_CAPACITY];
+        readonly GameObject[] _invPetRoots  = new GameObject[SK_ROW_CAPACITY];
+        readonly GameObject[] _invPetActiveMarks = new GameObject[SK_ROW_CAPACITY];
+        readonly string[] _invPetIds = new string[SK_ROW_CAPACITY];
 
         // ---- callbacks ----
         readonly Action         _onTapAdvanceOpening;
@@ -1035,8 +1047,66 @@ namespace Gamex.Game
                 _invItems.Add((capId, cell, icon, badgeGo));
             }
 
+            // ---- Phase 5 polish 6 — Skins + Pets rows below the storage grid. ----
+            // Cells stay hidden until UpdateInventory populates them from
+            // state.ownedSkins / state.ownedPets. Tap routes through
+            // _onSkinAction so the GameRunner handles Apply / Remove based on
+            // active vs not-active just like the shop cards.
+            BuildOwnedRow("InvSkins", -640f, _invSkinRoots, _invSkinIcons,
+                          _invSkinActiveMarks, _invSkinIds, "Skins");
+            BuildOwnedRow("InvPets",  -800f, _invPetRoots,  _invPetIcons,
+                          _invPetActiveMarks,  _invPetIds, "Pets");
+
             MkButton("Back", _inventoryPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+        }
+
+        // Build one horizontal row of capacity SK_ROW_CAPACITY cells + a "—
+        // <label> —" header. Each cell starts hidden; UpdateInventory wires
+        // the cell to a concrete skin/pet id at refresh time and shows it.
+        void BuildOwnedRow(string name, float y,
+                           GameObject[] roots, Image[] icons,
+                           GameObject[] activeMarks, string[] idsArray,
+                           string label)
+        {
+            MkText(name + "Header", _inventoryPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, y + 80f), new Vector2(400f, 40f),
+                FS_LABEL, TextAnchor.MiddleCenter, AccentGold).text = $"— {label} —";
+
+            const int CELL = 100, GAP = 12;
+            float rowLeft = -((SK_ROW_CAPACITY - 1) * (CELL + GAP)) / 2f;
+            for (int i = 0; i < SK_ROW_CAPACITY; i++)
+            {
+                float x = rowLeft + i * (CELL + GAP);
+                var cell = MkSpritePanel(name + "_Cell_" + i, _inventoryPanel.transform,
+                    new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(CELL, CELL),
+                    "panel_light", new Color(0.22f, 0.24f, 0.32f, 1f));
+                var icon = MkSpriteIcon("Icon", cell.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                    new Vector2(CELL - 12f, CELL - 12f), (Sprite)null, Color.white).GetComponent<Image>();
+                var mark = MkText("Active", cell.transform, new Vector2(0.5f, 0f),
+                    new Vector2(0f, 4f), new Vector2(CELL, 24f),
+                    FS_BODY, TextAnchor.LowerCenter, AccentGold);
+                mark.text = "Active";
+                mark.gameObject.SetActive(false);
+
+                int capIdx = i;
+                var btn = cell.AddComponent<Button>();
+                btn.targetGraphic = cell.GetComponent<Image>();
+                btn.transition    = Selectable.Transition.ColorTint;
+                var cb = btn.colors;
+                cb.highlightedColor = new Color(0.32f, 0.34f, 0.44f, 1f);
+                btn.colors = cb;
+                btn.onClick.AddListener(() =>
+                {
+                    var id = idsArray[capIdx];
+                    if (!string.IsNullOrEmpty(id)) _onSkinAction?.Invoke(id);
+                });
+
+                cell.SetActive(false);
+                roots[i] = cell;
+                icons[i] = icon;
+                activeMarks[i] = mark.gameObject;
+            }
         }
 
         bool IsOwned(string id) => _ownedSnapshot.Contains(id);
@@ -1460,6 +1530,47 @@ namespace Gamex.Game
                 bool equipped = g.IsEquipped(item.id);
                 if (item.root.activeSelf != owned) item.root.SetActive(owned);
                 if (item.equippedBadge.activeSelf != equipped) item.equippedBadge.SetActive(equipped);
+            }
+
+            // Phase 5 polish 6 — skins / pets rows. Walk state.ownedSkins +
+            // state.ownedPets, map each into the next available cell, hide
+            // unused cells.
+            int skinIdx = 0;
+            foreach (var id in g.state.ownedSkins)
+            {
+                if (skinIdx >= SK_ROW_CAPACITY) break;
+                _invSkinIds[skinIdx] = id;
+                if (!_invSkinRoots[skinIdx].activeSelf) _invSkinRoots[skinIdx].SetActive(true);
+                var spr = Make.Skin(id);
+                if (spr != null) _invSkinIcons[skinIdx].sprite = spr;
+                bool active = g.IsSkinActive(id);
+                if (_invSkinActiveMarks[skinIdx].activeSelf != active)
+                    _invSkinActiveMarks[skinIdx].SetActive(active);
+                skinIdx++;
+            }
+            for (int i = skinIdx; i < SK_ROW_CAPACITY; i++)
+            {
+                _invSkinIds[i] = null;
+                if (_invSkinRoots[i].activeSelf) _invSkinRoots[i].SetActive(false);
+            }
+
+            int petIdx = 0;
+            foreach (var id in g.state.ownedPets)
+            {
+                if (petIdx >= SK_ROW_CAPACITY) break;
+                _invPetIds[petIdx] = id;
+                if (!_invPetRoots[petIdx].activeSelf) _invPetRoots[petIdx].SetActive(true);
+                var spr = Make.Skin(id);
+                if (spr != null) _invPetIcons[petIdx].sprite = spr;
+                bool active = g.IsSkinActive(id);
+                if (_invPetActiveMarks[petIdx].activeSelf != active)
+                    _invPetActiveMarks[petIdx].SetActive(active);
+                petIdx++;
+            }
+            for (int i = petIdx; i < SK_ROW_CAPACITY; i++)
+            {
+                _invPetIds[i] = null;
+                if (_invPetRoots[i].activeSelf) _invPetRoots[i].SetActive(false);
             }
         }
 

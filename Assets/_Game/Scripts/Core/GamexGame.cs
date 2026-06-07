@@ -295,30 +295,12 @@ namespace Gamex.Core
             new SkinDef { id = "cyber_10", displayName = "Punk Hacker",       price = 150, source = "cyberpunk" }, // purple mohawk + twin weapons
             new SkinDef { id = "cyber_13", displayName = "Netrunner",         price = 150, source = "cyberpunk" }, // blonde in blue casual outfit
 
-            // Phase 5e2 — Luiz Melo pet packs, 200g each per Jackson's pricing.
-            // 6 cats + 6 dogs + 4 fantasy monsters + 4 fantasy 2 monsters = 20.
-            // Pet skins flip a separate state slot (state.activePet) so they
-            // can run alongside a character skin without overriding it.
-            new SkinDef { id = "pet_cat_01", displayName = "Tabby Kitten",       price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_cat_02", displayName = "Calico Kitten",      price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_cat_03", displayName = "Black Cat",          price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_cat_04", displayName = "Tuxedo Cat",         price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_cat_05", displayName = "Tortoiseshell",      price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_cat_06", displayName = "Persian",            price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_dog_golden",    displayName = "Golden Retriever", price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_dog_akita",     displayName = "Akita",            price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_dog_dane",      displayName = "Great Dane",       price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_dog_schnauzer", displayName = "Schnauzer",        price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_dog_bernard",   displayName = "Saint Bernard",    price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_dog_husky",     displayName = "Siberian Husky",   price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_eye",      displayName = "Flying Eye",   price = 200, source = "pet", frameCount =  8 },
-            new SkinDef { id = "pet_goblin",   displayName = "Goblin Sprite",price = 200, source = "pet", frameCount =  4 },
-            new SkinDef { id = "pet_mushroom", displayName = "Mushroom",     price = 200, source = "pet", frameCount =  4 },
-            new SkinDef { id = "pet_skeleton", displayName = "Skeleton Pup", price = 200, source = "pet", frameCount =  4 },
-            new SkinDef { id = "pet_bat",      displayName = "Vampire Bat",  price = 200, source = "pet", frameCount = 11 },
-            new SkinDef { id = "pet_mimic",    displayName = "Mimic Chest",  price = 200, source = "pet", frameCount =  9 },
-            new SkinDef { id = "pet_rat",      displayName = "Pet Rat",      price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_slime",    displayName = "Blue Slime",   price = 200, source = "pet", frameCount = 14 },
+            // Phase 5e2 (trimmed per Jackson) — 3 representative pets: one
+            // dog, one cat, one fantasy creature. The other 17 PNG sets stay
+            // on disk for the future-content expansion he flagged.
+            new SkinDef { id = "pet_dog_golden", displayName = "Golden Retriever", price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_cat_01",     displayName = "Tabby Kitten",     price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_slime",      displayName = "Blue Slime",       price = 200, source = "pet", frameCount = 14 },
         };
         public static SkinDef FindSkin(string id)
         {
