@@ -21,7 +21,8 @@ namespace Gamex.EditorTools
             bool isEquip = p.Contains("/Resources/Equip/");
             bool isIcons = p.Contains("/Resources/Icons/");
             bool isSets  = p.Contains("/Resources/Sets/");
-            if (!isUI && !isChar && !isEquip && !isIcons && !isSets) return;
+            bool isSkins = p.Contains("/Resources/Skins/");
+            if (!isUI && !isChar && !isEquip && !isIcons && !isSets && !isSkins) return;
 
             ti.textureType        = TextureImporterType.Sprite;
             ti.spriteImportMode   = SpriteImportMode.Single;
@@ -35,11 +36,12 @@ namespace Gamex.EditorTools
             // Equipment overlays are 256x256 with content only in a small region —
             // force FullRect mesh so the sprite renders at its full canvas size
             // (not cropped to visible bounds, which would offset alignment).
-            if (isEquip || isSets)
+            if (isEquip || isSets || isSkins)
             {
-                // Sets/* are 256x256 full-prefab previews shown in the shop card
-                // square; FullRect prevents Sprite mesh from cropping to visible
-                // bounds and offsetting the card's centred layout.
+                // Sets/* + Skins/* are 256x256 full-character previews; FullRect
+                // prevents Sprite mesh from cropping to visible bounds and
+                // offsetting the centred layouts. Equip overlays also need
+                // FullRect so they composite at the body-coord y on the avatar.
                 var s = new TextureImporterSettings();
                 ti.ReadTextureSettings(s);
                 s.spriteMeshType = SpriteMeshType.FullRect;

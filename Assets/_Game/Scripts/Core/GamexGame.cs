@@ -262,6 +262,52 @@ namespace Gamex.Core
             new EquipmentDef { id = "knight_sword",     name = "Knight Longsword",  slot = EquipSlot.Weapon },
         };
 
+        // M5g (Phase 4) — purchasable full-body skins. Each entry is a SPUM /
+        // Luiz Melo / Cyberpunk-style packaged portrait the player can swap to
+        // instead of their race form. Phase 4 ships SPUM Bundle placeholders;
+        // Luiz Melo + Cyberpunk roll in as Jackson imports them.
+        public static readonly SkinDef[] SkinCatalog = new[]
+        {
+            // Source = "spum_bundle" (Phase 4 placeholder). Sprite paths under
+            // Resources/Skins/. Picks are from /tmp/spum_previews/ — full-gear
+            // bakes of BasicPack prefabs so each "skin" looks like an actual
+            // adventurer rather than a bare body.
+            new SkinDef { id = "spum_paladin",   displayName = "Paladin",        price = 400, source = "spum_bundle" },
+            new SkinDef { id = "spum_assassin",  displayName = "Twin-Blade",     price = 600, source = "spum_bundle" },
+            new SkinDef { id = "spum_archer",    displayName = "Forest Archer",  price = 350, source = "spum_bundle" },
+            new SkinDef { id = "spum_warmage",   displayName = "Warmage",        price = 800, source = "spum_bundle" },
+        };
+        public static SkinDef FindSkin(string id)
+        {
+            if (id == null) return null;
+            foreach (var s in SkinCatalog) if (s.id == id) return s;
+            return null;
+        }
+        public bool TryBuySkin(SkinDef skin)
+        {
+            if (skin == null) return false;
+            if (state.coins < skin.price) return false;
+            if (state.ownedSkins.Contains(skin.id)) return false;
+            state.coins -= skin.price;
+            state.ownedSkins.Add(skin.id);
+            onSave?.Invoke();
+            return true;
+        }
+        public void ApplySkin(string id)
+        {
+            if (id == null || !state.ownedSkins.Contains(id)) return;
+            state.activeSkin = id;
+            onSave?.Invoke();
+        }
+        public void RemoveActiveSkin()
+        {
+            if (string.IsNullOrEmpty(state.activeSkin)) return;
+            state.activeSkin = null;
+            onSave?.Invoke();
+        }
+        public bool IsSkinOwned(string id) => id != null && state.ownedSkins.Contains(id);
+        public bool IsSkinActive(string id) => state.activeSkin == id;
+
         // M5g (Phase 3a) — SPUM full-prefab sets sold in the shop. Pieces are
         // individually buyable; bundling the whole set saves 20% (SetDef logic).
         // First set: elf_paladin (sourced from SPUM elf_07 prefab — blonde

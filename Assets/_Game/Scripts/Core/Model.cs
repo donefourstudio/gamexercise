@@ -71,6 +71,21 @@ namespace Gamex.Core
         public GamexGame.EquipSlot slot;
     }
 
+    // M5g (Phase 4): a "skin" is a full-body portrait swap — buying one and
+    // applying it replaces the SPUM race-form sprite entirely (Make.Portrait
+    // returns the skin sprite instead). Skins do NOT compose with equipment
+    // overlays — when activeSkin is set, the avatar shows the baked-in art
+    // exactly as the skin author drew it. This is what lets us use packs
+    // whose weapons/armor are painted into the body (Luiz Melo, Cyberpunk).
+    [Serializable]
+    public class SkinDef
+    {
+        public string id;            // Resources/Skins/<id>.png lookup key
+        public string displayName;
+        public int    price;
+        public string source;        // "spum_bundle", "luizmelo", "cyberpunk" — for grouping in UI
+    }
+
     // M5g (Phase 3a): a "set" is a coherent SPUM-prefab-sourced loadout
     // (e.g. Elven Paladin = silver sword + paladin chest + greaves + boots).
     // The shop sells sets up-front with an 80% bundle discount, and each
@@ -100,6 +115,10 @@ namespace Gamex.Core
     [Serializable]
     public class GameState
     {
+        // ---- skins (Phase 4) ----
+        public string activeSkin;      // empty/null = race form; otherwise SkinDef.id whose sprite to render
+        public List<string> ownedSkins = new(); // every skin id the player has purchased
+
         public int gender;             // 0=unset, 1=male, 2=female  (chosen at Lv20 RaceSelect)
         public int curse;              // 0=unset, 1=weakness, 2=gluttony
         public int race;               // 0=unset, 1=human, 2=orc  (chosen at Lv20)

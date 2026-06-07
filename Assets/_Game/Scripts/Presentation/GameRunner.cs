@@ -67,7 +67,13 @@ namespace Gamex.Game
                 onBuy:                id => _game.TryBuy(GamexGame.FindPiece(id)),
                 onToggleEquip:        id => _game.ToggleEquip(id),
                 onGoSetDetail:        id => _game.GoSetDetail(id),
-                onBuySet:             id => _game.TryBuySet(GamexGame.FindSet(id)));
+                onBuySet:             id => _game.TryBuySet(GamexGame.FindSet(id)),
+                onSkinAction:         id =>
+                {
+                    if      (!_game.IsSkinOwned(id))  _game.TryBuySkin(GamexGame.FindSkin(id));
+                    else if (!_game.IsSkinActive(id)) _game.ApplySkin(id);
+                    else                              _game.RemoveActiveSkin();
+                });
         }
 
         void Update()

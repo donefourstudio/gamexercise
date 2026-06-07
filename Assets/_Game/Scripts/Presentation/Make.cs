@@ -20,6 +20,9 @@ namespace Gamex.Game
         public static Sprite UI(string name)        => Resources.Load<Sprite>("UI/" + name);
         public static Sprite Char(string name)      => Resources.Load<Sprite>("Char/" + name);
         public static Sprite Equipment(string id)   => Resources.Load<Sprite>("Equip/" + id);
+        // Phase 4 — full-body skin sprite (Resources/Skins/<id>.png). Returned by
+        // Portrait() instead of the race-form sprite when state.activeSkin is set.
+        public static Sprite Skin(string id)        => string.IsNullOrEmpty(id) ? null : Resources.Load<Sprite>("Skins/" + id);
         // Full-gear bake of a shop set's source prefab — used by the shop set
         // card + set detail header so the player sees the whole loadout at a
         // glance before drilling into the per-piece list.
@@ -40,8 +43,17 @@ namespace Gamex.Game
         //     Gluttony -> gluttony_stageN (zombie -> human skin tone)
         //   race != Unset (Lv 20+)  -> {race}_{gender} race form. Race.Human was
         //     dropped per Jackson: starting roster is Orc + Elf only.
-        public static Sprite Portrait(Gender gender, Curse curse, Race race, int stage)
+        public static Sprite Portrait(Gender gender, Curse curse, Race race, int stage, string activeSkin = null)
         {
+            // Phase 4 — an applied skin overrides everything else. The skin's
+            // baked-in art carries the body + clothing + weapon in one image, so
+            // we skip race/curse/stage logic entirely. If the lookup fails (skin
+            // asset missing) we fall back to the normal race-form pipeline below.
+            if (!string.IsNullOrEmpty(activeSkin))
+            {
+                var s = Skin(activeSkin);
+                if (s != null) return s;
+            }
             if (race == Race.Unset)
             {
                 string c = curse == Curse.Gluttony ? "gluttony" : "weakness";

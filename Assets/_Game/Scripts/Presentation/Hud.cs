@@ -113,6 +113,9 @@ namespace Gamex.Game
         // Per-set card refs — `priceLabel` flips to "Owned" once every piece
         // is in state.owned, `bundleBtn` disables atomically with affordability.
         readonly List<(string setId, GameObject root, Text priceLabel, Button cardBtn)> _shopSetCards = new();
+        // Per-skin card refs (Phase 4b) — `actionLabel`/`actionBtn` flip between
+        // Buy / Apply / Remove based on owned + active state.
+        readonly List<(string skinId, GameObject root, Text stateLabel, Text actionLabel, Button actionBtn)> _shopSkinCards = new();
         readonly HashSet<string> _ownedSnapshot = new();
 
         // ---- set detail (Phase 3c) refs ----
@@ -146,7 +149,7 @@ namespace Gamex.Game
         readonly Action         _onRaceAnimDone;
         readonly Action         _onFinishFirstMirror;
         readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onGoInventory, _onFakeRep;
-        readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet;
+        readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet, _onSkinAction;
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -163,7 +166,8 @@ namespace Gamex.Game
             Action<string> onBuy,
             Action<string> onToggleEquip,
             Action<string> onGoSetDetail,
-            Action<string> onBuySet)
+            Action<string> onBuySet,
+            Action<string> onSkinAction)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -180,6 +184,7 @@ namespace Gamex.Game
             _onToggleEquip         = onToggleEquip;
             _onGoSetDetail         = onGoSetDetail;
             _onBuySet              = onBuySet;
+            _onSkinAction          = onSkinAction;
 
             if (EventSystem.current == null)
             {
@@ -652,6 +657,43 @@ namespace Gamex.Game
                 _shopSetCards.Add((set.id, card, priceLabel, cardBtn));
             }
 
+            // ----- Phase 4b: skin row beneath the set cards -----
+            float skinTopY = 540f - GamexGame.SetCatalog.Length * (CARD_H + CARD_GAP) - 40f;
+            MkText("SkinsHeader", _shopPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, skinTopY), new Vector2(800f, 50f),
+                FS_LABEL, TextAnchor.MiddleCenter, AccentGold).text = "— Skins —";
+            const float SK_W = 880f, SK_H = 110f, SK_GAP = 12f;
+            for (int i = 0; i < GamexGame.SkinCatalog.Length; i++)
+            {
+                var skin = GamexGame.SkinCatalog[i];
+                float y = skinTopY - 60f - i * (SK_H + SK_GAP);
+                var card = MkSpritePanel("SkinCard_" + skin.id, _shopPanel.transform,
+                    new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(SK_W, SK_H),
+                    "panel", new Color(0.92f, 0.84f, 0.62f, 1f));
+                card.GetComponent<Image>().raycastTarget = false;
+
+                MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
+                    new Vector2(65f, 0f), new Vector2(95f, 95f),
+                    Make.Skin(skin.id), Color.white);
+
+                MkText("Name", card.transform, new Vector2(0f, 0.5f),
+                    new Vector2(140f, 18f), new Vector2(420f, 45f),
+                    FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                    .text = skin.displayName;
+                var stateLabel = MkText("State", card.transform, new Vector2(0f, 0.5f),
+                    new Vector2(140f, -25f), new Vector2(420f, 35f),
+                    FS_BODY, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
+
+                string capId = skin.id;
+                var actionGO = MkButton("Action_" + skin.id, card.transform,
+                    new Vector2(1f, 0.5f), new Vector2(-90f, 0f), new Vector2(150f, 75f),
+                    "Buy", () => _onSkinAction?.Invoke(capId), "btn_grey", "btn_grey_down");
+                _shopSkinCards.Add((skin.id, card,
+                    stateLabel,
+                    actionGO.GetComponentInChildren<Text>(),
+                    actionGO.GetComponent<Button>()));
+            }
+
             MkButton("Back", _shopPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
@@ -961,7 +1003,7 @@ namespace Gamex.Game
                 // Mirror is the player at the current stage. race == Unset -> skeleton growth,
                 // race != Unset -> race form (post Lv 20 transformation).
                 ApplyAvatarLook(_mirrorSelf, safeGender, curse, (Race)g.state.race, g.Stage,
-                                g.state.equipped);
+                                g.state.equipped, g.state.activeSkin);
                 _mirrorSelf.SetAlpha(1f);
 
                 // Stage / level transition detection (Home only). First Refresh after Home
@@ -1061,6 +1103,33 @@ namespace Gamex.Game
                     else
                         card.priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
                 }
+
+                // Phase 4b: per-skin Buy / Apply / Remove + locked state.
+                foreach (var card in _shopSkinCards)
+                {
+                    var skin = GamexGame.FindSkin(card.skinId);
+                    if (skin == null) continue;
+                    bool owned = g.IsSkinOwned(skin.id);
+                    bool active = g.IsSkinActive(skin.id);
+                    if (!owned)
+                    {
+                        card.stateLabel.text = $"{skin.price} gold";
+                        card.actionLabel.text = "Buy";
+                        card.actionBtn.interactable = g.state.coins >= skin.price;
+                    }
+                    else if (!active)
+                    {
+                        card.stateLabel.text = "Owned";
+                        card.actionLabel.text = "Apply";
+                        card.actionBtn.interactable = true;
+                    }
+                    else
+                    {
+                        card.stateLabel.text = "Active";
+                        card.actionLabel.text = "Remove";
+                        card.actionBtn.interactable = true;
+                    }
+                }
             }
 
             if (g.phase == AppPhase.SetDetail) UpdateSetDetail(g);
@@ -1133,7 +1202,7 @@ namespace Gamex.Game
             var safeGender = gender == Gender.Unset ? Gender.Male : gender;
             var curse  = (Curse)g.state.curse;
             var race   = (Race)g.state.race;
-            ApplyAvatarLook(_inventoryAvatar, safeGender, curse, race, g.Stage, g.state.equipped);
+            ApplyAvatarLook(_inventoryAvatar, safeGender, curse, race, g.Stage, g.state.equipped, g.state.activeSkin);
             _inventoryAvatar.SetAlpha(1f);
 
             // Paper-doll slot icons — one per AllSlots entry. Show the equipped
@@ -1310,13 +1379,18 @@ namespace Gamex.Game
         }
 
         void ApplyAvatarLook(AvatarSprite avatar, Gender gender, Curse curse, Race race, int stage,
-                             List<string> equipped = null)
+                             List<string> equipped = null, string activeSkin = null)
         {
             if (avatar == null || avatar.portrait == null) return;
             avatar.portrait.sprite = Make.Portrait(
-                gender == Gender.Unset ? Gender.Male : gender, curse, race, stage);
+                gender == Gender.Unset ? Gender.Male : gender, curse, race, stage, activeSkin);
             float a = avatar.portrait.color.a;
             avatar.portrait.color = new Color(1f, 1f, 1f, a);
+            // Skins are full-body art — their weapons/armor are painted in,
+            // so applying equipment overlays on top would clash. Skip the
+            // overlay routing entirely when a skin is active.
+            bool skinActive = !string.IsNullOrEmpty(activeSkin) && Make.Skin(activeSkin) != null;
+            if (skinActive) equipped = null;
 
             // Equipment overlays: only on race-form characters (Lv 20+). Pre-race
             // skeleton / zombie bodies don't wear armour — and the overlay sprites

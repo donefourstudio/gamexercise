@@ -231,6 +231,20 @@ namespace Gamex.Game
                 Capture("/tmp/gamex_set_detail.png");
             }
 
+            // Phase 4 — buy + apply a skin so home + inventory show the
+            // override portrait (knight gear is hidden because skins carry
+            // their own painted-in art).
+            if (GamexGame.SkinCatalog.Length > 0)
+            {
+                var demoSkin = GamexGame.SkinCatalog[1];   // "spum_assassin" — visually distinct
+                if (runner.Game.state.coins < demoSkin.price + 100) runner.Game.state.coins = demoSkin.price + 100;
+                runner.Game.TryBuySkin(demoSkin);
+                runner.Game.ApplySkin(demoSkin.id);
+                runner.Game.GoHome();
+                yield return null; yield return new WaitForSecondsRealtime(0.2f);
+                Capture("/tmp/gamex_home_skin.png");
+            }
+
             // M5f Inventory — knight set already owned from above. Phase 2
             // dropped shop tier items so storage shows only the 5 knight
             // pieces (all equipped here, all with the ✓ badge).
