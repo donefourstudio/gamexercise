@@ -677,23 +677,29 @@ namespace Gamex.Game
                     string capSetId = set.id;
                     cardBtn.onClick.AddListener(() => _onGoSetDetail?.Invoke(capSetId));
 
+                    // anchor (0, 0.5) -> pivot (0, 0.5) means pos.x is the rect's
+                    // LEFT edge, not its centre. Earlier layouts had preview at
+                    // pos (95, ...) size (180, ...) which placed the right edge
+                    // at x=275 — overrunning the text column at x=195. With
+                    // pos.x=20 size 140, the preview's right edge sits at x=160
+                    // and the text column starts at 195 — 35 px clear gap.
                     MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(120f, 0f), new Vector2(180f, 180f),    // smaller preview leaves more room for name text
+                        new Vector2(20f, 0f), new Vector2(140f, 140f),
                         Make.SetPreview(set.id), Color.white);
 
                     MkText("Name", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(250f, 55f), new Vector2(620f, 70f),
-                        FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))   // shrunk from FS_BIG so 4-word names like "Dark Horned Knight" still fit
+                        new Vector2(195f, 55f), new Vector2(665f, 70f),
+                        FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
                         .text = set.displayName;
 
                     var priceLabel = MkText("Price", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(250f, -10f), new Vector2(620f, 50f),
-                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
+                        new Vector2(195f, -10f), new Vector2(665f, 50f),
+                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
                     priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
 
                     MkText("Sub", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(250f, -65f), new Vector2(620f, 40f),
-                        FS_BODY, TextAnchor.MiddleLeft, new Color(0.55f, 0.40f, 0.25f))
+                        new Vector2(195f, -65f), new Vector2(665f, 40f),
+                        FS_BODY, TextAnchor.MiddleLeft, new Color(0.35f, 0.22f, 0.10f))
                         .text = $"tap to view {set.pieces.Length} pieces";
 
                     _shopSetCards.Add((set.id, card, priceLabel, cardBtn));
