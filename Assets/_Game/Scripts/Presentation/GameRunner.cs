@@ -86,7 +86,13 @@ namespace Gamex.Game
             if (Input.GetKeyDown(KeyCode.E)) _game.EndDay();                  // advance one day
             if (Input.GetKeyDown(KeyCode.R) &&
                 !Input.GetKey(KeyCode.LeftShift) && !Input.GetKey(KeyCode.RightShift))
-                _game.AddActivity(1000, 0, 0);                                 // R = +1000 steps (debug)
+            {
+                // Jackson asked: R for fast shop testing should drop a usable
+                // chunk of gold instead of nudging step count by 1k. 10000
+                // gold per press buys a Legend + a few Champion sets so the
+                // shop / inventory flows are easy to exercise.
+                _game.state.coins += 10000;
+            }
             // Shift+R from anywhere: nuke save + replay opening (dev / QA only).
             if (Input.GetKeyDown(KeyCode.R) &&
                 (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
