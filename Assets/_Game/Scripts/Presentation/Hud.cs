@@ -515,9 +515,14 @@ namespace Gamex.Game
             // top HUD
             _homeLevel = MkText("Level", _homePanel.transform, new Vector2(0f, 1f), new Vector2(50f, -60f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperLeft, AccentGold);
+            // Coin sprite vertical centre aligns with the gold number's text
+            // centre. anchor (1,1) + pivot (1,1) means pos.y is the offset
+            // from panel top; text rect (h=60) at pos.y=-60 has its centre
+            // at -90, so the coin (h=80) needs pos.y=-50 to land its centre
+            // at -90 too. Same math repeated for Shop / SetDetail below.
             _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-130f, -60f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
-            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-60f, -90f),
+            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -50f),
                 new Vector2(80f, 80f), "coin", Color.white);
 
             // Mirror — centered, holds the player's CURRENT reflection. The body
@@ -630,12 +635,11 @@ namespace Gamex.Game
             MkText("Title", _trainPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Daily Quests";
 
-            // Bigger rows, bigger font, trophy icon for completion (Jackson:
-            // "牌子可以再大一些" + "黄金方块换成奖杯"). Each row carries the
-            // quest label + status on the left and a reward chip (coin + per-
-            // quest gold value) or trophy badge on the right.
-            const float rowH = 180f, rowGap = 20f, rowW = 980f;
-            float startY = 600f;
+            // In-between sizing: rows 150 tall (vs original 130 / first-pass
+            // 180) + FS_TITLE label (vs original FS_LABEL 33 / first-pass
+            // FS_BIG 77). Trophy icon for completion stays.
+            const float rowH = 150f, rowGap = 18f, rowW = 950f;
+            float startY = 620f;
             for (int i = 0; i < QUEST_SPEC.Length; i++)
             {
                 float y = startY - i * (rowH + rowGap);
@@ -643,51 +647,47 @@ namespace Gamex.Game
                     new Vector2(0f, y), new Vector2(rowW, rowH), "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
 
                 _questRowLabels[i] = MkText("Label", row.transform, new Vector2(0f, 0.5f),
-                    new Vector2(60f, 0f), new Vector2(rowW - 280f, rowH - 20f),
-                    FS_BIG, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
+                    new Vector2(50f, 0f), new Vector2(rowW - 240f, rowH - 20f),
+                    FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
 
-                // Reward chip — coin icon + "+N" rendered side-by-side.
-                // Wrapped in a single GameObject so it can toggle off
-                // together when the quest completes (trophy replaces it).
+                // Coin + "+N" wrapped so the whole chip can toggle off when
+                // the quest completes (trophy takes the same right slot).
                 var chip = MkPanel("Chip", row.transform, new Vector2(1f, 0.5f),
-                    new Vector2(-130f, 0f), new Vector2(180f, 80f),
+                    new Vector2(-120f, 0f), new Vector2(160f, 70f),
                     new Color(0f, 0f, 0f, 0f));
                 chip.GetComponent<Image>().raycastTarget = false;
                 MkSpriteIcon("Coin", chip.transform, new Vector2(0f, 0.5f),
-                    new Vector2(0f, 0f), new Vector2(72f, 72f),
+                    new Vector2(0f, 0f), new Vector2(60f, 60f),
                     "coin", Color.white);
                 int reward = QUEST_SPEC[i].reward;
                 MkText("Reward", chip.transform, new Vector2(0f, 0.5f),
-                    new Vector2(80f, 0f), new Vector2(100f, 70f),
-                    FS_BIG, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                    new Vector2(70f, 0f), new Vector2(90f, 60f),
+                    FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
                     .text = $"+{reward}";
                 _questChipRoots[i] = chip;
 
-                // Trophy lives in the same right-side slot as the chip;
-                // UpdateQuests flips visibility based on done state.
                 _questCheckmarks[i] = MkSpriteIcon("Tick", row.transform, new Vector2(1f, 0.5f),
-                    new Vector2(-90f, 0f), new Vector2(112f, 112f),
+                    new Vector2(-80f, 0f), new Vector2(96f, 96f),
                     "trophy", Color.white).GetComponent<Image>();
                 _questCheckmarks[i].gameObject.SetActive(false);
             }
 
-            // Knight Set chain row — sits below the 5 daily-quest rows.
-            // Quest rows occupy y=600 down to y=-400 (5 rows of 200 each);
-            // knight row at -480 leaves an 80px gap.
+            // Knight Set chain row — below the 5 daily-quest rows. With
+            // 150h rows + 18 gap + start 620, last row bottom ≈ -370;
+            // knight row at -450 leaves a clean 80px gap.
             _questsKnightRow = MkSpritePanel("Q_Knight", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -480f), new Vector2(980f, 110f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
+                new Vector2(0f, -450f), new Vector2(950f, 110f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
             _questsKnight = MkText("KnightLabel", _questsKnightRow.transform, new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(940f, 90f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.18f, 0.08f, 0.20f));
+                Vector2.zero, new Vector2(920f, 90f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.18f, 0.08f, 0.20f));
             _questsKnightRow.SetActive(false);
 
-            // Totals row below the knight row with a clean stack above the
-            // Back button (Back's top edge sits at y=-740 from panel centre).
+            // Totals stack — comfortable gap above the Back button.
             _questsTotalSteps = MkText("TotalSteps", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -580f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+                new Vector2(0f, -560f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
             _questsTotalRun   = MkText("TotalRun",   _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -630f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+                new Vector2(0f, -610f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
             _questsStreak     = MkText("Streak",     _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -680f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+                new Vector2(0f, -660f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
 
             MkButton("Back", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
@@ -719,7 +719,7 @@ namespace Gamex.Game
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Shop";
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-130f, -90f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
-            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-60f, -120f),
+            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -80f),
                 new Vector2(80f, 80f), "coin", Color.white);
 
             // Phase 5c — content lives inside a ScrollRect so an arbitrary
@@ -920,7 +920,7 @@ namespace Gamex.Game
             _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
                 new Vector2(-130f, -90f), new Vector2(380f, 60f),
                 FS_BIG, TextAnchor.UpperRight, AccentGold);
-            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-60f, -120f),
+            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -80f),
                 new Vector2(80f, 80f), "coin", Color.white);
 
             // Header preview frame — big square showing the full-gear bake.
