@@ -281,10 +281,10 @@ namespace Gamex.Game
             MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f,  220f), "Elf", "Female",
                 Make.Portrait(Gender.Female, Curse.Unset, Race.Elf, 5),
                 "Slender and ancient.",  () => _onSelectRaceAndGender?.Invoke(1, 2));
-            MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f, -220f), "Orc", "Male",
+            MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f, -220f), "Demon", "Male",
                 Make.Portrait(Gender.Male, Curse.Unset, Race.Orc, 5),
                 "Strength and rage.",    () => _onSelectRaceAndGender?.Invoke(2, 1));
-            MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f, -220f), "Orc", "Female",
+            MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f, -220f), "Demon", "Female",
                 Make.Portrait(Gender.Female, Curse.Unset, Race.Orc, 5),
                 "Strength and rage.",    () => _onSelectRaceAndGender?.Invoke(2, 2));
         }
@@ -515,15 +515,13 @@ namespace Gamex.Game
             // top HUD
             _homeLevel = MkText("Level", _homePanel.transform, new Vector2(0f, 1f), new Vector2(50f, -60f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperLeft, AccentGold);
-            // Coin sprite vertical centre aligns with the gold number's text
-            // centre. anchor (1,1) + pivot (1,1) means pos.y is the offset
-            // from panel top; text rect (h=60) at pos.y=-60 has its centre
-            // at -90, so the coin (h=80) needs pos.y=-50 to land its centre
-            // at -90 too. Same math repeated for Shop / SetDetail below.
-            _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-130f, -60f),
-                new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
-            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -50f),
+            // Coin LEFT of the number with a 10px gap. Number rect occupies
+            // x=300..500 (right edge 40 left of panel edge); coin rect at
+            // x=210..290 sits to its left with the gap.
+            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -50f),
                 new Vector2(80f, 80f), "coin", Color.white);
+            _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -60f),
+                new Vector2(200f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
 
             // Mirror — centered, holds the player's CURRENT reflection. The body
             // shape morphs from cursed -> hero as stage advances. No more
@@ -672,22 +670,20 @@ namespace Gamex.Game
                 _questCheckmarks[i].gameObject.SetActive(false);
             }
 
-            // Knight Set chain row — below the 5 daily-quest rows. With
-            // 150h rows + 18 gap + start 620, last row bottom ≈ -370;
-            // knight row at -450 leaves a clean 80px gap.
+            // Knight Set + totals lifted up to remove the big empty band
+            // beneath the daily-quest rows. Streak got pulled — already
+            // shown on the Home mirror page, no need to duplicate.
             _questsKnightRow = MkSpritePanel("Q_Knight", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -450f), new Vector2(950f, 110f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
+                new Vector2(0f, -260f), new Vector2(950f, 110f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
             _questsKnight = MkText("KnightLabel", _questsKnightRow.transform, new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(920f, 90f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.18f, 0.08f, 0.20f));
             _questsKnightRow.SetActive(false);
 
-            // Totals stack — comfortable gap above the Back button.
             _questsTotalSteps = MkText("TotalSteps", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -560f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+                new Vector2(0f, -370f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
             _questsTotalRun   = MkText("TotalRun",   _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -610f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
-            _questsStreak     = MkText("Streak",     _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -660f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+                new Vector2(0f, -430f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+            _questsStreak     = null;   // dropped; Home shows it
 
             MkButton("Back", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
@@ -717,10 +713,10 @@ namespace Gamex.Game
 
             MkText("Title", _shopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Shop";
-            _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-130f, -90f),
-                new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
-            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -80f),
+            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -80f),
                 new Vector2(80f, 80f), "coin", Color.white);
+            _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -90f),
+                new Vector2(200f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
 
             // Phase 5c — content lives inside a ScrollRect so an arbitrary
             // number of sections + cards can stack without overflowing the
@@ -917,11 +913,11 @@ namespace Gamex.Game
             _setDetailTitle = MkText("Title", _setDetailPanel.transform, new Vector2(0f, 1f),
                 new Vector2(40f, -80f), new Vector2(620f, 80f),
                 FS_TITLE, TextAnchor.UpperLeft, AccentGold);
-            _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
-                new Vector2(-130f, -90f), new Vector2(380f, 60f),
-                FS_BIG, TextAnchor.UpperRight, AccentGold);
-            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -80f),
+            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -80f),
                 new Vector2(80f, 80f), "coin", Color.white);
+            _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
+                new Vector2(-40f, -90f), new Vector2(200f, 60f),
+                FS_BIG, TextAnchor.UpperRight, AccentGold);
 
             // Header preview frame — big square showing the full-gear bake.
             var previewFrame = MkSpritePanel("PreviewFrame", _setDetailPanel.transform,
