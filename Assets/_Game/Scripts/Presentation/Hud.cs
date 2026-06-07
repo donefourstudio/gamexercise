@@ -662,7 +662,11 @@ namespace Gamex.Game
                 topInset: 200f, bottomInset: 250f);
 
             float y = -30f;   // cursor in content-space (top is y=0, growing negative downward)
-            const float CARD_W = 880f, CARD_H_SET = 280f, CARD_H_SKIN = 110f, CARD_GAP = 24f;
+            // Phase 5 polish 4 — skin cards bumped to the same 280px height
+            // as set cards so Legends + Cyberpunk + Pets render at the same
+            // visual weight as Champions. Internal layout mirrors set cards:
+            // 140 preview on the left, big name + state/price on the right.
+            const float CARD_W = 880f, CARD_H_SET = 280f, CARD_H_SKIN = 280f, CARD_GAP = 24f;
             // Jackson's read: "Champions" header sat too far above its first
             // card, "Legends" header sat too close under the last Champion
             // card. Tightened header->card and widened section->section to
@@ -728,6 +732,8 @@ namespace Gamex.Game
                 }
 
                 // Skin cards (full-body, single sprite, Buy/Apply/Remove toggle).
+                // Same overall shape as set cards now — preview on the left,
+                // name + state stacked in the middle, action button on the right.
                 foreach (var skin in sectionSkins)
                 {
                     var card = MkSpritePanel("SkinCard_" + skin.id, contentRT,
@@ -737,20 +743,20 @@ namespace Gamex.Game
                     card.GetComponent<Image>().raycastTarget = false;
 
                     MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(65f, 0f), new Vector2(95f, 95f),
+                        new Vector2(20f, 0f), new Vector2(140f, 140f),
                         Make.Skin(skin.id), Color.white);
 
                     MkText("Name", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(140f, 18f), new Vector2(420f, 45f),
-                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                        new Vector2(195f, 55f), new Vector2(490f, 70f),
+                        FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
                         .text = skin.displayName;
                     var stateLabel = MkText("State", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(140f, -25f), new Vector2(420f, 35f),
-                        FS_BODY, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
+                        new Vector2(195f, -10f), new Vector2(490f, 50f),
+                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
 
                     string capSkinId = skin.id;
                     var actionGO = MkButton("Action_" + skin.id, card.transform,
-                        new Vector2(1f, 0.5f), new Vector2(-90f, 0f), new Vector2(150f, 75f),
+                        new Vector2(1f, 0.5f), new Vector2(-50f, 0f), new Vector2(220f, 110f),
                         "Buy", () => _onSkinAction?.Invoke(capSkinId), "btn_grey", "btn_grey_down");
                     _shopSkinCards.Add((skin.id, card, stateLabel,
                         actionGO.GetComponentInChildren<Text>(),

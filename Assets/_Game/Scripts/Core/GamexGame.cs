@@ -286,28 +286,14 @@ namespace Gamex.Core
             new SkinDef { id = "lm_knight_captain", displayName = "Knight Captain",  price = 300, source = "legend", frameCount =  8 },
             new SkinDef { id = "lm_veteran_knight", displayName = "Veteran Knight",  price = 300, source = "legend", frameCount =  8 },
 
-            // Phase 5d — 18 Cyberpunk full-body skins. All 150g per Jackson's
-            // pricing ("Cyberpunk 的因为也是一整套但是没有动画所以150金币一套").
-            // Names are intentionally generic — Bartek's pack ships them as
-            // "character_N" without lore, so the player gets a numbered roster.
-            new SkinDef { id = "cyber_01", displayName = "Cyber Operative 01", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_02", displayName = "Cyber Operative 02", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_03", displayName = "Cyber Operative 03", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_04", displayName = "Cyber Operative 04", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_05", displayName = "Cyber Operative 05", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_06", displayName = "Cyber Operative 06", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_07", displayName = "Cyber Operative 07", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_08", displayName = "Cyber Operative 08", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_09", displayName = "Cyber Operative 09", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_10", displayName = "Cyber Operative 10", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_11", displayName = "Cyber Operative 11", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_12", displayName = "Cyber Operative 12", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_13", displayName = "Cyber Operative 13", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_14", displayName = "Cyber Operative 14", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_15", displayName = "Cyber Operative 15", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_16", displayName = "Cyber Operative 16", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_17", displayName = "Cyber Operative 17", price = 150, source = "cyberpunk" },
-            new SkinDef { id = "cyber_18", displayName = "Cyber Operative 18", price = 150, source = "cyberpunk" },
+            // Phase 5d (trimmed) — 5 distinct Cyberpunk archetypes. Jackson
+            // pruned the original 18 down to a curated 1-per-style set so the
+            // Cyberpunk shop section stays focused. 150g each per his pricing.
+            new SkinDef { id = "cyber_01", displayName = "Cyber Soldier",     price = 150, source = "cyberpunk" }, // blue-hair cyborg armor
+            new SkinDef { id = "cyber_04", displayName = "Bounty Hunter",     price = 150, source = "cyberpunk" }, // blonde with twin pistols
+            new SkinDef { id = "cyber_06", displayName = "Stealth Operative", price = 150, source = "cyberpunk" }, // dark armor, no hair
+            new SkinDef { id = "cyber_10", displayName = "Punk Hacker",       price = 150, source = "cyberpunk" }, // purple mohawk + twin weapons
+            new SkinDef { id = "cyber_13", displayName = "Netrunner",         price = 150, source = "cyberpunk" }, // blonde in blue casual outfit
 
             // Phase 5e2 — Luiz Melo pet packs, 200g each per Jackson's pricing.
             // 6 cats + 6 dogs + 4 fantasy monsters + 4 fantasy 2 monsters = 20.
