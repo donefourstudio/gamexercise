@@ -109,6 +109,10 @@ namespace Gamex.Game
                 // shop / inventory flows are easy to exercise.
                 _game.state.coins += 10000;
             }
+            // T = +1000 steps. Brought back as a separate key after the R
+            // remap took step injection away from shop testing — Jackson
+            // still needs both during a single play session.
+            if (Input.GetKeyDown(KeyCode.T)) _game.AddActivity(1000, 0, 0);
             // Shift+R from anywhere: nuke save + replay opening (dev / QA only).
             if (Input.GetKeyDown(KeyCode.R) &&
                 (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))

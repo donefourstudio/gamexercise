@@ -405,8 +405,11 @@ namespace Gamex.Game
 
         void BuildOpeningCurseLooms(Transform root)
         {
+            // After Jackson cut Gluttony the curse arc is single-track —
+            // the player is hit by Weakness immediately and the next tap
+            // jumps straight to the cinematic, no choice screen.
             _openingCurseLoomsPanel = BuildOpeningTextPanel(
-                "OpeningCurseLooms", root, "...until the curse fell upon you.", TextAnchor.MiddleCenter);
+                "OpeningCurseLooms", root, "...until the Curse of Weakness fell upon you.", TextAnchor.MiddleCenter);
         }
 
         void BuildOpeningAmnesia(Transform root)

@@ -46,7 +46,9 @@ namespace Gamex.Core
             {
                 case AppPhase.OpeningIntro:      phase = AppPhase.OpeningHeroShown;  break;
                 case AppPhase.OpeningHeroShown:  phase = AppPhase.OpeningCurseLooms; break;
-                case AppPhase.OpeningCurseLooms: phase = AppPhase.CurseSelect;       break;
+                // Gluttony retired (Jackson) — only Weakness exists, no curse
+                // select. Auto-set the curse + go straight into the cinematic.
+                case AppPhase.OpeningCurseLooms: state.curse = (int)Curse.Weakness; phase = AppPhase.CurseAnim; break;
                 case AppPhase.OpeningAmnesia:    phase = AppPhase.FirstMirror;       break;
             }
             onSave?.Invoke();
