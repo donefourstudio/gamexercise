@@ -98,6 +98,7 @@ namespace Gamex.Core
         public string id;            // e.g. "elf_paladin"
         public string displayName;   // shown in shop
         public string previewSprite; // Resources path under "Sets/" — full-gear bake of the source prefab
+        public string source;        // groups shop sections (Phase 5a): "champion", "legend", ...
         public EquipmentDef[] pieces;
         public const float BUNDLE_DISCOUNT = 0.8f;   // 20% off the sum of piece prices
         public int BundlePrice

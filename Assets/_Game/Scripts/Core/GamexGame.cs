@@ -272,10 +272,10 @@ namespace Gamex.Core
             // Resources/Skins/. Picks are from /tmp/spum_previews/ — full-gear
             // bakes of BasicPack prefabs so each "skin" looks like an actual
             // adventurer rather than a bare body.
-            new SkinDef { id = "spum_paladin",   displayName = "Paladin",        price = 400, source = "spum_bundle" },
-            new SkinDef { id = "spum_assassin",  displayName = "Twin-Blade",     price = 600, source = "spum_bundle" },
-            new SkinDef { id = "spum_archer",    displayName = "Forest Archer",  price = 350, source = "spum_bundle" },
-            new SkinDef { id = "spum_warmage",   displayName = "Warmage",        price = 800, source = "spum_bundle" },
+            new SkinDef { id = "spum_paladin",   displayName = "Paladin",        price = 400, source = "legend" },
+            new SkinDef { id = "spum_assassin",  displayName = "Twin-Blade",     price = 600, source = "legend" },
+            new SkinDef { id = "spum_archer",    displayName = "Forest Archer",  price = 350, source = "legend" },
+            new SkinDef { id = "spum_warmage",   displayName = "Warmage",        price = 800, source = "legend" },
         };
         public static SkinDef FindSkin(string id)
         {
@@ -313,6 +313,25 @@ namespace Gamex.Core
         // First set: elf_paladin (sourced from SPUM elf_07 prefab — blonde
         // sword-maiden with silver longsword + chest + leggings + boots). The
         // Sets/<id>_preview sprite is the prefab's full-gear render.
+        // Phase 5b — build a 6-piece SPUM Champion set from a single per-piece
+        // price. Helper keeps the catalog readable when adding 8+ sets at once;
+        // every set uses the standard 6-slot layout (helmet/chest/leggings/
+        // gauntlets/boots/weapon) and Phase 5 bake will produce transparent
+        // overlays for any slot the source prefab doesn't actually have art
+        // for — harmless on the avatar, just an empty piece in the inventory.
+        static EquipmentDef[] ChampionPieces(string idPrefix, string namePrefix, int pricePerPiece)
+        {
+            return new[]
+            {
+                new EquipmentDef { id = idPrefix + "_helmet",    name = namePrefix + " Helmet",    slot = EquipSlot.Head,   price = pricePerPiece },
+                new EquipmentDef { id = idPrefix + "_chest",     name = namePrefix + " Chest",     slot = EquipSlot.Chest,  price = pricePerPiece },
+                new EquipmentDef { id = idPrefix + "_leggings",  name = namePrefix + " Leggings",  slot = EquipSlot.Legs,   price = pricePerPiece },
+                new EquipmentDef { id = idPrefix + "_gauntlets", name = namePrefix + " Gauntlets", slot = EquipSlot.Wrists, price = pricePerPiece },
+                new EquipmentDef { id = idPrefix + "_boots",     name = namePrefix + " Boots",     slot = EquipSlot.Feet,   price = pricePerPiece },
+                new EquipmentDef { id = idPrefix + "_weapon",    name = namePrefix + " Weapon",    slot = EquipSlot.Weapon, price = pricePerPiece },
+            };
+        }
+
         public static readonly SetDef[] SetCatalog = new[]
         {
             new SetDef
@@ -320,6 +339,7 @@ namespace Gamex.Core
                 id = "elf_paladin",
                 displayName = "Elven Paladin",
                 previewSprite = "elf_paladin",
+                source = "champion",
                 pieces = new[]
                 {
                     new EquipmentDef { id = "elfpaladin_sword",    name = "Paladin Sword",    slot = EquipSlot.Weapon, price = 200 },
@@ -328,6 +348,18 @@ namespace Gamex.Core
                     new EquipmentDef { id = "elfpaladin_boots",    name = "Paladin Boots",    slot = EquipSlot.Feet,   price = 100 },
                 },
             },
+
+            // ---- Elite — Jackson's "最帅" tier (30g/piece, bundle ≈ 144g) ----
+            new SetDef { id = "champ_dark_knight",     displayName = "Dark Horned Knight", previewSprite = "champ_dark_knight",     source = "champion", pieces = ChampionPieces("champ_dark_knight", "Dark Knight", 30) },
+            new SetDef { id = "champ_skull_warrior",   displayName = "Skull Warrior",      previewSprite = "champ_skull_warrior",   source = "champion", pieces = ChampionPieces("champ_skull_warrior", "Skull Warrior", 30) },
+            new SetDef { id = "champ_crimson_warrior", displayName = "Crimson Warrior",    previewSprite = "champ_crimson_warrior", source = "champion", pieces = ChampionPieces("champ_crimson_warrior", "Crimson Warrior", 30) },
+
+            // ---- Veteran — "中等帅" tier (15g/piece, bundle ≈ 72g) ----
+            new SetDef { id = "champ_silver_hood",  displayName = "Silver Hooded Knight", previewSprite = "champ_silver_hood",  source = "champion", pieces = ChampionPieces("champ_silver_hood",  "Silver Hooded",  15) },
+            new SetDef { id = "champ_greatsword",   displayName = "Greatsword Knight",    previewSprite = "champ_greatsword",   source = "champion", pieces = ChampionPieces("champ_greatsword",   "Greatsword",     15) },
+            new SetDef { id = "champ_caped_noble",  displayName = "Caped Noble",          previewSprite = "champ_caped_noble",  source = "champion", pieces = ChampionPieces("champ_caped_noble",  "Noble",          15) },
+            new SetDef { id = "champ_blue_mage",    displayName = "Azure Mage",           previewSprite = "champ_blue_mage",    source = "champion", pieces = ChampionPieces("champ_blue_mage",    "Azure Mage",     15) },
+            new SetDef { id = "champ_purple_axe",   displayName = "Violet Axemaster",     previewSprite = "champ_purple_axe",   source = "champion", pieces = ChampionPieces("champ_purple_axe",   "Violet Axe",     15) },
         };
         public const int KNIGHT_CHAIN_DAILY_STEPS = 5000;
         public const int KNIGHT_CHAIN_DAYS        = 10;

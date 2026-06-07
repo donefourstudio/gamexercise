@@ -606,6 +606,19 @@ namespace Gamex.Game
         // ============================================================
         // Shop
         // ============================================================
+        // Phase 5a — source-tag -> displayed section header. Strings show up in
+        // the shop dividers; Cyberpunk + Pets keep their literal names per
+        // Jackson, the others get medieval-fantasy themed labels.
+        static readonly Dictionary<string, string> SectionDisplayNames = new()
+        {
+            { "champion", "Champions" },
+            { "legend",   "Legends" },
+            { "cyberpunk","Cyberpunk" },
+            { "pet",      "Pets" },
+        };
+        // Order matters — sections render top-to-bottom in this sequence.
+        static readonly string[] SectionOrder = { "champion", "legend", "cyberpunk", "pet" };
+
         void BuildShop(Transform root)
         {
             _shopPanel = MkFullPanel("ShopPanel", root);
@@ -615,83 +628,96 @@ namespace Gamex.Game
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -90f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
 
-            // Phase 3b: grid of set cards instead of catalog text rows. Each
-            // card surfaces the SPUM full-gear preview + bundle price; tapping
-            // opens the SetDetail page for piece-level purchases.
-            const float CARD_W = 880f, CARD_H = 280f, CARD_GAP = 24f;
-            for (int i = 0; i < GamexGame.SetCatalog.Length; i++)
+            // Layout cursor — pixel y offset from the top edge of the panel.
+            // Sections render in SectionOrder; each section adds a header +
+            // its cards. Sets and skins coexist in the same section if they
+            // share a source (currently only the placeholder skins share
+            // "legend" with future Luiz Melo entries).
+            float y = 540f;
+            const float CARD_W = 880f, CARD_H_SET = 280f, CARD_H_SKIN = 110f, CARD_GAP = 24f;
+            const float SECTION_GAP = 50f, HEADER_GAP = 60f;
+
+            foreach (var source in SectionOrder)
             {
-                var set = GamexGame.SetCatalog[i];
-                float y = 540f - i * (CARD_H + CARD_GAP);
-                var card = MkSpritePanel("SetCard_" + set.id, _shopPanel.transform,
-                    new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(CARD_W, CARD_H),
-                    "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
-                var cardBtn = card.AddComponent<Button>();
-                cardBtn.targetGraphic = card.GetComponent<Image>();
-                cardBtn.transition = Selectable.Transition.ColorTint;
-                var cb = cardBtn.colors; cb.highlightedColor = new Color(1f, 0.95f, 0.78f, 1f); cardBtn.colors = cb;
-                string capId = set.id;
-                cardBtn.onClick.AddListener(() => _onGoSetDetail?.Invoke(capId));
+                var sectionSets  = new List<SetDef>();
+                foreach (var s in GamexGame.SetCatalog)  if (s.source == source) sectionSets.Add(s);
+                var sectionSkins = new List<SkinDef>();
+                foreach (var s in GamexGame.SkinCatalog) if (s.source == source) sectionSkins.Add(s);
+                if (sectionSets.Count == 0 && sectionSkins.Count == 0) continue;
 
-                // Left: preview sprite (square, fills card height minus padding).
-                var preview = MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
-                    new Vector2(140f, 0f), new Vector2(220f, 220f),
-                    Make.SetPreview(set.id), Color.white);
+                string headerText = SectionDisplayNames.TryGetValue(source, out var h) ? h : source;
+                MkText("SectionHeader_" + source, _shopPanel.transform, new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, y), new Vector2(800f, 50f),
+                    FS_LABEL, TextAnchor.MiddleCenter, AccentGold).text = $"— {headerText} —";
+                y -= HEADER_GAP;
 
-                // Right side text — three rows stacked.
-                MkText("Name", card.transform, new Vector2(0f, 0.5f),
-                    new Vector2(310f, 50f), new Vector2(540f, 70f),
-                    FS_BIG, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
-                    .text = set.displayName;
+                // Set cards inside this section (multi-piece purchasable bundles).
+                foreach (var set in sectionSets)
+                {
+                    var card = MkSpritePanel("SetCard_" + set.id, _shopPanel.transform,
+                        new Vector2(0.5f, 0.5f), new Vector2(0f, y - CARD_H_SET / 2f), new Vector2(CARD_W, CARD_H_SET),
+                        "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
+                    var cardBtn = card.AddComponent<Button>();
+                    cardBtn.targetGraphic = card.GetComponent<Image>();
+                    cardBtn.transition = Selectable.Transition.ColorTint;
+                    var cb = cardBtn.colors; cb.highlightedColor = new Color(1f, 0.95f, 0.78f, 1f); cardBtn.colors = cb;
+                    string capSetId = set.id;
+                    cardBtn.onClick.AddListener(() => _onGoSetDetail?.Invoke(capSetId));
 
-                var priceLabel = MkText("Price", card.transform, new Vector2(0f, 0.5f),
-                    new Vector2(310f, -20f), new Vector2(540f, 50f),
-                    FS_LABEL, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
-                priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
+                    MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
+                        new Vector2(140f, 0f), new Vector2(220f, 220f),
+                        Make.SetPreview(set.id), Color.white);
 
-                MkText("Sub", card.transform, new Vector2(0f, 0.5f),
-                    new Vector2(310f, -75f), new Vector2(540f, 40f),
-                    FS_BODY, TextAnchor.MiddleLeft, new Color(0.55f, 0.40f, 0.25f))
-                    .text = $"tap to view {set.pieces.Length} pieces";
+                    MkText("Name", card.transform, new Vector2(0f, 0.5f),
+                        new Vector2(310f, 50f), new Vector2(540f, 70f),
+                        FS_BIG, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                        .text = set.displayName;
 
-                _shopSetCards.Add((set.id, card, priceLabel, cardBtn));
-            }
+                    var priceLabel = MkText("Price", card.transform, new Vector2(0f, 0.5f),
+                        new Vector2(310f, -20f), new Vector2(540f, 50f),
+                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
+                    priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
 
-            // ----- Phase 4b: skin row beneath the set cards -----
-            float skinTopY = 540f - GamexGame.SetCatalog.Length * (CARD_H + CARD_GAP) - 40f;
-            MkText("SkinsHeader", _shopPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, skinTopY), new Vector2(800f, 50f),
-                FS_LABEL, TextAnchor.MiddleCenter, AccentGold).text = "— Skins —";
-            const float SK_W = 880f, SK_H = 110f, SK_GAP = 12f;
-            for (int i = 0; i < GamexGame.SkinCatalog.Length; i++)
-            {
-                var skin = GamexGame.SkinCatalog[i];
-                float y = skinTopY - 60f - i * (SK_H + SK_GAP);
-                var card = MkSpritePanel("SkinCard_" + skin.id, _shopPanel.transform,
-                    new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(SK_W, SK_H),
-                    "panel", new Color(0.92f, 0.84f, 0.62f, 1f));
-                card.GetComponent<Image>().raycastTarget = false;
+                    MkText("Sub", card.transform, new Vector2(0f, 0.5f),
+                        new Vector2(310f, -75f), new Vector2(540f, 40f),
+                        FS_BODY, TextAnchor.MiddleLeft, new Color(0.55f, 0.40f, 0.25f))
+                        .text = $"tap to view {set.pieces.Length} pieces";
 
-                MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
-                    new Vector2(65f, 0f), new Vector2(95f, 95f),
-                    Make.Skin(skin.id), Color.white);
+                    _shopSetCards.Add((set.id, card, priceLabel, cardBtn));
+                    y -= CARD_H_SET + CARD_GAP;
+                }
 
-                MkText("Name", card.transform, new Vector2(0f, 0.5f),
-                    new Vector2(140f, 18f), new Vector2(420f, 45f),
-                    FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
-                    .text = skin.displayName;
-                var stateLabel = MkText("State", card.transform, new Vector2(0f, 0.5f),
-                    new Vector2(140f, -25f), new Vector2(420f, 35f),
-                    FS_BODY, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
+                // Skin cards (full-body, single sprite, Buy/Apply/Remove toggle).
+                foreach (var skin in sectionSkins)
+                {
+                    var card = MkSpritePanel("SkinCard_" + skin.id, _shopPanel.transform,
+                        new Vector2(0.5f, 0.5f), new Vector2(0f, y - CARD_H_SKIN / 2f), new Vector2(CARD_W, CARD_H_SKIN),
+                        "panel", new Color(0.92f, 0.84f, 0.62f, 1f));
+                    card.GetComponent<Image>().raycastTarget = false;
 
-                string capId = skin.id;
-                var actionGO = MkButton("Action_" + skin.id, card.transform,
-                    new Vector2(1f, 0.5f), new Vector2(-90f, 0f), new Vector2(150f, 75f),
-                    "Buy", () => _onSkinAction?.Invoke(capId), "btn_grey", "btn_grey_down");
-                _shopSkinCards.Add((skin.id, card,
-                    stateLabel,
-                    actionGO.GetComponentInChildren<Text>(),
-                    actionGO.GetComponent<Button>()));
+                    MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
+                        new Vector2(65f, 0f), new Vector2(95f, 95f),
+                        Make.Skin(skin.id), Color.white);
+
+                    MkText("Name", card.transform, new Vector2(0f, 0.5f),
+                        new Vector2(140f, 18f), new Vector2(420f, 45f),
+                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                        .text = skin.displayName;
+                    var stateLabel = MkText("State", card.transform, new Vector2(0f, 0.5f),
+                        new Vector2(140f, -25f), new Vector2(420f, 35f),
+                        FS_BODY, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
+
+                    string capSkinId = skin.id;
+                    var actionGO = MkButton("Action_" + skin.id, card.transform,
+                        new Vector2(1f, 0.5f), new Vector2(-90f, 0f), new Vector2(150f, 75f),
+                        "Buy", () => _onSkinAction?.Invoke(capSkinId), "btn_grey", "btn_grey_down");
+                    _shopSkinCards.Add((skin.id, card, stateLabel,
+                        actionGO.GetComponentInChildren<Text>(),
+                        actionGO.GetComponent<Button>()));
+                    y -= CARD_H_SKIN + CARD_GAP;
+                }
+
+                y -= SECTION_GAP;
             }
 
             MkButton("Back", _shopPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),

@@ -133,7 +133,17 @@ namespace Gamex.EditorTools
         static readonly System.Collections.Generic.Dictionary<string, string> SetSourcePrefab =
             new System.Collections.Generic.Dictionary<string, string>
         {
-            { "elf_paladin", "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222346858.prefab" }, // elf_07
+            { "elf_paladin",            "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222346858.prefab" },     // elf_07
+            // Phase 5b — 3 Elite ("最帅") sets
+            { "champ_dark_knight",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215640719.prefab" },  // devil_06
+            { "champ_skull_warrior",    "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639662.prefab" },  // human_16
+            { "champ_crimson_warrior",  "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638389.prefab" },  // human_01
+            // Phase 5b — 5 Veteran ("中等") sets
+            { "champ_silver_hood",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638814.prefab" },  // human_06
+            { "champ_greatsword",       "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638981.prefab" },  // human_08
+            { "champ_caped_noble",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638897.prefab" },  // human_07
+            { "champ_blue_mage",        "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215637772.prefab" },  // devil_01
+            { "champ_purple_axe",       "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215640602.prefab" },  // devil_05
         };
 
         // Keyword filter per slot — same convention the Knight bake uses but
