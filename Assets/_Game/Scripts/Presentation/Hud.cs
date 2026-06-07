@@ -646,7 +646,7 @@ namespace Gamex.Game
 
             float y = -30f;   // cursor in content-space (top is y=0, growing negative downward)
             const float CARD_W = 880f, CARD_H_SET = 280f, CARD_H_SKIN = 110f, CARD_GAP = 24f;
-            const float SECTION_GAP = 40f, HEADER_GAP = 60f;
+            const float SECTION_GAP = 80f, HEADER_GAP = 70f;   // bumped to keep section header off the previous card
 
             foreach (var source in SectionOrder)
             {
@@ -678,21 +678,21 @@ namespace Gamex.Game
                     cardBtn.onClick.AddListener(() => _onGoSetDetail?.Invoke(capSetId));
 
                     MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(140f, 0f), new Vector2(220f, 220f),
+                        new Vector2(120f, 0f), new Vector2(180f, 180f),    // smaller preview leaves more room for name text
                         Make.SetPreview(set.id), Color.white);
 
                     MkText("Name", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(310f, 50f), new Vector2(540f, 70f),
-                        FS_BIG, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                        new Vector2(250f, 55f), new Vector2(620f, 70f),
+                        FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))   // shrunk from FS_BIG so 4-word names like "Dark Horned Knight" still fit
                         .text = set.displayName;
 
                     var priceLabel = MkText("Price", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(310f, -20f), new Vector2(540f, 50f),
+                        new Vector2(250f, -10f), new Vector2(620f, 50f),
                         FS_LABEL, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
                     priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
 
                     MkText("Sub", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(310f, -75f), new Vector2(540f, 40f),
+                        new Vector2(250f, -65f), new Vector2(620f, 40f),
                         FS_BODY, TextAnchor.MiddleLeft, new Color(0.55f, 0.40f, 0.25f))
                         .text = $"tap to view {set.pieces.Length} pieces";
 
