@@ -76,6 +76,22 @@ namespace Gamex.Game
                     else if (!_game.IsSkinActive(id)) _game.ApplySkin(id);
                     else if (skin.source == "pet")    _game.RemoveActivePet();
                     else                              _game.RemoveActiveSkin();
+                },
+                onApplyOutfit:       id =>
+                {
+                    // Inventory taps. Owned-set + already-active set -> race
+                    // form (un-equip everything); otherwise just apply.
+                    if (GamexGame.FindSet(id) != null && _game.IsOutfitActive(id))
+                    {
+                        _game.state.equipped.Clear();
+                        return;
+                    }
+                    if (GamexGame.FindSkin(id) != null && _game.IsSkinActive(id))
+                    {
+                        _game.RemoveActiveSkin();
+                        return;
+                    }
+                    _game.ApplyOutfit(id);
                 });
         }
 

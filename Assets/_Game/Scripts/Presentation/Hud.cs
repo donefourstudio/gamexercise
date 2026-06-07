@@ -152,11 +152,13 @@ namespace Gamex.Game
         readonly Image[] _invSlotBgs   = new Image[6];     // per-slot background (greyed if empty)
         readonly Text[]  _invSlotLabels = new Text[6];     // slot-name label, shown only when slot is empty
         readonly string[] _invSlotEquippedIds = new string[6]; // tracks current occupant id for tap-to-unequip
-        // Polished: packed grid inside a ScrollRect. Cells are pre-built with
-        // no id binding; UpdateInventory maps owned ids onto cells 0..N-1
-        // sequentially so the grid stays dense as the player buys more
-        // equipment. Cells beyond owned count hide.
-        const int INV_GRID_CAPACITY = 32;
+        // Outfit grid (post-pivot). One cell per owned outfit, regardless of
+        // source — Champion sets (when fully bought), Legend / Cyberpunk skins
+        // owned, and the Knight Set once the chain quest awards all 6 pieces.
+        // Tap an outfit -> apply (champion pieces hit state.equipped + clear
+        // activeSkin; skins set activeSkin + clear equipped). Active cell
+        // shows an "Active" badge so the player sees what's on right now.
+        const int INV_GRID_CAPACITY = 24;
         readonly GameObject[] _invGridRoots  = new GameObject[INV_GRID_CAPACITY];
         readonly Image[]      _invGridIcons  = new Image[INV_GRID_CAPACITY];
         readonly GameObject[] _invGridBadges = new GameObject[INV_GRID_CAPACITY];
@@ -183,7 +185,7 @@ namespace Gamex.Game
         readonly Action         _onRaceAnimDone;
         readonly Action         _onFinishFirstMirror;
         readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onGoInventory, _onFakeRep;
-        readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet, _onSkinAction;
+        readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet, _onSkinAction, _onApplyOutfit;
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -201,7 +203,8 @@ namespace Gamex.Game
             Action<string> onToggleEquip,
             Action<string> onGoSetDetail,
             Action<string> onBuySet,
-            Action<string> onSkinAction)
+            Action<string> onSkinAction,
+            Action<string> onApplyOutfit)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -219,6 +222,7 @@ namespace Gamex.Game
             _onGoSetDetail         = onGoSetDetail;
             _onBuySet              = onBuySet;
             _onSkinAction          = onSkinAction;
+            _onApplyOutfit         = onApplyOutfit;
 
             if (EventSystem.current == null)
             {
@@ -878,60 +882,16 @@ namespace Gamex.Game
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380f, 380f),
                 (Sprite)null, Color.white).GetComponent<Image>();
 
-            // Per-set row groups, one Rows GameObject per set; visibility flips
-            // in UpdateSetDetail. Each row: icon + name + per-piece price + Buy.
-            foreach (var set in GamexGame.SetCatalog)
-            {
-                var rowsRoot = MkPanel("Rows_" + set.id, _setDetailPanel.transform,
-                    new Vector2(0.5f, 0.5f), new Vector2(0f, 0f),
-                    new Vector2(900f, 700f), new Color(0f, 0f, 0f, 0f));
-                rowsRoot.GetComponent<Image>().raycastTarget = false;
-                rowsRoot.SetActive(false);
-                _setDetailRowsRoot[set.id] = rowsRoot;
-
-                for (int i = 0; i < set.pieces.Length; i++)
-                {
-                    var p = set.pieces[i];
-                    float y = 130f - i * 130f;
-                    var row = MkSpritePanel("Row_" + p.id, rowsRoot.transform,
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, y),
-                        new Vector2(880f, 115f), "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
-                    row.GetComponent<Image>().raycastTarget = false;
-
-                    // Icon on the left — pivot/anchor at (0, 0.5) means pos.x is
-                    // the rect's LEFT edge. Icon spans x=15..110 here.
-                    MkSpriteIcon("Icon", row.transform, new Vector2(0f, 0.5f),
-                        new Vector2(15f, 0f), new Vector2(95f, 95f),
-                        Make.EquipmentIcon(p.id), Color.white);
-
-                    // Name + price column, starts at x=140 so it never sits
-                    // behind the icon (previous layout had name at x=150 with
-                    // icon ending at x=165 — Jackson called the overlap).
-                    MkText("Name", row.transform, new Vector2(0f, 0.5f),
-                        new Vector2(140f, 20f), new Vector2(520f, 50f),
-                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
-                        .text = p.name;
-                    var priceText = MkText("Price", row.transform, new Vector2(0f, 0.5f),
-                        new Vector2(140f, -28f), new Vector2(520f, 40f),
-                        FS_BODY, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
-                    priceText.text = $"{p.price} gold";
-
-                    // Buy button on the right — flips to "Owned" once purchased.
-                    var btn = MkButton("Buy_" + p.id, row.transform,
-                        new Vector2(1f, 0.5f), new Vector2(-90f, 0f),
-                        new Vector2(150f, 80f), "Buy",
-                        () => { if (!IsOwned(p.id)) _onBuy?.Invoke(p.id); }, "btn_grey", "btn_grey_down");
-                    _setDetailPieceUI[p.id] = (btn.GetComponentInChildren<Text>(), btn.GetComponent<Button>());
-                }
-            }
-
-            // Bundle CTA at bottom of detail page.
+            // Champions are now atomic outfits — one Buy Set CTA, no per-piece
+            // purchase rows. Jackson's call after seeing the SetDetail in Play:
+            // "Champions 还是成套成套卖吧，这样子太乱了". Set detail page
+            // therefore just shows preview + bundle price + Buy Set / Owned.
             _setDetailBundleLabel = MkText("BundleLabel", _setDetailPanel.transform,
-                new Vector2(0.5f, 0f), new Vector2(0f, 290f), new Vector2(900f, 50f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), new Vector2(900f, 60f),
                 FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
 
             var bundleGO = MkButton("BundleBuy", _setDetailPanel.transform,
-                new Vector2(0.5f, 0f), new Vector2(0f, 220f), new Vector2(640f, 110f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), new Vector2(640f, 130f),
                 "Buy Set", () =>
                 {
                     if (_currentSetId != null) _onBuySet?.Invoke(_currentSetId);
@@ -978,64 +938,27 @@ namespace Gamex.Game
             _inventoryPet.raycastTarget = false;
             _inventoryPet.gameObject.SetActive(false);
 
-            // Six slot icons in a row underneath the paper-doll. Order matches
-            // GamexGame.AllSlots: Head, Chest, Wrists, Weapon, Legs, Feet.
-            // Tap an occupied slot -> unequip.
-            string[] slotShortLabels = { "Head", "Chest", "Wrists", "Weapon", "Legs", "Feet" };
-            for (int i = 0; i < 6; i++)
-            {
-                float x = -325f + i * 130f;
-                var slotBg = MkSpritePanel("Slot_" + slotShortLabels[i], _inventoryPanel.transform,
-                    new Vector2(0.5f, 0.5f), new Vector2(x, 90f), new Vector2(110f, 110f),
-                    "panel_light", new Color(0.22f, 0.24f, 0.32f, 1f));
-                _invSlotBgs[i] = slotBg.GetComponent<Image>();
-                // Slot-name label — dimmed text shown when empty, hidden when item present.
-                _invSlotLabels[i] = MkText("Label", slotBg.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                    new Vector2(100f, 100f), FS_BODY, TextAnchor.MiddleCenter, TextDim);
-                _invSlotLabels[i].text = slotShortLabels[i];
-                // Item-occupant icon (sits centered, hidden until equipped).
-                var iconGO = MkSpriteIcon("Icon", slotBg.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                    new Vector2(100f, 100f), (Sprite)null, Color.white);
-                _invSlotIcons[i] = iconGO.GetComponent<Image>();
-                iconGO.SetActive(false);
-                // Tap to unequip whatever's in this slot — looked up at click time from
-                // _invSlotEquippedIds, which UpdateInventory keeps in sync with state.equipped.
-                int capIdx = i;
-                var btn = slotBg.AddComponent<Button>();
-                btn.targetGraphic = _invSlotBgs[i];
-                btn.transition    = Selectable.Transition.ColorTint;
-                var cb = btn.colors;
-                cb.highlightedColor = new Color(0.32f, 0.34f, 0.44f, 1f);
-                btn.colors = cb;
-                btn.onClick.AddListener(() =>
-                {
-                    var equipped = _invSlotEquippedIds[capIdx];
-                    if (equipped != null) _onToggleEquip?.Invoke(equipped);
-                });
-            }
+            // (Slot icons row removed. Champions are sold + equipped atomically
+            // as outfits now, so the player has no per-slot decisions to make
+            // and the row was just visual noise. Pets section is also gone for
+            // launch — Jackson called it "鸡肋".)
 
-            // Storage / Skins / Pets all live inside a scrollable content area —
-            // 90+ equipment cells overflow the screen otherwise, and the
-            // skins/pets rows used to crash directly into the equipment grid.
-            // The scroll area sits between the slot row at y=35 and the back
-            // button at y=-820 (panel-center coords; back button anchored
-            // bottom at y=90, height 100).
+            // Single outfits grid inside a ScrollRect. Each cell shows the
+            // full-character preview for one owned outfit; tap to apply.
+            // No slot row, no per-source split, no pets — Jackson's simplified
+            // model. Header explains the tap behaviour so the player isn't
+            // staring at a wall of portraits without context.
             var contentRT = MkScrollView("InvScroll", _inventoryPanel.transform,
-                topInset: 1010f, bottomInset: 250f);
+                topInset: 900f, bottomInset: 250f);
 
-            float y = -10f;   // cursor in scroll content (top-anchored)
-            const float SEC_GAP = 50f, HEADER_HEIGHT = 50f;
-
-            // --- Storage section ---
-            _invInventoryHeader = MkText("StorageHdr", contentRT,
-                new Vector2(0.5f, 1f), new Vector2(0f, y), new Vector2(800f, HEADER_HEIGHT),
+            _invInventoryHeader = MkText("OutfitsHdr", contentRT,
+                new Vector2(0.5f, 1f), new Vector2(0f, -10f), new Vector2(800f, 50f),
                 FS_LABEL, TextAnchor.MiddleCenter, TextDim);
-            _invInventoryHeader.text = "Storage  ·  tap to equip";
-            y -= HEADER_HEIGHT + 10f;
+            _invInventoryHeader.text = "Outfits  ·  tap to wear";
 
-            const int COLS = 4, CELL = 130, GAP = 14;
+            const int COLS = 3, CELL = 220, GAP = 18;
             float gridLeft = -(COLS * (CELL + GAP) - GAP) / 2f + CELL / 2f;
-            float gridTop  = y - CELL / 2f;
+            float gridTop  = -90f - CELL / 2f;
             for (int i = 0; i < INV_GRID_CAPACITY; i++)
             {
                 int col = i % COLS;
@@ -1047,12 +970,12 @@ namespace Gamex.Game
                     new Vector2(0.5f, 1f), new Vector2(cx, cy), new Vector2(CELL, CELL),
                     "panel_light", new Color(0.22f, 0.24f, 0.32f, 1f));
                 var icon = MkSpriteIcon("Icon", cell.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                    new Vector2(CELL - 16f, CELL - 16f), (Sprite)null, Color.white)
+                    new Vector2(CELL - 24f, CELL - 24f), (Sprite)null, Color.white)
                     .GetComponent<Image>();
-                var badge = MkText("Eq", cell.transform, new Vector2(1f, 1f),
-                    new Vector2(-10f, -10f), new Vector2(40f, 40f),
-                    FS_BODY, TextAnchor.UpperRight, AccentGold);
-                badge.text = "✓";
+                var badge = MkText("Active", cell.transform, new Vector2(0.5f, 0f),
+                    new Vector2(0f, 6f), new Vector2(CELL, 30f),
+                    FS_BODY, TextAnchor.LowerCenter, AccentGold);
+                badge.text = "Active";
                 badge.gameObject.SetActive(false);
 
                 int capIdx = i;
@@ -1065,7 +988,7 @@ namespace Gamex.Game
                 btn.onClick.AddListener(() =>
                 {
                     var id = _invGridIds[capIdx];
-                    if (!string.IsNullOrEmpty(id)) _onToggleEquip?.Invoke(id);
+                    if (!string.IsNullOrEmpty(id)) _onApplyOutfit?.Invoke(id);
                 });
 
                 cell.SetActive(false);
@@ -1073,21 +996,9 @@ namespace Gamex.Game
                 _invGridIcons[i]  = icon;
                 _invGridBadges[i] = badge.gameObject;
             }
-            // Reserve grid height (8 rows max for 32 cells).
             int gridRows = (INV_GRID_CAPACITY + COLS - 1) / COLS;
-            y = gridTop - (gridRows - 1) * (CELL + GAP) - CELL / 2f - SEC_GAP;
-
-            // --- Skins section ---
-            BuildOwnedRow("InvSkins", contentRT, y, _invSkinRoots, _invSkinIcons,
-                          _invSkinActiveMarks, _invSkinIds, "Skins");
-            y -= HEADER_HEIGHT + 30f + 100f + SEC_GAP;
-
-            // --- Pets section ---
-            BuildOwnedRow("InvPets", contentRT, y, _invPetRoots, _invPetIcons,
-                          _invPetActiveMarks, _invPetIds, "Pets");
-            y -= HEADER_HEIGHT + 30f + 100f + SEC_GAP;
-
-            contentRT.sizeDelta = new Vector2(1000f, -y + 40f);
+            float bottomY = gridTop - (gridRows - 1) * (CELL + GAP) - CELL / 2f - 40f;
+            contentRT.sizeDelta = new Vector2(1000f, -bottomY);
 
             MkButton("Back", _inventoryPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
@@ -1470,11 +1381,6 @@ namespace Gamex.Game
             foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
             _setDetailCoins.text = $"{g.state.coins} Gold";
 
-            // Toggle per-set rows: only the active set's rows visible.
-            foreach (var kv in _setDetailRowsRoot)
-                if (kv.Value.activeSelf != (kv.Key == _currentSetId))
-                    kv.Value.SetActive(kv.Key == _currentSetId);
-
             var set = GamexGame.FindSet(_currentSetId);
             if (set == null) return;
 
@@ -1483,16 +1389,7 @@ namespace Gamex.Game
 
             bool fullyOwned = true;
             foreach (var p in set.pieces)
-            {
-                bool owned = g.IsOwned(p.id);
-                if (!owned) fullyOwned = false;
-                if (_setDetailPieceUI.TryGetValue(p.id, out var ui))
-                {
-                    if (owned)            { ui.label.text = "Owned"; ui.btn.interactable = false; }
-                    else if (g.state.coins < p.price) { ui.label.text = $"{p.price}g"; ui.btn.interactable = false; }
-                    else                  { ui.label.text = "Buy";   ui.btn.interactable = true;  }
-                }
-            }
+                if (!g.IsOwned(p.id)) { fullyOwned = false; break; }
 
             int price = set.BundlePrice;
             if (fullyOwned)
@@ -1528,49 +1425,36 @@ namespace Gamex.Game
             ApplyAvatarLook(_inventoryAvatar, safeGender, curse, race, g.Stage, g.state.equipped, g.state.activeSkin);
             _inventoryAvatar.SetAlpha(1f);
 
-            // Paper-doll slot icons — one per AllSlots entry. Show the equipped
-            // item's sprite if any, otherwise the slot's name label.
-            for (int i = 0; i < GamexGame.AllSlots.Length; i++)
-            {
-                var slot = GamexGame.AllSlots[i];
-                string equippedId = g.EquippedInSlot(slot);
-                _invSlotEquippedIds[i] = equippedId;
-
-                if (equippedId != null)
-                {
-                    var spr = Make.EquipmentIcon(equippedId);
-                    if (spr != null)
-                    {
-                        _invSlotIcons[i].sprite = spr;
-                        if (!_invSlotIcons[i].gameObject.activeSelf)
-                            _invSlotIcons[i].gameObject.SetActive(true);
-                        if (_invSlotLabels[i].gameObject.activeSelf)
-                            _invSlotLabels[i].gameObject.SetActive(false);
-                    }
-                }
-                else
-                {
-                    if (_invSlotIcons[i].gameObject.activeSelf)
-                        _invSlotIcons[i].gameObject.SetActive(false);
-                    if (!_invSlotLabels[i].gameObject.activeSelf)
-                        _invSlotLabels[i].gameObject.SetActive(true);
-                }
-            }
-
-            // Storage grid — pack owned ids into cells 0..N-1 sequentially so
-            // the grid stays dense as the player buys more. Cells beyond
-            // owned count hide. Was previously one fixed-position cell per
-            // catalog id which left ugly holes when most items were unowned.
+            // Walk owned outfits into the grid: Champion sets first (when all
+            // 6 pieces are owned -> one cell), then Skins (each owned Skin =
+            // one cell). Active outfit gets the "Active" badge.
             int gridIdx = 0;
-            foreach (var id in g.state.owned)
+            foreach (var set in GamexGame.SetCatalog)
+            {
+                if (gridIdx >= INV_GRID_CAPACITY) break;
+                bool fullyOwned = true;
+                foreach (var p in set.pieces)
+                    if (!g.IsOwned(p.id)) { fullyOwned = false; break; }
+                if (!fullyOwned) continue;
+                _invGridIds[gridIdx] = set.id;
+                var spr = Make.SetPreview(set.id);
+                if (spr != null) _invGridIcons[gridIdx].sprite = spr;
+                bool active = g.IsOutfitActive(set.id);
+                if (_invGridBadges[gridIdx].activeSelf != active)
+                    _invGridBadges[gridIdx].SetActive(active);
+                if (!_invGridRoots[gridIdx].activeSelf) _invGridRoots[gridIdx].SetActive(true);
+                gridIdx++;
+            }
+            // Owned skins (Legends + Cyberpunk; pets are hidden for launch).
+            foreach (var id in g.state.ownedSkins)
             {
                 if (gridIdx >= INV_GRID_CAPACITY) break;
                 _invGridIds[gridIdx] = id;
-                var spr = Make.EquipmentIcon(id);
+                var spr = Make.Skin(id);
                 if (spr != null) _invGridIcons[gridIdx].sprite = spr;
-                bool equipped = g.IsEquipped(id);
-                if (_invGridBadges[gridIdx].activeSelf != equipped)
-                    _invGridBadges[gridIdx].SetActive(equipped);
+                bool active = g.IsSkinActive(id);
+                if (_invGridBadges[gridIdx].activeSelf != active)
+                    _invGridBadges[gridIdx].SetActive(active);
                 if (!_invGridRoots[gridIdx].activeSelf) _invGridRoots[gridIdx].SetActive(true);
                 gridIdx++;
             }
@@ -1578,47 +1462,6 @@ namespace Gamex.Game
             {
                 _invGridIds[i] = null;
                 if (_invGridRoots[i].activeSelf) _invGridRoots[i].SetActive(false);
-            }
-
-            // Phase 5 polish 6 — skins / pets rows. Walk state.ownedSkins +
-            // state.ownedPets, map each into the next available cell, hide
-            // unused cells.
-            int skinIdx = 0;
-            foreach (var id in g.state.ownedSkins)
-            {
-                if (skinIdx >= SK_ROW_CAPACITY) break;
-                _invSkinIds[skinIdx] = id;
-                if (!_invSkinRoots[skinIdx].activeSelf) _invSkinRoots[skinIdx].SetActive(true);
-                var spr = Make.Skin(id);
-                if (spr != null) _invSkinIcons[skinIdx].sprite = spr;
-                bool active = g.IsSkinActive(id);
-                if (_invSkinActiveMarks[skinIdx].activeSelf != active)
-                    _invSkinActiveMarks[skinIdx].SetActive(active);
-                skinIdx++;
-            }
-            for (int i = skinIdx; i < SK_ROW_CAPACITY; i++)
-            {
-                _invSkinIds[i] = null;
-                if (_invSkinRoots[i].activeSelf) _invSkinRoots[i].SetActive(false);
-            }
-
-            int petIdx = 0;
-            foreach (var id in g.state.ownedPets)
-            {
-                if (petIdx >= SK_ROW_CAPACITY) break;
-                _invPetIds[petIdx] = id;
-                if (!_invPetRoots[petIdx].activeSelf) _invPetRoots[petIdx].SetActive(true);
-                var spr = Make.Skin(id);
-                if (spr != null) _invPetIcons[petIdx].sprite = spr;
-                bool active = g.IsSkinActive(id);
-                if (_invPetActiveMarks[petIdx].activeSelf != active)
-                    _invPetActiveMarks[petIdx].SetActive(active);
-                petIdx++;
-            }
-            for (int i = petIdx; i < SK_ROW_CAPACITY; i++)
-            {
-                _invPetIds[i] = null;
-                if (_invPetRoots[i].activeSelf) _invPetRoots[i].SetActive(false);
             }
         }
 

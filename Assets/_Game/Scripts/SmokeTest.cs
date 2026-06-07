@@ -234,6 +234,14 @@ namespace Gamex.Game
             // Phase 4 — buy + apply a skin so home + inventory show the
             // override portrait (knight gear is hidden because skins carry
             // their own painted-in art).
+            // Buy a Champion set so the new outfit inventory has something to
+            // show beyond a single skin cell.
+            var darkKnight = GamexGame.FindSet("champ_dark_knight");
+            if (darkKnight != null)
+            {
+                runner.Game.state.coins = darkKnight.BundlePrice + 10000;
+                runner.Game.TryBuySet(darkKnight);
+            }
             // Iron Knight (frameCount=11) exercises Phase 5e3 animation tick;
             // Golden Retriever pet alongside exercises the polish-round-3 pet
             // companion rendering inside the mirror.

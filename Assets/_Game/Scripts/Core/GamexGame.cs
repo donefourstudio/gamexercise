@@ -448,15 +448,15 @@ namespace Gamex.Core
         }
 
         // Atomic set purchase — pays the discounted bundle price and grants
-        // every piece the player doesn't already own. Pieces already in
-        // state.owned are NOT discounted-out of the price (the set price is
-        // a fixed bundle); we simply skip re-adding them.
+        // every piece + auto-equips the set so the player sees their new
+        // outfit immediately (per Jackson's "Champions sold as outfits" pivot).
+        // Activating clears state.activeSkin so the equipment overlay path
+        // renders the set's pieces on top of the race-form portrait.
         public bool TryBuySet(SetDef set)
         {
             if (set == null || set.pieces == null) return false;
             int price = set.BundlePrice;
             if (state.coins < price) return false;
-            // Don't sell a set the player has already fully completed.
             bool anyMissing = false;
             foreach (var p in set.pieces)
                 if (!state.owned.Contains(p.id)) { anyMissing = true; break; }
@@ -464,7 +464,48 @@ namespace Gamex.Core
             state.coins -= price;
             foreach (var p in set.pieces)
                 if (!state.owned.Contains(p.id)) state.owned.Add(p.id);
-            onSave?.Invoke();
+            ApplyOutfit(set.id);
+            return true;
+        }
+
+        // Single-call "wear this outfit" used by the Inventory grid + the
+        // post-purchase auto-equip. Champion sets fill state.equipped with
+        // their 6 pieces; skins flip state.activeSkin and clear equipment so
+        // overlays don't double-render. Pets stay separate (state.activePet).
+        public void ApplyOutfit(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+            var set = FindSet(id);
+            if (set != null)
+            {
+                state.equipped.Clear();
+                foreach (var p in set.pieces) state.equipped.Add(p.id);
+                state.activeSkin = null;
+                onSave?.Invoke();
+                return;
+            }
+            var skin = FindSkin(id);
+            if (skin != null && !IsPet(skin))
+            {
+                if (!state.ownedSkins.Contains(id)) return;
+                state.activeSkin = id;
+                state.equipped.Clear();
+                onSave?.Invoke();
+            }
+        }
+
+        // Active means: this set is the one whose pieces currently fill
+        // state.equipped AND no skin is overriding the portrait. Used by the
+        // Inventory cell's "Active" badge so the player can see at a glance
+        // which outfit is on.
+        public bool IsOutfitActive(string setId)
+        {
+            if (!string.IsNullOrEmpty(state.activeSkin)) return false;
+            var set = FindSet(setId);
+            if (set == null) return false;
+            if (state.equipped.Count != set.pieces.Length) return false;
+            foreach (var p in set.pieces)
+                if (!state.equipped.Contains(p.id)) return false;
             return true;
         }
 
