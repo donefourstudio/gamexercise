@@ -97,8 +97,12 @@ namespace Gamex.Core
 
         public void GoHome()     => phase = AppPhase.Home;
         public void GoQuests()   => phase = AppPhase.Quests;
-        public void GoShop()     => phase = AppPhase.Shop;
-        public void GoInventory(){ phase = AppPhase.Inventory; onSave?.Invoke(); }
+        public void GoShop()     { phase = AppPhase.Shop;       activeSetId = null; onSave?.Invoke(); }
+        public void GoInventory(){ phase = AppPhase.Inventory;  onSave?.Invoke(); }
+        public void GoSetDetail(string setId) { activeSetId = setId; phase = AppPhase.SetDetail; onSave?.Invoke(); }
+        // Currently-open set on the SetDetail screen. Cleared whenever we
+        // navigate back to plain Shop or anywhere else.
+        public string activeSetId;
 
         // ---- step ingestion (M5a) ----
 
@@ -248,14 +252,36 @@ namespace Gamex.Core
         // 6 pieces total: chest -> helmet -> leggings -> gauntlets -> boots -> sword.
         // At 10 chain days per piece (M5d) this is a 60-day commitment for the
         // full silver-knight loadout, with the sword as the climax reward.
-        public static readonly (string id, string name)[] KnightSet = new[]
+        public static readonly EquipmentDef[] KnightSet = new[]
         {
-            ("knight_chest",     "Knight Chestplate"),
-            ("knight_helmet",    "Knight Helmet"),
-            ("knight_leggings",  "Knight Leggings"),
-            ("knight_gauntlets", "Knight Gauntlets"),
-            ("knight_boots",     "Knight Boots"),
-            ("knight_sword",     "Knight Longsword"),
+            new EquipmentDef { id = "knight_chest",     name = "Knight Chestplate", slot = EquipSlot.Chest  },
+            new EquipmentDef { id = "knight_helmet",    name = "Knight Helmet",     slot = EquipSlot.Head   },
+            new EquipmentDef { id = "knight_leggings",  name = "Knight Leggings",   slot = EquipSlot.Legs   },
+            new EquipmentDef { id = "knight_gauntlets", name = "Knight Gauntlets",  slot = EquipSlot.Wrists },
+            new EquipmentDef { id = "knight_boots",     name = "Knight Boots",      slot = EquipSlot.Feet   },
+            new EquipmentDef { id = "knight_sword",     name = "Knight Longsword",  slot = EquipSlot.Weapon },
+        };
+
+        // M5g (Phase 3a) — SPUM full-prefab sets sold in the shop. Pieces are
+        // individually buyable; bundling the whole set saves 20% (SetDef logic).
+        // First set: elf_paladin (sourced from SPUM elf_07 prefab — blonde
+        // sword-maiden with silver longsword + chest + leggings + boots). The
+        // Sets/<id>_preview sprite is the prefab's full-gear render.
+        public static readonly SetDef[] SetCatalog = new[]
+        {
+            new SetDef
+            {
+                id = "elf_paladin",
+                displayName = "Elven Paladin",
+                previewSprite = "elf_paladin",
+                pieces = new[]
+                {
+                    new EquipmentDef { id = "elfpaladin_sword",    name = "Paladin Sword",    slot = EquipSlot.Weapon, price = 200 },
+                    new EquipmentDef { id = "elfpaladin_chest",    name = "Paladin Plate",    slot = EquipSlot.Chest,  price = 250 },
+                    new EquipmentDef { id = "elfpaladin_leggings", name = "Paladin Greaves",  slot = EquipSlot.Legs,   price = 150 },
+                    new EquipmentDef { id = "elfpaladin_boots",    name = "Paladin Boots",    slot = EquipSlot.Feet,   price = 100 },
+                },
+            },
         };
         public const int KNIGHT_CHAIN_DAILY_STEPS = 5000;
         public const int KNIGHT_CHAIN_DAYS        = 10;
@@ -272,6 +298,27 @@ namespace Gamex.Core
             return true;
         }
 
+        // Atomic set purchase — pays the discounted bundle price and grants
+        // every piece the player doesn't already own. Pieces already in
+        // state.owned are NOT discounted-out of the price (the set price is
+        // a fixed bundle); we simply skip re-adding them.
+        public bool TryBuySet(SetDef set)
+        {
+            if (set == null || set.pieces == null) return false;
+            int price = set.BundlePrice;
+            if (state.coins < price) return false;
+            // Don't sell a set the player has already fully completed.
+            bool anyMissing = false;
+            foreach (var p in set.pieces)
+                if (!state.owned.Contains(p.id)) { anyMissing = true; break; }
+            if (!anyMissing) return false;
+            state.coins -= price;
+            foreach (var p in set.pieces)
+                if (!state.owned.Contains(p.id)) state.owned.Add(p.id);
+            onSave?.Invoke();
+            return true;
+        }
+
         // Equipment slots — the Inventory paper-doll has exactly one cell per slot,
         // so equipping a new item replaces whatever else is in that slot. Catalog
         // IDs follow naming conventions so this routing can be done by string
@@ -281,18 +328,35 @@ namespace Gamex.Core
             EquipSlot.Head, EquipSlot.Chest, EquipSlot.Wrists,
             EquipSlot.Weapon, EquipSlot.Legs, EquipSlot.Feet,
         };
+        // Slot lookup is dictionary-driven now. KnightSet + every SetCatalog
+        // piece declares its slot explicitly; SlotOf just reads the map.
+        // Building lazily on first access keeps the static constructor simple.
+        static System.Collections.Generic.Dictionary<string, EquipSlot> _slotMap;
+        static void BuildSlotMap()
+        {
+            _slotMap = new System.Collections.Generic.Dictionary<string, EquipSlot>();
+            foreach (var p in KnightSet) _slotMap[p.id] = p.slot;
+            foreach (var set in SetCatalog)
+                foreach (var p in set.pieces) _slotMap[p.id] = p.slot;
+        }
         public static EquipSlot SlotOf(string id)
         {
             if (id == null) return EquipSlot.None;
-            if (id.StartsWith("sword_"))    return EquipSlot.Weapon;
-            if (id.StartsWith("armor_"))    return EquipSlot.Chest;
-            if (id == "knight_chest")       return EquipSlot.Chest;
-            if (id == "knight_helmet")      return EquipSlot.Head;
-            if (id == "knight_leggings")    return EquipSlot.Legs;
-            if (id == "knight_gauntlets")   return EquipSlot.Wrists;
-            if (id == "knight_boots")       return EquipSlot.Feet;
-            if (id == "knight_sword")       return EquipSlot.Weapon;
-            return EquipSlot.None;
+            if (_slotMap == null) BuildSlotMap();
+            return _slotMap.TryGetValue(id, out var s) ? s : EquipSlot.None;
+        }
+        // Catalog walkers — used by Hud's Inventory grid + shop screens.
+        public static EquipmentDef FindPiece(string id)
+        {
+            foreach (var p in KnightSet) if (p.id == id) return p;
+            foreach (var set in SetCatalog)
+                foreach (var p in set.pieces) if (p.id == id) return p;
+            return null;
+        }
+        public static SetDef FindSet(string setId)
+        {
+            foreach (var set in SetCatalog) if (set.id == setId) return set;
+            return null;
         }
         public string EquippedInSlot(EquipSlot slot)
         {

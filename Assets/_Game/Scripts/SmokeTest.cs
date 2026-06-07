@@ -74,24 +74,28 @@ namespace Gamex.Game
             g6.EndDay();                                 // no steps -> reset
             Check(g6.state.streakDays == 0, "streak resets on inactive day");
 
-            // Shop: new prices, buy + equip
+            // Shop (Phase 3): SetCatalog drives the storefront. Single-piece
+            // buy still works through TryBuy; new TryBuySet pays the bundle
+            // price (80% of summed pieces) and grants every piece atomically.
             var g7 = new GamexGame();
             g7.state.coins = 2000;
-            var wood = System.Array.Find(GamexGame.Catalog, d => d.id == "sword_wood");
-            Check(wood.price == 10, "wood sword = 10 coins, got " + wood.price);
-            Check(g7.TryBuy(wood), "buy wood sword");
-            Check(g7.state.coins == 1990, "1990 after wood, got " + g7.state.coins);
-            g7.ToggleEquip("sword_wood");
-            Check(g7.IsEquipped("sword_wood"), "equipped");
-            g7.ToggleEquip("sword_wood");
-            Check(!g7.IsEquipped("sword_wood"), "unequipped");
+            var paladin = GamexGame.SetCatalog[0];
+            var sword = System.Array.Find(paladin.pieces, d => d.id == "elfpaladin_sword");
+            Check(sword.price == 200, "paladin sword = 200 coins, got " + sword.price);
+            Check(g7.TryBuy(sword), "buy paladin sword");
+            Check(g7.state.coins == 1800, "1800 after sword, got " + g7.state.coins);
+            g7.ToggleEquip("elfpaladin_sword");
+            Check(g7.IsEquipped("elfpaladin_sword"), "equipped");
+            g7.ToggleEquip("elfpaladin_sword");
+            Check(!g7.IsEquipped("elfpaladin_sword"), "unequipped");
 
-            // No level gate (M5d): legend sword buyable at Lv 1 if you have the gold.
+            // Bundle buy — 700g total -> 560 with discount, all 4 pieces granted.
             var g8 = new GamexGame();
             g8.state.coins = 100000;
-            var legend = System.Array.Find(GamexGame.Catalog, d => d.id == "sword_legend");
-            Check(legend.price == 1500, "legend sword = 1500, got " + legend.price);
-            Check(g8.TryBuy(legend), "buy legend sword at lv 1 (no level gate)");
+            Check(paladin.BundlePrice == 560, "paladin bundle = 560, got " + paladin.BundlePrice);
+            Check(g8.TryBuySet(paladin), "buy paladin set");
+            Check(g8.state.owned.Count == 4, "owned 4 after bundle, got " + g8.state.owned.Count);
+            Check(g8.state.coins == 100000 - 560, "coins after bundle");
 
             // Knight Set chain — 10 consecutive 5k days unlock each piece.
             // Pre-load lifetime steps so AddActivity's level recompute lands at Lv 20+.
@@ -202,10 +206,10 @@ namespace Gamex.Game
             // pieces (chain-quest reward in real play) so the home capture
             // shows the SPUM-coord overlay system rendering all five on the
             // chibi race form.
-            foreach (var (id, _) in GamexGame.KnightSet)
+            foreach (var p in GamexGame.KnightSet)
             {
-                if (!runner.Game.state.owned.Contains(id))   runner.Game.state.owned.Add(id);
-                if (!runner.Game.state.equipped.Contains(id)) runner.Game.state.equipped.Add(id);
+                if (!runner.Game.state.owned.Contains(p.id))   runner.Game.state.owned.Add(p.id);
+                if (!runner.Game.state.equipped.Contains(p.id)) runner.Game.state.equipped.Add(p.id);
             }
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_home_after_race.png");

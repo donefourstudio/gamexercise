@@ -697,8 +697,9 @@ namespace Gamex.Game
             // Catalog items first (sword/armor tiers), then knight pieces. All cells
             // pre-built; UpdateInventory shows/hides based on owned set.
             var allIds = new List<string>();
-            foreach (var def in GamexGame.Catalog) allIds.Add(def.id);
-            foreach (var (id, _) in GamexGame.KnightSet) allIds.Add(id);
+            foreach (var p in GamexGame.KnightSet) allIds.Add(p.id);
+            foreach (var set in GamexGame.SetCatalog)
+                foreach (var p in set.pieces) allIds.Add(p.id);
 
             const int COLS = 4, CELL = 130, GAP = 14;
             float gridLeft = -(COLS * CELL + (COLS - 1) * GAP) / 2f + CELL / 2f;

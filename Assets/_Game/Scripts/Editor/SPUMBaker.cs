@@ -127,6 +127,28 @@ namespace Gamex.EditorTools
         const string KNIGHT_PREFAB_ARMOR = "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639234.prefab"; // human_11 — silver bucket-helm + plate
         const string KNIGHT_PREFAB_SWORD = "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222346858.prefab";  // elf_07  — visible silver longsword in IDLE
 
+        // Shop-set source prefabs. Each set's pieces are baked from this one
+        // prefab via the per-slot keyword filter. The previewSprite (full-gear
+        // render saved to Resources/Sets/) is the same prefab with keepEquip=true.
+        static readonly System.Collections.Generic.Dictionary<string, string> SetSourcePrefab =
+            new System.Collections.Generic.Dictionary<string, string>
+        {
+            { "elf_paladin", "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222346858.prefab" }, // elf_07
+        };
+
+        // Keyword filter per slot — same convention the Knight bake uses but
+        // shared so shop pieces can route by slot without restating the map.
+        static readonly System.Collections.Generic.Dictionary<Gamex.Core.GamexGame.EquipSlot, string[]> SlotKeywords =
+            new System.Collections.Generic.Dictionary<Gamex.Core.GamexGame.EquipSlot, string[]>
+        {
+            { Gamex.Core.GamexGame.EquipSlot.Head,   new[] { "helmet" } },
+            { Gamex.Core.GamexGame.EquipSlot.Chest,  new[] { "bodyarmor" } },
+            { Gamex.Core.GamexGame.EquipSlot.Legs,   new[] { "cloth", "clothbody" } },
+            { Gamex.Core.GamexGame.EquipSlot.Wrists, new[] { "shoulder", "_arm", "carm" } },
+            { Gamex.Core.GamexGame.EquipSlot.Feet,   new[] { "foot" } },
+            { Gamex.Core.GamexGame.EquipSlot.Weapon, new[] { "weapon" } },
+        };
+
         // Renderer-name keywords per slot. Matched as case-insensitive Contains
         // against the entire ancestor chain. Each tuple is (prefab, keywords).
         static readonly System.Collections.Generic.Dictionary<string, (string prefab, string[] keys)> KnightSlots =
@@ -148,6 +170,52 @@ namespace Gamex.EditorTools
             // SPUM race form.
             { "knight_sword",     (KNIGHT_PREFAB_SWORD, new[] { "weapon" }) },
         };
+
+        // Phase 3a — bake every shop set: full-gear preview + per-piece
+        // overlays. Reads the SetCatalog (the runtime authoritative source
+        // of which pieces a set contains) and SetSourcePrefab (bake-only
+        // metadata mapping set id -> prefab path).
+        public static void BakeShopSetsBatch()
+        {
+            string equipRoot = "Assets/_Game/Resources/Equip";
+            string setsRoot  = "Assets/_Game/Resources/Sets";
+            Directory.CreateDirectory(equipRoot);
+            Directory.CreateDirectory(setsRoot);
+
+            foreach (var set in Gamex.Core.GamexGame.SetCatalog)
+            {
+                if (!SetSourcePrefab.TryGetValue(set.id, out var prefabPath))
+                {
+                    Debug.LogWarning($"[SPUMBaker] no source prefab registered for set '{set.id}', skipping");
+                    continue;
+                }
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+                if (prefab == null)
+                {
+                    Debug.LogError($"[SPUMBaker] prefab not found for set '{set.id}': {prefabPath}");
+                    continue;
+                }
+                // Full-gear preview for the shop card + set detail header.
+                string previewPath = $"{setsRoot}/{set.id}.png";
+                BakeOne(prefab, previewPath, keepEquip: true);
+                Debug.Log($"[SPUMBaker] set preview {set.id}.png  <-  {Path.GetFileName(prefabPath)}");
+
+                // Each piece — overlay sprite cropped to its slot's renderers.
+                foreach (var p in set.pieces)
+                {
+                    if (!SlotKeywords.TryGetValue(p.slot, out var keys))
+                    {
+                        Debug.LogWarning($"[SPUMBaker] no keywords for slot {p.slot} on piece {p.id}");
+                        continue;
+                    }
+                    string outPath = $"{equipRoot}/{p.id}.png";
+                    BakeIsolated(prefab, outPath, keys);
+                    Debug.Log($"[SPUMBaker] piece {p.id}.png  <-  {p.slot} via {string.Join('|', keys)}");
+                }
+            }
+            AssetDatabase.Refresh();
+            EditorApplication.Exit(0);
+        }
 
         public static void BakeKnightSetBatch()
         {

@@ -30,6 +30,9 @@ namespace Gamex.Core
         // the player owns. Tapping a stored item equips/swaps in its slot;
         // tapping an equipped slot icon unequips it.
         Inventory,
+        // M5g (Phase 3): tapping a shop set card opens the set's detail page —
+        // full-gear preview + per-piece buy buttons + a bundle-buy CTA.
+        SetDetail,
         // Triggered when level reaches 20 and race is Unset (gender + race
         // are chosen together — Q2=C). RaceTransformAnim is the silhouette -> chosen
         // race cinematic (M3c+M3d), then back to Home.
@@ -62,6 +65,35 @@ namespace Gamex.Core
         public int tier;       // 1-4 visual tier
         public int minLevel;   // can't buy below this
         public int price;
+        // M5g: paper-doll slot this piece occupies. Set explicitly by
+        // catalogs (KnightSet, SetCatalog.pieces); GamexGame.SlotOf reads
+        // from a dictionary built off these declarations.
+        public GamexGame.EquipSlot slot;
+    }
+
+    // M5g (Phase 3a): a "set" is a coherent SPUM-prefab-sourced loadout
+    // (e.g. Elven Paladin = silver sword + paladin chest + greaves + boots).
+    // The shop sells sets up-front with an 80% bundle discount, and each
+    // set's detail page lets the player buy individual pieces too — so a
+    // motivated player can mix-and-match favourites across multiple sets
+    // without being forced to commit to one full bundle at a time.
+    [Serializable]
+    public class SetDef
+    {
+        public string id;            // e.g. "elf_paladin"
+        public string displayName;   // shown in shop
+        public string previewSprite; // Resources path under "Sets/" — full-gear bake of the source prefab
+        public EquipmentDef[] pieces;
+        public const float BUNDLE_DISCOUNT = 0.8f;   // 20% off the sum of piece prices
+        public int BundlePrice
+        {
+            get
+            {
+                int sum = 0;
+                if (pieces != null) foreach (var p in pieces) sum += p.price;
+                return UnityEngine.Mathf.RoundToInt(sum * BUNDLE_DISCOUNT);
+            }
+        }
     }
 
     // Player progression — all of this serializes to disk via JsonUtility.
