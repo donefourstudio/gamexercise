@@ -628,14 +628,17 @@ namespace Gamex.Game
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -90f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
 
-            // Layout cursor — pixel y offset from the top edge of the panel.
-            // Sections render in SectionOrder; each section adds a header +
-            // its cards. Sets and skins coexist in the same section if they
-            // share a source (currently only the placeholder skins share
-            // "legend" with future Luiz Melo entries).
-            float y = 540f;
+            // Phase 5c — content lives inside a ScrollRect so an arbitrary
+            // number of sections + cards can stack without overflowing the
+            // back button. Viewport stretches from below the title to above
+            // the back button; content is a RectTransform whose height we
+            // adjust at the end to match the cumulative card stack.
+            var contentRT = MkScrollView("ShopScroll", _shopPanel.transform,
+                topInset: 200f, bottomInset: 250f);
+
+            float y = -30f;   // cursor in content-space (top is y=0, growing negative downward)
             const float CARD_W = 880f, CARD_H_SET = 280f, CARD_H_SKIN = 110f, CARD_GAP = 24f;
-            const float SECTION_GAP = 50f, HEADER_GAP = 60f;
+            const float SECTION_GAP = 40f, HEADER_GAP = 60f;
 
             foreach (var source in SectionOrder)
             {
@@ -646,16 +649,18 @@ namespace Gamex.Game
                 if (sectionSets.Count == 0 && sectionSkins.Count == 0) continue;
 
                 string headerText = SectionDisplayNames.TryGetValue(source, out var h) ? h : source;
-                MkText("SectionHeader_" + source, _shopPanel.transform, new Vector2(0.5f, 0.5f),
+                var hdr = MkText("SectionHeader_" + source, contentRT, new Vector2(0.5f, 1f),
                     new Vector2(0f, y), new Vector2(800f, 50f),
-                    FS_LABEL, TextAnchor.MiddleCenter, AccentGold).text = $"— {headerText} —";
+                    FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+                hdr.text = $"— {headerText} —";
                 y -= HEADER_GAP;
 
                 // Set cards inside this section (multi-piece purchasable bundles).
                 foreach (var set in sectionSets)
                 {
-                    var card = MkSpritePanel("SetCard_" + set.id, _shopPanel.transform,
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, y - CARD_H_SET / 2f), new Vector2(CARD_W, CARD_H_SET),
+                    var card = MkSpritePanel("SetCard_" + set.id, contentRT,
+                        new Vector2(0.5f, 1f), new Vector2(0f, y - CARD_H_SET / 2f),
+                        new Vector2(CARD_W, CARD_H_SET),
                         "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
                     var cardBtn = card.AddComponent<Button>();
                     cardBtn.targetGraphic = card.GetComponent<Image>();
@@ -690,8 +695,9 @@ namespace Gamex.Game
                 // Skin cards (full-body, single sprite, Buy/Apply/Remove toggle).
                 foreach (var skin in sectionSkins)
                 {
-                    var card = MkSpritePanel("SkinCard_" + skin.id, _shopPanel.transform,
-                        new Vector2(0.5f, 0.5f), new Vector2(0f, y - CARD_H_SKIN / 2f), new Vector2(CARD_W, CARD_H_SKIN),
+                    var card = MkSpritePanel("SkinCard_" + skin.id, contentRT,
+                        new Vector2(0.5f, 1f), new Vector2(0f, y - CARD_H_SKIN / 2f),
+                        new Vector2(CARD_W, CARD_H_SKIN),
                         "panel", new Color(0.92f, 0.84f, 0.62f, 1f));
                     card.GetComponent<Image>().raycastTarget = false;
 
@@ -720,8 +726,63 @@ namespace Gamex.Game
                 y -= SECTION_GAP;
             }
 
+            // Final content height = how far we scrolled down + bottom padding.
+            contentRT.sizeDelta = new Vector2(0f, -y + 40f);
+
             MkButton("Back", _shopPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+        }
+
+        // Build a vertical ScrollRect anchored to fill the parent except for
+        // top/bottom insets (which leave room for the title + back button).
+        // Returns the Content RectTransform — caller adds children to it
+        // using anchor (0.5, 1) so y=0 is the top edge.
+        static RectTransform MkScrollView(string name, Transform parent, float topInset, float bottomInset)
+        {
+            var rootGO = new GameObject(name);
+            rootGO.transform.SetParent(parent, false);
+            var rt = rootGO.AddComponent<RectTransform>();
+            rt.anchorMin = new Vector2(0f, 0f);
+            rt.anchorMax = new Vector2(1f, 1f);
+            rt.offsetMin = new Vector2(40f, bottomInset);
+            rt.offsetMax = new Vector2(-40f, -topInset);
+
+            var sr = rootGO.AddComponent<ScrollRect>();
+            sr.horizontal = false;
+            sr.vertical = true;
+            sr.movementType = ScrollRect.MovementType.Elastic;
+            sr.scrollSensitivity = 30f;
+
+            // Viewport — same rect as the scroll root, with Mask so children
+            // outside the viewport bounds are clipped. The Image is required
+            // for the Mask component to clip — Mask uses the Image's rect.
+            var viewGO = new GameObject("Viewport");
+            viewGO.transform.SetParent(rootGO.transform, false);
+            var vrt = viewGO.AddComponent<RectTransform>();
+            vrt.anchorMin = Vector2.zero;
+            vrt.anchorMax = Vector2.one;
+            vrt.offsetMin = Vector2.zero;
+            vrt.offsetMax = Vector2.zero;
+            var vbg = viewGO.AddComponent<Image>();
+            vbg.color = new Color(1f, 1f, 1f, 0.01f);   // near-transparent — Mask needs SOMETHING
+            var mask = viewGO.AddComponent<Mask>();
+            mask.showMaskGraphic = false;
+
+            // Content — explicit-width centered top anchor (avoids the stretch
+            // anchor confusion where children's anchoredPosition gets offset
+            // by the stretch math).
+            var contentGO = new GameObject("Content");
+            contentGO.transform.SetParent(viewGO.transform, false);
+            var crt = contentGO.AddComponent<RectTransform>();
+            crt.anchorMin = new Vector2(0.5f, 1f);
+            crt.anchorMax = new Vector2(0.5f, 1f);
+            crt.pivot = new Vector2(0.5f, 1f);
+            crt.anchoredPosition = Vector2.zero;
+            crt.sizeDelta = new Vector2(1000f, 1000f);
+
+            sr.viewport = vrt;
+            sr.content  = crt;
+            return crt;
         }
 
         // ============================================================
