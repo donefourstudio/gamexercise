@@ -124,39 +124,46 @@ namespace Gamex.EditorTools
         // Each piece bakes ONE category of child renderers; the rest of the
         // prefab is hidden so each output PNG is a transparent overlay sitting
         // at the correct anatomical y on a SPUM body.
-        const string KNIGHT_PREFAB = "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639234.prefab";
+        const string KNIGHT_PREFAB_ARMOR = "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639234.prefab"; // human_11 — silver bucket-helm + plate
+        const string KNIGHT_PREFAB_SWORD = "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222346858.prefab";  // elf_07  — visible silver longsword in IDLE
 
-        // Renderer-name keywords per slot. Matched as case-insensitive Contains.
-        static readonly System.Collections.Generic.Dictionary<string, string[]> KnightSlotKeywords =
-            new System.Collections.Generic.Dictionary<string, string[]>
+        // Renderer-name keywords per slot. Matched as case-insensitive Contains
+        // against the entire ancestor chain. Each tuple is (prefab, keywords).
+        static readonly System.Collections.Generic.Dictionary<string, (string prefab, string[] keys)> KnightSlots =
+            new System.Collections.Generic.Dictionary<string, (string, string[])>
         {
-            { "knight_helmet",    new[] { "helmet" } },
-            { "knight_chest",     new[] { "bodyarmor" } },
+            { "knight_helmet",    (KNIGHT_PREFAB_ARMOR, new[] { "helmet" }) },
+            { "knight_chest",     (KNIGHT_PREFAB_ARMOR, new[] { "bodyarmor" }) },
             // SPUM doesn't separate "leggings" from base cloth, so use the
             // cloth-bottom renderers (these draw the pants area). They overlay
             // on top of the bare body's plain pants for a subtle armored look.
-            { "knight_leggings",  new[] { "cloth", "clothbody" } },
+            { "knight_leggings",  (KNIGHT_PREFAB_ARMOR, new[] { "cloth", "clothbody" }) },
             // Pauldrons + cuff armor go to "gauntlets" slot.
-            { "knight_gauntlets", new[] { "shoulder", "_arm", "carm" } },
-            { "knight_boots",     new[] { "foot" } },
+            { "knight_gauntlets", (KNIGHT_PREFAB_ARMOR, new[] { "shoulder", "_arm", "carm" }) },
+            { "knight_boots",     (KNIGHT_PREFAB_ARMOR, new[] { "foot" }) },
+            // 6th piece — pulled from elf_07 because human_11 (the armor source)
+            // is a shield-only knight whose R_Weapon SR is empty in the IDLE
+            // animation. elf_07's IDLE pose puts a silver longsword in the right
+            // hand. Same body coordinate system so it lands in the hand on any
+            // SPUM race form.
+            { "knight_sword",     (KNIGHT_PREFAB_SWORD, new[] { "weapon" }) },
         };
 
         public static void BakeKnightSetBatch()
         {
             string outRoot = "Assets/_Game/Resources/Equip";
             Directory.CreateDirectory(outRoot);
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(KNIGHT_PREFAB);
-            if (prefab == null)
+            foreach (var kv in KnightSlots)
             {
-                Debug.LogError($"[SPUMBaker] knight prefab not found: {KNIGHT_PREFAB}");
-                EditorApplication.Exit(1);
-                return;
-            }
-            foreach (var kv in KnightSlotKeywords)
-            {
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(kv.Value.prefab);
+                if (prefab == null)
+                {
+                    Debug.LogError($"[SPUMBaker] prefab not found for {kv.Key}: {kv.Value.prefab}");
+                    continue;
+                }
                 string outPath = $"{outRoot}/{kv.Key}.png";
-                BakeIsolated(prefab, outPath, kv.Value);
-                Debug.Log($"[SPUMBaker] knight piece {kv.Key}.png  <-  {string.Join('|', kv.Value)}");
+                BakeIsolated(prefab, outPath, kv.Value.keys);
+                Debug.Log($"[SPUMBaker] knight piece {kv.Key}.png  <-  {Path.GetFileName(kv.Value.prefab)}");
             }
             AssetDatabase.Refresh();
             EditorApplication.Exit(0);
@@ -173,13 +180,25 @@ namespace Gamex.EditorTools
             instance.transform.position   = Vector3.zero;
             instance.transform.localScale = Vector3.one;
 
+            // SPUM nests the actual sprite on leaf children named "Front"/"Back"
+            // under category pivots like "R_Weapon" / "L_Shield". Match against
+            // the whole ancestor chain so the filter catches the real renderer.
+            // We also force the matched GameObject AND its ancestors active so
+            // a parent SetActive(false) in the prefab doesn't suppress render.
             foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
             {
-                string n = sr.gameObject.name.ToLowerInvariant();
+                string chain = "";
+                for (var t = sr.transform; t != null; t = t.parent)
+                    chain += "/" + t.gameObject.name.ToLowerInvariant();
                 bool keep = false;
                 foreach (var kw in keywords)
-                    if (n.Contains(kw.ToLowerInvariant())) { keep = true; break; }
+                    if (chain.Contains(kw.ToLowerInvariant())) { keep = true; break; }
                 sr.enabled = keep;
+                if (keep)
+                {
+                    for (var t = sr.transform; t != null && t != instance.transform.parent; t = t.parent)
+                        if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+                }
             }
 
             // Same camera / sample-animator setup as race-form bake so the

@@ -245,6 +245,9 @@ namespace Gamex.Core
         public static readonly EquipmentDef[] Catalog = new EquipmentDef[0];
 
         // Knight Set — earned through the M5d chain quest, not via the shop.
+        // 6 pieces total: chest -> helmet -> leggings -> gauntlets -> boots -> sword.
+        // At 10 chain days per piece (M5d) this is a 60-day commitment for the
+        // full silver-knight loadout, with the sword as the climax reward.
         public static readonly (string id, string name)[] KnightSet = new[]
         {
             ("knight_chest",     "Knight Chestplate"),
@@ -252,6 +255,7 @@ namespace Gamex.Core
             ("knight_leggings",  "Knight Leggings"),
             ("knight_gauntlets", "Knight Gauntlets"),
             ("knight_boots",     "Knight Boots"),
+            ("knight_sword",     "Knight Longsword"),
         };
         public const int KNIGHT_CHAIN_DAILY_STEPS = 5000;
         public const int KNIGHT_CHAIN_DAYS        = 10;
@@ -287,6 +291,7 @@ namespace Gamex.Core
             if (id == "knight_leggings")    return EquipSlot.Legs;
             if (id == "knight_gauntlets")   return EquipSlot.Wrists;
             if (id == "knight_boots")       return EquipSlot.Feet;
+            if (id == "knight_sword")       return EquipSlot.Weapon;
             return EquipSlot.None;
         }
         public string EquippedInSlot(EquipSlot slot)
