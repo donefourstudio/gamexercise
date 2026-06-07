@@ -25,17 +25,17 @@ namespace Gamex.Core
         const int Q_WALK_10000    = 10000;
         const int Q_RUN_15_MIN_S  = 15 * 60;
         const int Q_RUN_30_MIN_S  = 30 * 60;
-        // Per-quest rewards tuned for "the harder the goal, the bigger the
-        // pay-off". Walk 1k is a starter cookie; walk 10k or run 30min are
-        // proper achievements. Full clear (all 5 in a day) adds a bonus.
-        const int Q_REWARD_WALK_1000  = 1;
-        const int Q_REWARD_WALK_5000  = 3;
-        const int Q_REWARD_WALK_10000 = 8;
-        const int Q_REWARD_RUN_15     = 3;
-        const int Q_REWARD_RUN_30     = 8;
-        const int Q_REWARD_ALL_BONUS  = 10;
-        public  const int Q_REWARD_DAILY_MAX = Q_REWARD_WALK_1000 + Q_REWARD_WALK_5000 + Q_REWARD_WALK_10000
-                                             + Q_REWARD_RUN_15  + Q_REWARD_RUN_30 + Q_REWARD_ALL_BONUS;  // 33
+        // Per-quest rewards tuned 1/3/5/3/5 per Jackson's call after the
+        // first pass — softens the gap so "show up + walk 1k" still feels
+        // worthwhile while the 5/5 bonus rewards the full-clear day.
+        public const int Q_REWARD_WALK_1000  = 1;
+        public const int Q_REWARD_WALK_5000  = 3;
+        public const int Q_REWARD_WALK_10000 = 5;
+        public const int Q_REWARD_RUN_15     = 3;
+        public const int Q_REWARD_RUN_30     = 5;
+        public const int Q_REWARD_ALL_BONUS  = 10;
+        public const int Q_REWARD_DAILY_MAX  = Q_REWARD_WALK_1000 + Q_REWARD_WALK_5000 + Q_REWARD_WALK_10000
+                                             + Q_REWARD_RUN_15  + Q_REWARD_RUN_30 + Q_REWARD_ALL_BONUS;  // 27
         const int STREAK_ACTIVE_THRESHOLD = 500;   // 500 steps = "active day" for streak
         const int STREAK_WEEKLY_BONUS     = 5;     // every 7 streak days
 

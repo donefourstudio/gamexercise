@@ -104,6 +104,9 @@ namespace Gamex.Game
         GameObject _questsKnightRow;
         readonly Image[] _questCheckmarks = new Image[(int)Quest.Count];
         readonly Text[]  _questRowLabels  = new Text[(int)Quest.Count];
+        // Coin + reward chip (per quest) — hidden once the quest is done so
+        // the trophy can take its spot without overlapping.
+        readonly GameObject[] _questChipRoots = new GameObject[(int)Quest.Count];
 
         // ---- first mirror refs ----
         Text _firstMirrorLine;
@@ -368,8 +371,13 @@ namespace Gamex.Game
             btn.transition = Selectable.Transition.None;
             btn.onClick.AddListener(() => _onTapAdvanceOpening?.Invoke());
 
-            MkText("Body", go.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(960f, 400f), FS_TITLE, align, AccentGold).text = text;
+            // FS_BTN (44pt) — Jackson's "...until the Curse of Weakness fell
+            // upon you." overflowed the screen at FS_TITLE (55). Shrunk so
+            // any reasonable line of body text breathes inside the rect.
+            var body = MkText("Body", go.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(960f, 400f), FS_BTN, align, AccentGold);
+            body.text = text;
+            body.horizontalOverflow = HorizontalWrapMode.Wrap;
             MkText("Hint", go.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
             return go;
@@ -507,8 +515,10 @@ namespace Gamex.Game
             // top HUD
             _homeLevel = MkText("Level", _homePanel.transform, new Vector2(0f, 1f), new Vector2(50f, -60f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperLeft, AccentGold);
-            _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -60f),
+            _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-130f, -60f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
+            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-60f, -90f),
+                new Vector2(80f, 80f), "coin", Color.white);
 
             // Mirror — centered, holds the player's CURRENT reflection. The body
             // shape morphs from cursed -> hero as stage advances. No more
@@ -604,13 +614,13 @@ namespace Gamex.Game
         // showing label + status (✓ / progress fraction). Refresh updates
         // the rows from g.state every frame.
         // ============================================================
-        static readonly (Quest quest, string label, int goal, bool runMinutes)[] QUEST_SPEC =
+        static readonly (Quest quest, string label, int goal, bool runMinutes, int reward)[] QUEST_SPEC =
         {
-            (Quest.Walk1000,  "Walk 1,000 steps",  1000,  false),
-            (Quest.Walk5000,  "Walk 5,000 steps",  5000,  false),
-            (Quest.Walk10000, "Walk 10,000 steps", 10000, false),
-            (Quest.Run15Min,  "Run 15 minutes",    15,    true),
-            (Quest.Run30Min,  "Run 30 minutes",    30,    true),
+            (Quest.Walk1000,  "Walk 1,000 steps",  1000,  false, GamexGame.Q_REWARD_WALK_1000),
+            (Quest.Walk5000,  "Walk 5,000 steps",  5000,  false, GamexGame.Q_REWARD_WALK_5000),
+            (Quest.Walk10000, "Walk 10,000 steps", 10000, false, GamexGame.Q_REWARD_WALK_10000),
+            (Quest.Run15Min,  "Run 15 minutes",    15,    true,  GamexGame.Q_REWARD_RUN_15),
+            (Quest.Run30Min,  "Run 30 minutes",    30,    true,  GamexGame.Q_REWARD_RUN_30),
         };
 
         void BuildQuests(Transform root)
@@ -620,9 +630,12 @@ namespace Gamex.Game
             MkText("Title", _trainPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Daily Quests";
 
-            // 5 quest rows, stacked. Each is a tan-tinted panel with label left, status right.
-            const float rowH = 130f, rowGap = 16f, rowW = 920f;
-            float startY = 660f;
+            // Bigger rows, bigger font, trophy icon for completion (Jackson:
+            // "牌子可以再大一些" + "黄金方块换成奖杯"). Each row carries the
+            // quest label + status on the left and a reward chip (coin + per-
+            // quest gold value) or trophy badge on the right.
+            const float rowH = 180f, rowGap = 20f, rowW = 980f;
+            float startY = 600f;
             for (int i = 0; i < QUEST_SPEC.Length; i++)
             {
                 float y = startY - i * (rowH + rowGap);
@@ -630,31 +643,51 @@ namespace Gamex.Game
                     new Vector2(0f, y), new Vector2(rowW, rowH), "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
 
                 _questRowLabels[i] = MkText("Label", row.transform, new Vector2(0f, 0.5f),
-                    new Vector2(50f, 0f), new Vector2(rowW - 220f, rowH - 20f),
-                    FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
+                    new Vector2(60f, 0f), new Vector2(rowW - 280f, rowH - 20f),
+                    FS_BIG, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
 
-                // ✓ checkmark / gold reward chip on the right
+                // Reward chip — coin icon + "+N" rendered side-by-side.
+                // Wrapped in a single GameObject so it can toggle off
+                // together when the quest completes (trophy replaces it).
+                var chip = MkPanel("Chip", row.transform, new Vector2(1f, 0.5f),
+                    new Vector2(-130f, 0f), new Vector2(180f, 80f),
+                    new Color(0f, 0f, 0f, 0f));
+                chip.GetComponent<Image>().raycastTarget = false;
+                MkSpriteIcon("Coin", chip.transform, new Vector2(0f, 0.5f),
+                    new Vector2(0f, 0f), new Vector2(72f, 72f),
+                    "coin", Color.white);
+                int reward = QUEST_SPEC[i].reward;
+                MkText("Reward", chip.transform, new Vector2(0f, 0.5f),
+                    new Vector2(80f, 0f), new Vector2(100f, 70f),
+                    FS_BIG, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                    .text = $"+{reward}";
+                _questChipRoots[i] = chip;
+
+                // Trophy lives in the same right-side slot as the chip;
+                // UpdateQuests flips visibility based on done state.
                 _questCheckmarks[i] = MkSpriteIcon("Tick", row.transform, new Vector2(1f, 0.5f),
-                    new Vector2(-70f, 0f), new Vector2(72f, 72f),
-                    "panel_light", new Color(1f, 0.84f, 0.42f, 1f)).GetComponent<Image>();
+                    new Vector2(-90f, 0f), new Vector2(112f, 112f),
+                    "trophy", Color.white).GetComponent<Image>();
                 _questCheckmarks[i].gameObject.SetActive(false);
             }
 
-            // Special row: Knight Set chain progress. Hidden until Lv 20 unlocks it.
-            // Sits just below the daily quests.
+            // Knight Set chain row — sits below the 5 daily-quest rows.
+            // Quest rows occupy y=600 down to y=-400 (5 rows of 200 each);
+            // knight row at -480 leaves an 80px gap.
             _questsKnightRow = MkSpritePanel("Q_Knight", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -60f), new Vector2(920f, 110f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
+                new Vector2(0f, -480f), new Vector2(980f, 110f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
             _questsKnight = MkText("KnightLabel", _questsKnightRow.transform, new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(880f, 90f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.18f, 0.08f, 0.20f));
+                Vector2.zero, new Vector2(940f, 90f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.18f, 0.08f, 0.20f));
             _questsKnightRow.SetActive(false);
 
-            // Totals — lifetime steps + running time + streak — under the special row.
+            // Totals row below the knight row with a clean stack above the
+            // Back button (Back's top edge sits at y=-740 from panel centre).
             _questsTotalSteps = MkText("TotalSteps", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -200f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+                new Vector2(0f, -580f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
             _questsTotalRun   = MkText("TotalRun",   _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -260f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
+                new Vector2(0f, -630f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextWhite);
             _questsStreak     = MkText("Streak",     _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -320f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+                new Vector2(0f, -680f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
 
             MkButton("Back", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
@@ -684,8 +717,10 @@ namespace Gamex.Game
 
             MkText("Title", _shopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Shop";
-            _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -90f),
+            _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-130f, -90f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
+            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-60f, -120f),
+                new Vector2(80f, 80f), "coin", Color.white);
 
             // Phase 5c — content lives inside a ScrollRect so an arbitrary
             // number of sections + cards can stack without overflowing the
@@ -883,8 +918,10 @@ namespace Gamex.Game
                 new Vector2(40f, -80f), new Vector2(620f, 80f),
                 FS_TITLE, TextAnchor.UpperLeft, AccentGold);
             _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
-                new Vector2(-40f, -90f), new Vector2(380f, 60f),
+                new Vector2(-130f, -90f), new Vector2(380f, 60f),
                 FS_BIG, TextAnchor.UpperRight, AccentGold);
+            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-60f, -120f),
+                new Vector2(80f, 80f), "coin", Color.white);
 
             // Header preview frame — big square showing the full-gear bake.
             var previewFrame = MkSpritePanel("PreviewFrame", _setDetailPanel.transform,
@@ -1158,7 +1195,7 @@ namespace Gamex.Game
             if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop)
             {
                 _homeLevel.text   = $"Lv {g.state.level}";
-                _homeCoins.text   = $"{g.state.coins} Gold";
+                _homeCoins.text   = $"{g.state.coins}";
                 _homeStreak.text  = $"{g.state.streakDays}-day streak";
                 _homeProgress.text = $"Today {g.state.todaySteps} steps";
                 _xpBar.rectTransform.sizeDelta = new Vector2(
@@ -1260,7 +1297,7 @@ namespace Gamex.Game
 
             if (g.phase == AppPhase.Shop)
             {
-                _shopCoins.text = $"{g.state.coins} Gold";
+                _shopCoins.text = $"{g.state.coins}";
                 _ownedSnapshot.Clear();
                 foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
 
@@ -1402,7 +1439,7 @@ namespace Gamex.Game
             _currentSetId = g.activeSetId;
             _ownedSnapshot.Clear();
             foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
-            _setDetailCoins.text = $"{g.state.coins} Gold";
+            _setDetailCoins.text = $"{g.state.coins}";
 
             var set = GamexGame.FindSet(_currentSetId);
             if (set == null) return;
@@ -1514,9 +1551,12 @@ namespace Gamex.Game
                         : (spec.runMinutes
                             ? $"{progress} / {spec.goal} min"
                             : $"{progress} / {spec.goal} steps");
-                    _questRowLabels[i].text = $"{spec.label}\n{status}   +1 Gold";
+                    _questRowLabels[i].text = $"{spec.label}\n{status}";
                 }
                 if (_questCheckmarks[i] != null) _questCheckmarks[i].gameObject.SetActive(done);
+                // Coin chip vs trophy — mutually exclusive on the right side.
+                if (_questChipRoots[i] != null && _questChipRoots[i].activeSelf == done)
+                    _questChipRoots[i].SetActive(!done);
             }
 
             if (_questsTotalSteps != null) _questsTotalSteps.text = $"Total steps: {g.state.totalSteps:N0}";
