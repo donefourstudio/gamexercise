@@ -108,6 +108,14 @@ namespace Gamex.Game
         // ---- first mirror refs ----
         Text _firstMirrorLine;
 
+        // ---- skin animation (Phase 5e3) ----
+        // Tracks the currently-applied skin so frame state resets when the
+        // player swaps skins. _animFrame walks 0 .. skin.frameCount-1 over
+        // skin.frameSeconds intervals, swapping Image.sprite each step.
+        string _animLastSkin;
+        int    _animFrame;
+        float  _animTimer;
+
         // ---- shop refs ----
         Text _shopCoins;
         // Per-set card refs — `priceLabel` flips to "Owned" once every piece
@@ -1221,6 +1229,43 @@ namespace Gamex.Game
 
             if (g.phase == AppPhase.SetDetail) UpdateSetDetail(g);
             if (g.phase == AppPhase.Inventory) UpdateInventory(g);
+
+            // Phase 5e3 — animate the active skin. Runs every Refresh; cheap
+            // when no animated skin is applied (early return on frameCount<=1).
+            TickActiveSkinAnimation(g);
+        }
+
+        // Advances the active-skin frame timer and swaps the avatar's portrait
+        // sprite to the next frame when the per-frame interval elapses. Frame
+        // state resets whenever the player applies a different skin (or none).
+        void TickActiveSkinAnimation(GamexGame g)
+        {
+            string activeSkin = g.state.activeSkin;
+            if (activeSkin != _animLastSkin)
+            {
+                _animLastSkin = activeSkin;
+                _animFrame    = 0;
+                _animTimer    = 0f;
+            }
+            var skin = GamexGame.FindSkin(activeSkin);
+            if (skin == null || skin.frameCount <= 1) return;
+
+            _animTimer += Time.unscaledDeltaTime;
+            float perFrame = skin.frameSeconds > 0f ? skin.frameSeconds : 0.12f;
+            while (_animTimer >= perFrame)
+            {
+                _animTimer -= perFrame;
+                _animFrame  = (_animFrame + 1) % skin.frameCount;
+            }
+            // Pick whichever avatar is on screen this phase.
+            AvatarSprite active = null;
+            if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop || g.phase == AppPhase.SetDetail)
+                active = _mirrorSelf;
+            else if (g.phase == AppPhase.Inventory)
+                active = _inventoryAvatar;
+            if (active == null || active.portrait == null) return;
+            var spr = Resources.Load<Sprite>($"Skins/{activeSkin}_{_animFrame:D2}");
+            if (spr != null) active.portrait.sprite = spr;
         }
 
         // ============================================================
