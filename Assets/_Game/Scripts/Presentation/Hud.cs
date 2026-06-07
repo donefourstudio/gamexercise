@@ -521,7 +521,7 @@ namespace Gamex.Game
             // down 8px to compensate for Cubic 11's top-heavy glyph metrics
             // — without it the coin reads as floating above the digits even
             // though the rect centres match mathematically.
-            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -58f),
+            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -54f),
                 new Vector2(80f, 80f), "coin", Color.white);
             _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -60f),
                 new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
@@ -716,7 +716,7 @@ namespace Gamex.Game
 
             MkText("Title", _shopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Shop";
-            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -88f),
+            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f),
                 new Vector2(80f, 80f), "coin", Color.white);
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -90f),
                 new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
@@ -916,7 +916,7 @@ namespace Gamex.Game
             _setDetailTitle = MkText("Title", _setDetailPanel.transform, new Vector2(0f, 1f),
                 new Vector2(40f, -80f), new Vector2(620f, 80f),
                 FS_TITLE, TextAnchor.UpperLeft, AccentGold);
-            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -88f),
+            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f),
                 new Vector2(80f, 80f), "coin", Color.white);
             _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
                 new Vector2(-40f, -90f), new Vector2(200f, 60f),
@@ -1576,14 +1576,13 @@ namespace Gamex.Game
                 {
                     if (g.state.knightChainStage >= GamexGame.KnightSet.Length)
                     {
-                        _questsKnight.text = "Knight Set complete ✓";
+                        _questsKnight.text = "Knight Set earned ✓";
                     }
                     else
                     {
-                        var piece = GamexGame.KnightSet[g.state.knightChainStage];
                         int days = g.state.knightChainProgress;
                         int needed = GamexGame.KNIGHT_CHAIN_DAYS;
-                        _questsKnight.text = $"Knight Set — Next: {piece.name}\n{days}/{needed} days (5k+ steps each)";
+                        _questsKnight.text = $"Knight Set — {days}/{needed} days (5k+ steps each)";
                     }
                 }
             }

@@ -218,9 +218,12 @@ namespace Gamex.Core
                 state.streakDays = 0;
             }
 
-            // Knight Set chain — only ticks once Lv 20 is reached and chain not complete.
-            // Hit 5000 today -> +1 progress day; miss -> reset to 0. At 10 days the
-            // current piece is granted and the next slot opens.
+            // Knight Set chain — Jackson pivoted to outfits, so the chain
+            // now grants the WHOLE 6-piece silver knight set in one shot
+            // after 10 consecutive 5k days (was 10 days per piece x 6 pieces
+            // = 60). Chain unlocks at Lv 20, ticks while not yet earned.
+            // knightChainStage acts as "earned" flag: 0 = not earned,
+            // KnightSet.Length = earned (so the < check below is the gate).
             if (state.level >= KNIGHT_CHAIN_UNLOCK_LEVEL && state.knightChainStage < KnightSet.Length)
             {
                 if (state.todaySteps >= KNIGHT_CHAIN_DAILY_STEPS)
@@ -228,10 +231,10 @@ namespace Gamex.Core
                     state.knightChainProgress += 1;
                     if (state.knightChainProgress >= KNIGHT_CHAIN_DAYS)
                     {
-                        string pieceId = KnightSet[state.knightChainStage].id;
-                        if (!state.owned.Contains(pieceId)) state.owned.Add(pieceId);
-                        state.knightChainStage    += 1;
-                        state.knightChainProgress  = 0;
+                        foreach (var p in KnightSet)
+                            if (!state.owned.Contains(p.id)) state.owned.Add(p.id);
+                        state.knightChainStage    = KnightSet.Length;   // mark earned
+                        state.knightChainProgress = 0;
                     }
                 }
                 else
