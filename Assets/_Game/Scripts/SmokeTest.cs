@@ -234,14 +234,23 @@ namespace Gamex.Game
             // Phase 4 — buy + apply a skin so home + inventory show the
             // override portrait (knight gear is hidden because skins carry
             // their own painted-in art).
-            if (GamexGame.SkinCatalog.Length > 0)
+            // Iron Knight (frameCount=11) exercises Phase 5e3 animation tick;
+            // Golden Retriever pet alongside exercises the polish-round-3 pet
+            // companion rendering inside the mirror.
+            var demoSkin = GamexGame.FindSkin("lm_iron_knight");
+            if (demoSkin != null)
             {
-                var demoSkin = GamexGame.SkinCatalog[1];   // "spum_assassin" — visually distinct
-                if (runner.Game.state.coins < demoSkin.price + 100) runner.Game.state.coins = demoSkin.price + 100;
+                if (runner.Game.state.coins < demoSkin.price + 500) runner.Game.state.coins = demoSkin.price + 500;
                 runner.Game.TryBuySkin(demoSkin);
                 runner.Game.ApplySkin(demoSkin.id);
+                var pet = GamexGame.FindSkin("pet_dog_golden");
+                if (pet != null)
+                {
+                    runner.Game.TryBuySkin(pet);
+                    runner.Game.ApplySkin(pet.id);
+                }
                 runner.Game.GoHome();
-                yield return null; yield return new WaitForSecondsRealtime(0.2f);
+                yield return null; yield return new WaitForSecondsRealtime(0.4f);
                 Capture("/tmp/gamex_home_skin.png");
             }
 

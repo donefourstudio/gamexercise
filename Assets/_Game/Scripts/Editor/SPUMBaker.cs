@@ -144,6 +144,12 @@ namespace Gamex.EditorTools
             { "champ_caped_noble",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638897.prefab" },  // human_07
             { "champ_blue_mage",        "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215637772.prefab" },  // devil_01
             { "champ_purple_axe",       "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215640602.prefab" },  // devil_05
+            // Polish round 3 — 5 Recruit ("一般") sets, 5g/piece.
+            { "champ_cloak_sword",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911215638224.prefab" },   // elf_03  — red hair + cape
+            { "champ_mohawk",           "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222150076.prefab" },   // elf_05  — yellow mohawk + daggers
+            { "champ_pink_archer",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222646591.prefab" },   // elf_10  — pink hair + bow
+            { "champ_squire",           "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638474.prefab" }, // human_02 — blonde ponytail sword+shield
+            { "champ_apprentice",       "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639405.prefab" }, // human_14 — green hair sword
         };
 
         // Keyword filter per slot — same convention the Knight bake uses but

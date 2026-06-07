@@ -116,6 +116,15 @@ namespace Gamex.Game
         int    _animFrame;
         float  _animTimer;
 
+        // ---- pet rendering (polish round 3) ----
+        // Pet sits at the bottom-right of the mirror / paper-doll, hidden
+        // until state.activePet is set. Each phase has its own Image so the
+        // pet appears wherever the avatar is currently visible.
+        Image  _homePet, _inventoryPet;
+        string _petAnimLast;
+        int    _petAnimFrame;
+        float  _petAnimTimer;
+
         // ---- shop refs ----
         Text _shopCoins;
         // Per-set card refs — `priceLabel` flips to "Owned" once every piece
@@ -486,6 +495,14 @@ namespace Gamex.Game
             var inner = MkSpritePanel("MirrorInner", frame.transform, new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(460f, 600f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
             _mirrorSelf = BuildAvatar(inner.transform, Vector2.zero, 1.8f, Gender.Male, Curse.Weakness, stage: 0);
+
+            // Pet slot — small chibi tucked at lower-right corner of the mirror
+            // inner panel, hidden until the player buys + applies a pet skin.
+            _homePet = MkSpriteIcon("Pet", inner.transform, new Vector2(1f, 0f),
+                new Vector2(-30f, 50f), new Vector2(100f, 100f),
+                (Sprite)null, Color.white).GetComponent<Image>();
+            _homePet.raycastTarget = false;
+            _homePet.gameObject.SetActive(false);
             // Tap the mirror to open Inventory (paper-doll + storage grid).
             // Sits over the entire inner mirror — the avatar/candles/crown are siblings
             // of the frame, not inner, so the button's raycast catches the whole
@@ -646,7 +663,11 @@ namespace Gamex.Game
 
             float y = -30f;   // cursor in content-space (top is y=0, growing negative downward)
             const float CARD_W = 880f, CARD_H_SET = 280f, CARD_H_SKIN = 110f, CARD_GAP = 24f;
-            const float SECTION_GAP = 80f, HEADER_GAP = 70f;   // bumped to keep section header off the previous card
+            // Jackson's read: "Champions" header sat too far above its first
+            // card, "Legends" header sat too close under the last Champion
+            // card. Tightened header->card and widened section->section to
+            // emphasise the boundary at section ends.
+            const float SECTION_GAP = 130f, HEADER_GAP = 35f;
 
             foreach (var source in SectionOrder)
             {
@@ -914,6 +935,13 @@ namespace Gamex.Game
             dollInner.GetComponent<Image>().raycastTarget = false;
             _inventoryAvatar = BuildAvatar(dollInner.transform, Vector2.zero, 1.6f,
                 Gender.Male, Curse.Weakness, stage: 0);
+
+            // Pet slot — same convention as the Home mirror.
+            _inventoryPet = MkSpriteIcon("Pet", dollInner.transform, new Vector2(1f, 0f),
+                new Vector2(-20f, 40f), new Vector2(80f, 80f),
+                (Sprite)null, Color.white).GetComponent<Image>();
+            _inventoryPet.raycastTarget = false;
+            _inventoryPet.gameObject.SetActive(false);
 
             // Six slot icons in a row underneath the paper-doll. Order matches
             // GamexGame.AllSlots: Head, Chest, Wrists, Weapon, Legs, Feet.
@@ -1239,6 +1267,52 @@ namespace Gamex.Game
             // Phase 5e3 — animate the active skin. Runs every Refresh; cheap
             // when no animated skin is applied (early return on frameCount<=1).
             TickActiveSkinAnimation(g);
+            TickActivePet(g);
+        }
+
+        // Pet companion — small sprite drawn beside the avatar. Same per-frame
+        // sprite swap as TickActiveSkinAnimation, just driven off the separate
+        // state.activePet slot so a character skin + a pet can coexist.
+        void TickActivePet(GamexGame g)
+        {
+            string activePet = g.state.activePet;
+            if (activePet != _petAnimLast)
+            {
+                _petAnimLast   = activePet;
+                _petAnimFrame  = 0;
+                _petAnimTimer  = 0f;
+            }
+            Image petImg = null;
+            if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop || g.phase == AppPhase.SetDetail)
+                petImg = _homePet;
+            else if (g.phase == AppPhase.Inventory)
+                petImg = _inventoryPet;
+            if (petImg == null) return;
+            if (string.IsNullOrEmpty(activePet))
+            {
+                if (petImg.gameObject.activeSelf) petImg.gameObject.SetActive(false);
+                return;
+            }
+            var pet = GamexGame.FindSkin(activePet);
+            if (pet == null) return;
+            if (!petImg.gameObject.activeSelf) petImg.gameObject.SetActive(true);
+            if (pet.frameCount > 1)
+            {
+                _petAnimTimer += Time.unscaledDeltaTime;
+                float perFrame = pet.frameSeconds > 0f ? pet.frameSeconds : 0.12f;
+                while (_petAnimTimer >= perFrame)
+                {
+                    _petAnimTimer -= perFrame;
+                    _petAnimFrame  = (_petAnimFrame + 1) % pet.frameCount;
+                }
+                var spr = Resources.Load<Sprite>($"Skins/{activePet}_{_petAnimFrame:D2}");
+                if (spr != null) petImg.sprite = spr;
+            }
+            else
+            {
+                var spr = Resources.Load<Sprite>($"Skins/{activePet}");
+                if (spr != null) petImg.sprite = spr;
+            }
         }
 
         // Advances the active-skin frame timer and swaps the avatar's portrait

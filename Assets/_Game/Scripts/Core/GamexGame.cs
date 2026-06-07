@@ -449,6 +449,15 @@ namespace Gamex.Core
             new SetDef { id = "champ_caped_noble",  displayName = "Caped Noble",          previewSprite = "champ_caped_noble",  source = "champion", pieces = ChampionPieces("champ_caped_noble",  "Noble",          15) },
             new SetDef { id = "champ_blue_mage",    displayName = "Azure Mage",           previewSprite = "champ_blue_mage",    source = "champion", pieces = ChampionPieces("champ_blue_mage",    "Azure Mage",     15) },
             new SetDef { id = "champ_purple_axe",   displayName = "Violet Axemaster",     previewSprite = "champ_purple_axe",   source = "champion", pieces = ChampionPieces("champ_purple_axe",   "Violet Axe",     15) },
+
+            // ---- Recruit — "一般" tier (5g/piece, bundle ≈ 24g). Five distinct
+            // SPUM prefabs picked from the not-yet-used pool. Entry-level
+            // cosmetics for players just starting the gold economy.
+            new SetDef { id = "champ_cloak_sword", displayName = "Cloaked Swordsman", previewSprite = "champ_cloak_sword", source = "champion", pieces = ChampionPieces("champ_cloak_sword", "Cloak", 5) },
+            new SetDef { id = "champ_mohawk",      displayName = "Mohawk Striker",    previewSprite = "champ_mohawk",      source = "champion", pieces = ChampionPieces("champ_mohawk",      "Mohawk", 5) },
+            new SetDef { id = "champ_pink_archer", displayName = "Pink Archer",       previewSprite = "champ_pink_archer", source = "champion", pieces = ChampionPieces("champ_pink_archer", "Pink Archer", 5) },
+            new SetDef { id = "champ_squire",      displayName = "Squire",            previewSprite = "champ_squire",      source = "champion", pieces = ChampionPieces("champ_squire",      "Squire", 5) },
+            new SetDef { id = "champ_apprentice",  displayName = "Apprentice",        previewSprite = "champ_apprentice",  source = "champion", pieces = ChampionPieces("champ_apprentice",  "Apprentice", 5) },
         };
         public const int KNIGHT_CHAIN_DAILY_STEPS = 5000;
         public const int KNIGHT_CHAIN_DAYS        = 10;
