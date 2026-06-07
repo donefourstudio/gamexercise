@@ -223,6 +223,14 @@ namespace Gamex.Game
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_shop.png");
 
+            // Phase 3 set detail — tap the first set card programmatically.
+            if (GamexGame.SetCatalog.Length > 0)
+            {
+                runner.Game.GoSetDetail(GamexGame.SetCatalog[0].id);
+                yield return null; yield return new WaitForSecondsRealtime(0.2f);
+                Capture("/tmp/gamex_set_detail.png");
+            }
+
             // M5f Inventory — knight set already owned from above. Phase 2
             // dropped shop tier items so storage shows only the 5 knight
             // pieces (all equipped here, all with the ✓ badge).

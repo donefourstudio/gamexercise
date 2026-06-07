@@ -64,8 +64,10 @@ namespace Gamex.Game
                 onGoHome:             () => _game.GoHome(),
                 onGoInventory:        () => _game.GoInventory(),
                 onFakeRep:            () => _game.DoRep(Exercise.Pushup),
-                onBuy:                id => _game.TryBuy(FindDef(id)),
-                onToggleEquip:        id => _game.ToggleEquip(id));
+                onBuy:                id => _game.TryBuy(GamexGame.FindPiece(id)),
+                onToggleEquip:        id => _game.ToggleEquip(id),
+                onGoSetDetail:        id => _game.GoSetDetail(id),
+                onBuySet:             id => _game.TryBuySet(GamexGame.FindSet(id)));
         }
 
         void Update()
@@ -85,12 +87,6 @@ namespace Gamex.Game
                 _game.phase = AppPhase.OpeningIntro;
                 Debug.Log("[Gamex] save wiped, replaying opening");
             }
-        }
-
-        static EquipmentDef FindDef(string id)
-        {
-            foreach (var d in GamexGame.Catalog) if (d.id == id) return d;
-            return null;
         }
 
         static void DisableDefaultSceneObjects()

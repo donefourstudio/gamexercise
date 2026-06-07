@@ -20,6 +20,10 @@ namespace Gamex.Game
         public static Sprite UI(string name)        => Resources.Load<Sprite>("UI/" + name);
         public static Sprite Char(string name)      => Resources.Load<Sprite>("Char/" + name);
         public static Sprite Equipment(string id)   => Resources.Load<Sprite>("Equip/" + id);
+        // Full-gear bake of a shop set's source prefab — used by the shop set
+        // card + set detail header so the player sees the whole loadout at a
+        // glance before drilling into the per-piece list.
+        public static Sprite SetPreview(string id)  => Resources.Load<Sprite>("Sets/" + id);
         // Icon variant — tight-bbox cropped sprite for inventory cells / paper-doll
         // slot icons. Falls back to the 256x256 overlay if the icon hasn't been
         // baked yet (e.g. during a partial asset import).

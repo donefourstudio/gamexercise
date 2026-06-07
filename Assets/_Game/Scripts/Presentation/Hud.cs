@@ -109,11 +109,22 @@ namespace Gamex.Game
         Text _firstMirrorLine;
 
         // ---- shop refs ----
-        Transform _shopRowsRoot;
-        readonly Dictionary<string, Button> _shopBtns   = new();
-        readonly Dictionary<string, Text>   _shopLabels = new();
         Text _shopCoins;
+        // Per-set card refs — `priceLabel` flips to "Owned" once every piece
+        // is in state.owned, `bundleBtn` disables atomically with affordability.
+        readonly List<(string setId, GameObject root, Text priceLabel, Button cardBtn)> _shopSetCards = new();
         readonly HashSet<string> _ownedSnapshot = new();
+
+        // ---- set detail (Phase 3c) refs ----
+        GameObject _setDetailPanel;
+        Image _setDetailPreview;
+        Text  _setDetailTitle, _setDetailCoins, _setDetailBundleLabel;
+        Button _setDetailBundleBtn;
+        // Per-piece row: each row shows icon + name + per-piece price + buy/owned.
+        // Built lazily on first entry into a set's detail page; cached so re-entry
+        // doesn't rebuild.
+        readonly Dictionary<string, GameObject> _setDetailRowsRoot = new();
+        readonly Dictionary<string, (Text label, Button btn)> _setDetailPieceUI = new();
 
         // ---- inventory refs ----
         AvatarSprite _inventoryAvatar;
@@ -135,7 +146,7 @@ namespace Gamex.Game
         readonly Action         _onRaceAnimDone;
         readonly Action         _onFinishFirstMirror;
         readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onGoInventory, _onFakeRep;
-        readonly Action<string> _onBuy, _onToggleEquip;
+        readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet;
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -150,7 +161,9 @@ namespace Gamex.Game
             Action onGoInventory,
             Action onFakeRep,
             Action<string> onBuy,
-            Action<string> onToggleEquip)
+            Action<string> onToggleEquip,
+            Action<string> onGoSetDetail,
+            Action<string> onBuySet)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -165,6 +178,8 @@ namespace Gamex.Game
             _onFakeRep             = onFakeRep;
             _onBuy                 = onBuy;
             _onToggleEquip         = onToggleEquip;
+            _onGoSetDetail         = onGoSetDetail;
+            _onBuySet              = onBuySet;
 
             if (EventSystem.current == null)
             {
@@ -194,6 +209,7 @@ namespace Gamex.Game
             BuildHome(root);
             BuildQuests(root);
             BuildShop(root);
+            BuildSetDetail(root);
             BuildInventory(root);
             BuildRaceSelect(root);
             BuildRaceTransformAnim(root);
@@ -594,38 +610,143 @@ namespace Gamex.Game
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-50f, -90f),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
 
-            var listGO = MkPanel("Rows", _shopPanel.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
-                new Vector2(900f, 1400f), new Color(0f, 0f, 0f, 0f));
-            listGO.GetComponent<Image>().raycastTarget = false;
-            _shopRowsRoot = listGO.transform;
-
-            var defs = GamexGame.Catalog;
-            for (int i = 0; i < defs.Length; i++)
+            // Phase 3b: grid of set cards instead of catalog text rows. Each
+            // card surfaces the SPUM full-gear preview + bundle price; tapping
+            // opens the SetDetail page for piece-level purchases.
+            const float CARD_W = 880f, CARD_H = 280f, CARD_GAP = 24f;
+            for (int i = 0; i < GamexGame.SetCatalog.Length; i++)
             {
-                var def = defs[i];
-                float y = 580f - i * 150f;
-                var row = MkSpritePanel("Row_" + def.id, _shopRowsRoot, new Vector2(0.5f, 0.5f),
-                    new Vector2(0f, y), new Vector2(900f, 130f), "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
-                var btn = row.AddComponent<Button>();
-                btn.targetGraphic = row.GetComponent<Image>();
-                btn.transition = Selectable.Transition.ColorTint;
-                var cb = btn.colors; cb.highlightedColor = new Color(1f, 0.95f, 0.78f, 1f); btn.colors = cb;
-                string capId = def.id;
-                btn.onClick.AddListener(() =>
-                {
-                    if (!IsOwned(capId)) _onBuy?.Invoke(capId);
-                    else _onToggleEquip?.Invoke(capId);
-                });
+                var set = GamexGame.SetCatalog[i];
+                float y = 540f - i * (CARD_H + CARD_GAP);
+                var card = MkSpritePanel("SetCard_" + set.id, _shopPanel.transform,
+                    new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(CARD_W, CARD_H),
+                    "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
+                var cardBtn = card.AddComponent<Button>();
+                cardBtn.targetGraphic = card.GetComponent<Image>();
+                cardBtn.transition = Selectable.Transition.ColorTint;
+                var cb = cardBtn.colors; cb.highlightedColor = new Color(1f, 0.95f, 0.78f, 1f); cardBtn.colors = cb;
+                string capId = set.id;
+                cardBtn.onClick.AddListener(() => _onGoSetDetail?.Invoke(capId));
 
-                var label = MkText("Label", row.transform, new Vector2(0f, 0.5f), new Vector2(50f, 0f),
-                    new Vector2(820f, 110f), FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
-                _shopBtns[def.id]   = btn;
-                _shopLabels[def.id] = label;
+                // Left: preview sprite (square, fills card height minus padding).
+                var preview = MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
+                    new Vector2(140f, 0f), new Vector2(220f, 220f),
+                    Make.SetPreview(set.id), Color.white);
+
+                // Right side text — three rows stacked.
+                MkText("Name", card.transform, new Vector2(0f, 0.5f),
+                    new Vector2(310f, 50f), new Vector2(540f, 70f),
+                    FS_BIG, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                    .text = set.displayName;
+
+                var priceLabel = MkText("Price", card.transform, new Vector2(0f, 0.5f),
+                    new Vector2(310f, -20f), new Vector2(540f, 50f),
+                    FS_LABEL, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
+                priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
+
+                MkText("Sub", card.transform, new Vector2(0f, 0.5f),
+                    new Vector2(310f, -75f), new Vector2(540f, 40f),
+                    FS_BODY, TextAnchor.MiddleLeft, new Color(0.55f, 0.40f, 0.25f))
+                    .text = $"tap to view {set.pieces.Length} pieces";
+
+                _shopSetCards.Add((set.id, card, priceLabel, cardBtn));
             }
 
             MkButton("Back", _shopPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
+
+        // ============================================================
+        // Set detail (Phase 3c) — full preview header + per-piece rows
+        // + bundle-buy CTA at bottom. Built once for every set in the
+        // catalog (one panel containing per-set row groups, toggled by
+        // activeSetId at refresh time).
+        // ============================================================
+        void BuildSetDetail(Transform root)
+        {
+            _setDetailPanel = MkFullPanel("SetDetailPanel", root);
+
+            _setDetailTitle = MkText("Title", _setDetailPanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -80f), new Vector2(800f, 80f),
+                FS_TITLE, TextAnchor.UpperCenter, AccentGold);
+            _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
+                new Vector2(-50f, -90f), new Vector2(400f, 60f),
+                FS_BIG, TextAnchor.UpperRight, AccentGold);
+
+            // Header preview frame — big square showing the full-gear bake.
+            var previewFrame = MkSpritePanel("PreviewFrame", _setDetailPanel.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 540f), new Vector2(420f, 420f),
+                "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
+            previewFrame.GetComponent<Image>().raycastTarget = false;
+            _setDetailPreview = MkSpriteIcon("Preview", previewFrame.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380f, 380f),
+                (Sprite)null, Color.white).GetComponent<Image>();
+
+            // Per-set row groups, one Rows GameObject per set; visibility flips
+            // in UpdateSetDetail. Each row: icon + name + per-piece price + Buy.
+            foreach (var set in GamexGame.SetCatalog)
+            {
+                var rowsRoot = MkPanel("Rows_" + set.id, _setDetailPanel.transform,
+                    new Vector2(0.5f, 0.5f), new Vector2(0f, 0f),
+                    new Vector2(900f, 700f), new Color(0f, 0f, 0f, 0f));
+                rowsRoot.GetComponent<Image>().raycastTarget = false;
+                rowsRoot.SetActive(false);
+                _setDetailRowsRoot[set.id] = rowsRoot;
+
+                for (int i = 0; i < set.pieces.Length; i++)
+                {
+                    var p = set.pieces[i];
+                    float y = 130f - i * 130f;
+                    var row = MkSpritePanel("Row_" + p.id, rowsRoot.transform,
+                        new Vector2(0.5f, 0.5f), new Vector2(0f, y),
+                        new Vector2(880f, 115f), "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
+                    row.GetComponent<Image>().raycastTarget = false;
+
+                    // Icon on the left.
+                    MkSpriteIcon("Icon", row.transform, new Vector2(0f, 0.5f),
+                        new Vector2(70f, 0f), new Vector2(95f, 95f),
+                        Make.EquipmentIcon(p.id), Color.white);
+
+                    // Name + price stacked in the middle.
+                    MkText("Name", row.transform, new Vector2(0f, 0.5f),
+                        new Vector2(150f, 20f), new Vector2(500f, 50f),
+                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
+                        .text = p.name;
+                    var priceText = MkText("Price", row.transform, new Vector2(0f, 0.5f),
+                        new Vector2(150f, -30f), new Vector2(500f, 40f),
+                        FS_BODY, TextAnchor.MiddleLeft, new Color(0.40f, 0.25f, 0.10f));
+                    priceText.text = $"{p.price} gold";
+
+                    // Buy button on the right — flips to "Owned" once purchased.
+                    var btn = MkButton("Buy_" + p.id, row.transform,
+                        new Vector2(1f, 0.5f), new Vector2(-90f, 0f),
+                        new Vector2(150f, 80f), "Buy",
+                        () => { if (!IsOwned(p.id)) _onBuy?.Invoke(p.id); }, "btn_grey", "btn_grey_down");
+                    _setDetailPieceUI[p.id] = (btn.GetComponentInChildren<Text>(), btn.GetComponent<Button>());
+                }
+            }
+
+            // Bundle CTA at bottom of detail page.
+            _setDetailBundleLabel = MkText("BundleLabel", _setDetailPanel.transform,
+                new Vector2(0.5f, 0f), new Vector2(0f, 290f), new Vector2(900f, 50f),
+                FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+
+            var bundleGO = MkButton("BundleBuy", _setDetailPanel.transform,
+                new Vector2(0.5f, 0f), new Vector2(0f, 220f), new Vector2(640f, 110f),
+                "Buy Set", () =>
+                {
+                    if (_currentSetId != null) _onBuySet?.Invoke(_currentSetId);
+                });
+            _setDetailBundleBtn = bundleGO.GetComponent<Button>();
+
+            MkButton("Back", _setDetailPanel.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 90f), new Vector2(420f, 100f),
+                "Back to Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
+        }
+
+        // Tracks which set's rows are currently visible inside _setDetailPanel.
+        // Refresh sets this from g.activeSetId at SetDetail entry.
+        string _currentSetId;
 
         // ============================================================
         // Inventory (M5f) — paper-doll on top, storage grid on bottom.
@@ -766,6 +887,7 @@ namespace Gamex.Game
             Set(_homePanel,               g.phase == AppPhase.Home);
             Set(_trainPanel,              g.phase == AppPhase.Quests);
             Set(_shopPanel,               g.phase == AppPhase.Shop);
+            Set(_setDetailPanel,          g.phase == AppPhase.SetDetail);
             Set(_inventoryPanel,          g.phase == AppPhase.Inventory);
             Set(_raceSelectPanel,         g.phase == AppPhase.RaceSelect);
             Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
@@ -926,29 +1048,78 @@ namespace Gamex.Game
                 _ownedSnapshot.Clear();
                 foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
 
-                foreach (var def in GamexGame.Catalog)
+                // Per-card price/owned labels.
+                foreach (var card in _shopSetCards)
                 {
-                    if (!_shopLabels.TryGetValue(def.id, out var t)) continue;
-                    bool owned = g.IsOwned(def.id);
-                    bool equipped = g.IsEquipped(def.id);
-                    bool unlocked = g.state.level >= def.minLevel;
-                    bool affordable = g.state.coins >= def.price;
-
-                    string status;
-                    if (equipped) status = "✓ Equipped (tap to remove)";
-                    else if (owned) status = "Owned (tap to equip)";
-                    else if (!unlocked) status = $"Requires Lv {def.minLevel}";
-                    else if (!affordable) status = $"{def.price} Gold (not enough)";
-                    else status = $"{def.price} Gold (tap to buy)";
-
-                    t.text = $"[T{def.tier}] {def.name}    Lv{def.minLevel}\n{status}";
-                    _shopBtns[def.id].interactable = equipped || owned || (unlocked && affordable);
+                    var set = GamexGame.FindSet(card.setId);
+                    if (set == null) continue;
+                    bool fullyOwned = true;
+                    foreach (var p in set.pieces)
+                        if (!g.IsOwned(p.id)) { fullyOwned = false; break; }
+                    if (fullyOwned)
+                        card.priceLabel.text = "✓ Complete set owned";
+                    else
+                        card.priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
                 }
             }
 
-            if (g.phase == AppPhase.Inventory)
+            if (g.phase == AppPhase.SetDetail) UpdateSetDetail(g);
+            if (g.phase == AppPhase.Inventory) UpdateInventory(g);
+        }
+
+        // ============================================================
+        // Set detail refresh — flip per-set row groups to match
+        // g.activeSetId, refresh price/owned labels + bundle CTA state.
+        // ============================================================
+        void UpdateSetDetail(GamexGame g)
+        {
+            _currentSetId = g.activeSetId;
+            _ownedSnapshot.Clear();
+            foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
+            _setDetailCoins.text = $"{g.state.coins} Gold";
+
+            // Toggle per-set rows: only the active set's rows visible.
+            foreach (var kv in _setDetailRowsRoot)
+                if (kv.Value.activeSelf != (kv.Key == _currentSetId))
+                    kv.Value.SetActive(kv.Key == _currentSetId);
+
+            var set = GamexGame.FindSet(_currentSetId);
+            if (set == null) return;
+
+            _setDetailTitle.text  = set.displayName;
+            _setDetailPreview.sprite = Make.SetPreview(set.id);
+
+            bool fullyOwned = true;
+            foreach (var p in set.pieces)
             {
-                UpdateInventory(g);
+                bool owned = g.IsOwned(p.id);
+                if (!owned) fullyOwned = false;
+                if (_setDetailPieceUI.TryGetValue(p.id, out var ui))
+                {
+                    if (owned)            { ui.label.text = "Owned"; ui.btn.interactable = false; }
+                    else if (g.state.coins < p.price) { ui.label.text = $"{p.price}g"; ui.btn.interactable = false; }
+                    else                  { ui.label.text = "Buy";   ui.btn.interactable = true;  }
+                }
+            }
+
+            int price = set.BundlePrice;
+            if (fullyOwned)
+            {
+                _setDetailBundleLabel.text = "Complete set owned";
+                _setDetailBundleBtn.interactable = false;
+                _setDetailBundleBtn.GetComponentInChildren<Text>().text = "Already Owned";
+            }
+            else if (g.state.coins < price)
+            {
+                _setDetailBundleLabel.text = $"Buy whole set: {price} gold (20% off — you need more gold)";
+                _setDetailBundleBtn.interactable = false;
+                _setDetailBundleBtn.GetComponentInChildren<Text>().text = $"Buy Set ({price}g)";
+            }
+            else
+            {
+                _setDetailBundleLabel.text = $"Buy whole set: {price} gold (20% off)";
+                _setDetailBundleBtn.interactable = true;
+                _setDetailBundleBtn.GetComponentInChildren<Text>().text = $"Buy Set ({price}g)";
             }
         }
 
