@@ -70,8 +70,11 @@ namespace Gamex.Game
                 onBuySet:             id => _game.TryBuySet(GamexGame.FindSet(id)),
                 onSkinAction:         id =>
                 {
-                    if      (!_game.IsSkinOwned(id))  _game.TryBuySkin(GamexGame.FindSkin(id));
+                    var skin = GamexGame.FindSkin(id);
+                    if (skin == null) return;
+                    if      (!_game.IsSkinOwned(id))  _game.TryBuySkin(skin);
                     else if (!_game.IsSkinActive(id)) _game.ApplySkin(id);
+                    else if (skin.source == "pet")    _game.RemoveActivePet();
                     else                              _game.RemoveActiveSkin();
                 });
         }

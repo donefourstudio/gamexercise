@@ -272,10 +272,19 @@ namespace Gamex.Core
             // Resources/Skins/. Picks are from /tmp/spum_previews/ — full-gear
             // bakes of BasicPack prefabs so each "skin" looks like an actual
             // adventurer rather than a bare body.
-            new SkinDef { id = "spum_paladin",   displayName = "Paladin",        price = 400, source = "legend" },
-            new SkinDef { id = "spum_assassin",  displayName = "Twin-Blade",     price = 600, source = "legend" },
-            new SkinDef { id = "spum_archer",    displayName = "Forest Archer",  price = 350, source = "legend" },
-            new SkinDef { id = "spum_warmage",   displayName = "Warmage",        price = 800, source = "legend" },
+            // Phase 5e1 — Luiz Melo's 10 character packs. Each is an animated
+            // sprite strip; frameCount lets Hud cycle through Skins/<id>_NN.png
+            // at 0.12s/frame for the idle bob. All 300g per Jackson's pricing.
+            new SkinDef { id = "lm_iron_knight",    displayName = "Iron Knight",     price = 300, source = "legend", frameCount = 11 },
+            new SkinDef { id = "lm_crusader",       displayName = "Crusader",        price = 300, source = "legend", frameCount = 11 },
+            new SkinDef { id = "lm_necromancer",    displayName = "Necromancer",     price = 300, source = "legend", frameCount =  8 },
+            new SkinDef { id = "lm_dark_sage",      displayName = "Dark Sage",       price = 300, source = "legend", frameCount =  8 },
+            new SkinDef { id = "lm_lich_lord",      displayName = "Lich Lord",       price = 300, source = "legend", frameCount = 10 },
+            new SkinDef { id = "lm_monk",           displayName = "Monk",            price = 300, source = "legend", frameCount =  8 },
+            new SkinDef { id = "lm_sovereign_king", displayName = "Sovereign King",  price = 300, source = "legend", frameCount =  6 },
+            new SkinDef { id = "lm_royal_guard",    displayName = "Royal Guard",     price = 300, source = "legend", frameCount = 11 },
+            new SkinDef { id = "lm_knight_captain", displayName = "Knight Captain",  price = 300, source = "legend", frameCount =  8 },
+            new SkinDef { id = "lm_veteran_knight", displayName = "Veteran Knight",  price = 300, source = "legend", frameCount =  8 },
 
             // Phase 5d — 18 Cyberpunk full-body skins. All 150g per Jackson's
             // pricing ("Cyberpunk 的因为也是一整套但是没有动画所以150金币一套").
@@ -299,6 +308,31 @@ namespace Gamex.Core
             new SkinDef { id = "cyber_16", displayName = "Cyber Operative 16", price = 150, source = "cyberpunk" },
             new SkinDef { id = "cyber_17", displayName = "Cyber Operative 17", price = 150, source = "cyberpunk" },
             new SkinDef { id = "cyber_18", displayName = "Cyber Operative 18", price = 150, source = "cyberpunk" },
+
+            // Phase 5e2 — Luiz Melo pet packs, 200g each per Jackson's pricing.
+            // 6 cats + 6 dogs + 4 fantasy monsters + 4 fantasy 2 monsters = 20.
+            // Pet skins flip a separate state slot (state.activePet) so they
+            // can run alongside a character skin without overriding it.
+            new SkinDef { id = "pet_cat_01", displayName = "Tabby Kitten",       price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_cat_02", displayName = "Calico Kitten",      price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_cat_03", displayName = "Black Cat",          price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_cat_04", displayName = "Tuxedo Cat",         price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_cat_05", displayName = "Tortoiseshell",      price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_cat_06", displayName = "Persian",            price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_dog_golden",    displayName = "Golden Retriever", price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_dog_akita",     displayName = "Akita",            price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_dog_dane",      displayName = "Great Dane",       price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_dog_schnauzer", displayName = "Schnauzer",        price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_dog_bernard",   displayName = "Saint Bernard",    price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_dog_husky",     displayName = "Siberian Husky",   price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_eye",      displayName = "Flying Eye",   price = 200, source = "pet", frameCount =  8 },
+            new SkinDef { id = "pet_goblin",   displayName = "Goblin Sprite",price = 200, source = "pet", frameCount =  4 },
+            new SkinDef { id = "pet_mushroom", displayName = "Mushroom",     price = 200, source = "pet", frameCount =  4 },
+            new SkinDef { id = "pet_skeleton", displayName = "Skeleton Pup", price = 200, source = "pet", frameCount =  4 },
+            new SkinDef { id = "pet_bat",      displayName = "Vampire Bat",  price = 200, source = "pet", frameCount = 11 },
+            new SkinDef { id = "pet_mimic",    displayName = "Mimic Chest",  price = 200, source = "pet", frameCount =  9 },
+            new SkinDef { id = "pet_rat",      displayName = "Pet Rat",      price = 200, source = "pet", frameCount = 10 },
+            new SkinDef { id = "pet_slime",    displayName = "Blue Slime",   price = 200, source = "pet", frameCount = 14 },
         };
         public static SkinDef FindSkin(string id)
         {
@@ -306,20 +340,36 @@ namespace Gamex.Core
             foreach (var s in SkinCatalog) if (s.id == id) return s;
             return null;
         }
+        // Pet-source skins live in a parallel slot (state.activePet) — the
+        // skin Apply / Buy / Active routing branches off source, so a player
+        // can run a Cyber Operative skin + a Goblin pet at the same time.
+        static bool IsPet(SkinDef s) => s != null && s.source == "pet";
+
         public bool TryBuySkin(SkinDef skin)
         {
             if (skin == null) return false;
             if (state.coins < skin.price) return false;
-            if (state.ownedSkins.Contains(skin.id)) return false;
+            var owned = IsPet(skin) ? state.ownedPets : state.ownedSkins;
+            if (owned.Contains(skin.id)) return false;
             state.coins -= skin.price;
-            state.ownedSkins.Add(skin.id);
+            owned.Add(skin.id);
             onSave?.Invoke();
             return true;
         }
         public void ApplySkin(string id)
         {
-            if (id == null || !state.ownedSkins.Contains(id)) return;
-            state.activeSkin = id;
+            var skin = FindSkin(id);
+            if (skin == null) return;
+            if (IsPet(skin))
+            {
+                if (!state.ownedPets.Contains(id)) return;
+                state.activePet = id;
+            }
+            else
+            {
+                if (!state.ownedSkins.Contains(id)) return;
+                state.activeSkin = id;
+            }
             onSave?.Invoke();
         }
         public void RemoveActiveSkin()
@@ -328,8 +378,24 @@ namespace Gamex.Core
             state.activeSkin = null;
             onSave?.Invoke();
         }
-        public bool IsSkinOwned(string id) => id != null && state.ownedSkins.Contains(id);
-        public bool IsSkinActive(string id) => state.activeSkin == id;
+        public void RemoveActivePet()
+        {
+            if (string.IsNullOrEmpty(state.activePet)) return;
+            state.activePet = null;
+            onSave?.Invoke();
+        }
+        public bool IsSkinOwned(string id)
+        {
+            var skin = FindSkin(id);
+            if (skin == null) return false;
+            return IsPet(skin) ? state.ownedPets.Contains(id) : state.ownedSkins.Contains(id);
+        }
+        public bool IsSkinActive(string id)
+        {
+            var skin = FindSkin(id);
+            if (skin == null) return false;
+            return IsPet(skin) ? state.activePet == id : state.activeSkin == id;
+        }
 
         // M5g (Phase 3a) — SPUM full-prefab sets sold in the shop. Pieces are
         // individually buyable; bundling the whole set saves 20% (SetDef logic).

@@ -83,7 +83,11 @@ namespace Gamex.Core
         public string id;            // Resources/Skins/<id>.png lookup key
         public string displayName;
         public int    price;
-        public string source;        // "spum_bundle", "luizmelo", "cyberpunk" — for grouping in UI
+        public string source;        // "champion", "legend", "cyberpunk", "pet" — for grouping in UI
+        // Phase 5e3 — animation. 0 / 1 == static (just Skins/<id>.png).
+        // > 1 means Hud.UpdateAnimatedSkin cycles through Skins/<id>_00..N-1.png
+        public int    frameCount;
+        public float  frameSeconds = 0.12f;
     }
 
     // M5g (Phase 3a): a "set" is a coherent SPUM-prefab-sourced loadout
@@ -119,6 +123,9 @@ namespace Gamex.Core
         // ---- skins (Phase 4) ----
         public string activeSkin;      // empty/null = race form; otherwise SkinDef.id whose sprite to render
         public List<string> ownedSkins = new(); // every skin id the player has purchased
+        // ---- pets (Phase 5e2) ----
+        public string activePet;       // empty/null = no companion; otherwise pet SkinDef id rendered alongside the avatar
+        public List<string> ownedPets = new();
 
         public int gender;             // 0=unset, 1=male, 2=female  (chosen at Lv20 RaceSelect)
         public int curse;              // 0=unset, 1=weakness, 2=gluttony
