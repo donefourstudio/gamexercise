@@ -517,11 +517,14 @@ namespace Gamex.Game
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperLeft, AccentGold);
             // Coin LEFT of the number with a 10px gap. Number rect occupies
             // x=300..500 (right edge 40 left of panel edge); coin rect at
-            // x=210..290 sits to its left with the gap.
-            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -50f),
+            // x=210..290 sits to its left with the gap. Coin pos.y nudged
+            // down 8px to compensate for Cubic 11's top-heavy glyph metrics
+            // — without it the coin reads as floating above the digits even
+            // though the rect centres match mathematically.
+            MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -58f),
                 new Vector2(80f, 80f), "coin", Color.white);
             _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -60f),
-                new Vector2(200f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
+                new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
             // Mirror — centered, holds the player's CURRENT reflection. The body
             // shape morphs from cursed -> hero as stage advances. No more
@@ -713,10 +716,10 @@ namespace Gamex.Game
 
             MkText("Title", _shopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Shop";
-            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -80f),
+            MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -88f),
                 new Vector2(80f, 80f), "coin", Color.white);
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -90f),
-                new Vector2(200f, 60f), FS_BIG, TextAnchor.UpperRight, AccentGold);
+                new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
             // Phase 5c — content lives inside a ScrollRect so an arbitrary
             // number of sections + cards can stack without overflowing the
@@ -913,11 +916,11 @@ namespace Gamex.Game
             _setDetailTitle = MkText("Title", _setDetailPanel.transform, new Vector2(0f, 1f),
                 new Vector2(40f, -80f), new Vector2(620f, 80f),
                 FS_TITLE, TextAnchor.UpperLeft, AccentGold);
-            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -80f),
+            MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -88f),
                 new Vector2(80f, 80f), "coin", Color.white);
             _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
                 new Vector2(-40f, -90f), new Vector2(200f, 60f),
-                FS_BIG, TextAnchor.UpperRight, AccentGold);
+                FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
             // Header preview frame — big square showing the full-gear bake.
             var previewFrame = MkSpritePanel("PreviewFrame", _setDetailPanel.transform,
