@@ -118,6 +118,112 @@ namespace Gamex.EditorTools
         const string RACE_FORM_ORC_MALE   = "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215637878.prefab";
         const string RACE_FORM_ORC_FEMALE = "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215641087.prefab";
 
+        // ---- Knight Set (M5d chain quest) ---------------------------------
+        // Source prefab: SPUM human_11 — the silver-greathelm + silver-plate
+        // chibi knight Jackson screenshotted as the visual target.
+        // Each piece bakes ONE category of child renderers; the rest of the
+        // prefab is hidden so each output PNG is a transparent overlay sitting
+        // at the correct anatomical y on a SPUM body.
+        const string KNIGHT_PREFAB = "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639234.prefab";
+
+        // Renderer-name keywords per slot. Matched as case-insensitive Contains.
+        static readonly System.Collections.Generic.Dictionary<string, string[]> KnightSlotKeywords =
+            new System.Collections.Generic.Dictionary<string, string[]>
+        {
+            { "knight_helmet",    new[] { "helmet" } },
+            { "knight_chest",     new[] { "bodyarmor" } },
+            // SPUM doesn't separate "leggings" from base cloth, so use the
+            // cloth-bottom renderers (these draw the pants area). They overlay
+            // on top of the bare body's plain pants for a subtle armored look.
+            { "knight_leggings",  new[] { "cloth", "clothbody" } },
+            // Pauldrons + cuff armor go to "gauntlets" slot.
+            { "knight_gauntlets", new[] { "shoulder", "_arm", "carm" } },
+            { "knight_boots",     new[] { "foot" } },
+        };
+
+        public static void BakeKnightSetBatch()
+        {
+            string outRoot = "Assets/_Game/Resources/Equip";
+            Directory.CreateDirectory(outRoot);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(KNIGHT_PREFAB);
+            if (prefab == null)
+            {
+                Debug.LogError($"[SPUMBaker] knight prefab not found: {KNIGHT_PREFAB}");
+                EditorApplication.Exit(1);
+                return;
+            }
+            foreach (var kv in KnightSlotKeywords)
+            {
+                string outPath = $"{outRoot}/{kv.Key}.png";
+                BakeIsolated(prefab, outPath, kv.Value);
+                Debug.Log($"[SPUMBaker] knight piece {kv.Key}.png  <-  {string.Join('|', kv.Value)}");
+            }
+            AssetDatabase.Refresh();
+            EditorApplication.Exit(0);
+        }
+
+        // Renders the prefab with ONLY SpriteRenderers whose GameObject name
+        // contains one of the keywords (case-insensitive). Everything else is
+        // disabled — including Shadow, Body, hair — so the output PNG is the
+        // isolated armor piece at its rest-pose body coordinate.
+        static void BakeIsolated(GameObject prefab, string outPath, string[] keywords)
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            instance.transform.position   = Vector3.zero;
+            instance.transform.localScale = Vector3.one;
+
+            foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
+            {
+                string n = sr.gameObject.name.ToLowerInvariant();
+                bool keep = false;
+                foreach (var kw in keywords)
+                    if (n.Contains(kw.ToLowerInvariant())) { keep = true; break; }
+                sr.enabled = keep;
+            }
+
+            // Same camera / sample-animator setup as race-form bake so the
+            // output overlay aligns 1:1 with the body sprite.
+            var camGO = new GameObject("BakeCam");
+            var cam   = camGO.AddComponent<Camera>();
+            cam.orthographic       = true;
+            cam.orthographicSize   = 0.6f;
+            cam.transform.position = new Vector3(0f, 0.35f, -10f);
+            cam.clearFlags         = CameraClearFlags.SolidColor;
+            cam.backgroundColor    = new Color(0f, 0f, 0f, 0f);
+            cam.cullingMask        = ~0;
+
+            foreach (var anim in instance.GetComponentsInChildren<Animator>())
+            {
+                if (anim.runtimeAnimatorController != null)
+                {
+                    anim.Update(0f);
+                    anim.Play(0, 0, 0f);
+                    anim.Update(0f);
+                }
+            }
+
+            var rt = new RenderTexture(SIZE, SIZE, 32, RenderTextureFormat.ARGB32);
+            cam.targetTexture = rt;
+            cam.Render();
+
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(SIZE, SIZE, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, SIZE, SIZE), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(outPath));
+            File.WriteAllBytes(outPath, tex.EncodeToPNG());
+
+            cam.targetTexture = null;
+            Object.DestroyImmediate(instance);
+            Object.DestroyImmediate(camGO);
+            Object.DestroyImmediate(rt);
+            Object.DestroyImmediate(tex);
+        }
+
         static void BakeOne(GameObject prefab, string outPath, bool keepEquip = true)
         {
             // Fresh empty scene so leftover GameObjects from previous bakes

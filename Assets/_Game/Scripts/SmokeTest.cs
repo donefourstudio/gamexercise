@@ -198,16 +198,15 @@ namespace Gamex.Game
             Capture("/tmp/gamex_race_anim.png");
             yield return new WaitForSecondsRealtime(1.2f);
 
-            // Equip a sample loadout so the home capture shows the M5e overlay
-            // system: legendary sword + silver armor + knight helmet/boots.
-            runner.Game.state.owned.Add("sword_legend");
-            runner.Game.state.owned.Add("armor_silver");
-            runner.Game.state.owned.Add("knight_helmet");
-            runner.Game.state.owned.Add("knight_boots");
-            runner.Game.state.equipped.Add("sword_legend");
-            runner.Game.state.equipped.Add("armor_silver");
-            runner.Game.state.equipped.Add("knight_helmet");
-            runner.Game.state.equipped.Add("knight_boots");
+            // Phase 2: shop tier swords/armors retired. Equip the 5 knight
+            // pieces (chain-quest reward in real play) so the home capture
+            // shows the SPUM-coord overlay system rendering all five on the
+            // chibi race form.
+            foreach (var (id, _) in GamexGame.KnightSet)
+            {
+                if (!runner.Game.state.owned.Contains(id))   runner.Game.state.owned.Add(id);
+                if (!runner.Game.state.equipped.Contains(id)) runner.Game.state.equipped.Add(id);
+            }
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_home_after_race.png");
 
@@ -220,16 +219,9 @@ namespace Gamex.Game
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_shop.png");
 
-            // M5f Inventory — own every Knight Set piece (chain-quest reward)
-            // plus a couple of tier-2 shop items so the storage grid has more
-            // than just the four already-equipped items.
-            foreach (var (id, _) in GamexGame.KnightSet)
-                if (!runner.Game.state.owned.Contains(id))
-                    runner.Game.state.owned.Add(id);
-            if (!runner.Game.state.owned.Contains("sword_iron"))
-                runner.Game.state.owned.Add("sword_iron");
-            if (!runner.Game.state.owned.Contains("armor_leather"))
-                runner.Game.state.owned.Add("armor_leather");
+            // M5f Inventory — knight set already owned from above. Phase 2
+            // dropped shop tier items so storage shows only the 5 knight
+            // pieces (all equipped here, all with the ✓ badge).
             runner.Game.GoInventory();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_inventory.png");

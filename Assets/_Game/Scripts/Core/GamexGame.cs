@@ -236,20 +236,13 @@ namespace Gamex.Core
 
         // ---- shop ----
 
-        // M5a repricing — Legendary tier aimed at ~1 year for a steady 5 coin/day player.
-        // M5d: minLevel dropped to 1 on every item per Jackson — anyone can buy if they
-        // have the coins. Progression gating now lives entirely in the gold economy.
-        public static readonly EquipmentDef[] Catalog = new[]
-        {
-            new EquipmentDef { id = "sword_wood",   name = "Wooden Sword",    tier = 1, minLevel = 1, price = 10 },
-            new EquipmentDef { id = "armor_cloth",  name = "Cloth Robe",      tier = 1, minLevel = 1, price = 15 },
-            new EquipmentDef { id = "sword_iron",   name = "Iron Sword",      tier = 2, minLevel = 1, price = 80 },
-            new EquipmentDef { id = "armor_leather",name = "Leather Armor",   tier = 2, minLevel = 1, price = 100 },
-            new EquipmentDef { id = "sword_silver", name = "Silver Sword",    tier = 3, minLevel = 1, price = 400 },
-            new EquipmentDef { id = "armor_silver", name = "Silver Armor",    tier = 3, minLevel = 1, price = 500 },
-            new EquipmentDef { id = "sword_legend", name = "Legendary Sword", tier = 4, minLevel = 1, price = 1500 },
-            new EquipmentDef { id = "armor_legend", name = "Legendary Armor", tier = 4, minLevel = 1, price = 1800 },
-        };
+        // Phase 2 cleanup: dropped the 4 sword + 4 armor tier items. The
+        // SPUM library is being added in Phase 3-5 as full sets sold whole
+        // (with mix-and-match piece purchases inside each set), and Jackson
+        // wants those to be the shop content rather than the old generic
+        // "iron sword / silver armor" placeholders. Knight Set still comes
+        // from the M5d chain quest, not the shop, so it stays out of Catalog.
+        public static readonly EquipmentDef[] Catalog = new EquipmentDef[0];
 
         // Knight Set — earned through the M5d chain quest, not via the shop.
         public static readonly (string id, string name)[] KnightSet = new[]
