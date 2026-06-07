@@ -88,6 +88,10 @@ namespace Gamex.Core
         // > 1 means Hud.UpdateAnimatedSkin cycles through Skins/<id>_00..N-1.png
         public int    frameCount;
         public float  frameSeconds = 0.12f;
+        // Live-ops launch gate (polish round 7). 0 = visible immediately;
+        // > 0 = unix-seconds timestamp after which the item appears in shop.
+        // Use Catalogs.FUTURE for "TBD, will surface in a later content drop".
+        public long   availableAtUnix;
     }
 
     // M5g (Phase 3a): a "set" is a coherent SPUM-prefab-sourced loadout
@@ -104,6 +108,8 @@ namespace Gamex.Core
         public string previewSprite; // Resources path under "Sets/" — full-gear bake of the source prefab
         public string source;        // groups shop sections (Phase 5a): "champion", "legend", ...
         public EquipmentDef[] pieces;
+        // Live-ops launch gate (same convention as SkinDef.availableAtUnix).
+        public long   availableAtUnix;
         public const float BUNDLE_DISCOUNT = 0.8f;   // 20% off the sum of piece prices
         public int BundlePrice
         {
@@ -114,6 +120,16 @@ namespace Gamex.Core
                 return UnityEngine.Mathf.RoundToInt(sum * BUNDLE_DISCOUNT);
             }
         }
+    }
+
+    // Live-ops vocabulary shared by SetDef + SkinDef. FUTURE = "TBD, hidden
+    // until we flip the catalog entry for a content drop". Any specific
+    // future date can be assembled via DateTimeOffset.FromUnixTimeSeconds.
+    public static class Catalogs
+    {
+        public const long FUTURE = long.MaxValue;
+        public static bool IsLive(long availableAtUnix)
+            => availableAtUnix <= System.DateTimeOffset.UtcNow.ToUnixTimeSeconds();
     }
 
     // Player progression — all of this serializes to disk via JsonUtility.

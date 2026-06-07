@@ -275,32 +275,39 @@ namespace Gamex.Core
             // Phase 5e1 — Luiz Melo's 10 character packs. Each is an animated
             // sprite strip; frameCount lets Hud cycle through Skins/<id>_NN.png
             // at 0.12s/frame for the idle bob. All 300g per Jackson's pricing.
+            // Launch cohort: Iron Knight (Western male warrior), Lich Lord
+            // (Western male dark wizard), Samurai (Eastern male). Other 7 are
+            // gated behind availableAtUnix = Catalogs.FUTURE.
             new SkinDef { id = "lm_iron_knight",    displayName = "Iron Knight",     price = 300, source = "legend", frameCount = 11 },
-            new SkinDef { id = "lm_crusader",       displayName = "Crusader",        price = 300, source = "legend", frameCount = 11 },
-            new SkinDef { id = "lm_necromancer",    displayName = "Necromancer",     price = 300, source = "legend", frameCount =  8 },
-            new SkinDef { id = "lm_dark_sage",      displayName = "Dark Sage",       price = 300, source = "legend", frameCount =  8 },
             new SkinDef { id = "lm_lich_lord",      displayName = "Lich Lord",       price = 300, source = "legend", frameCount = 10 },
-            new SkinDef { id = "lm_monk",           displayName = "Monk",            price = 300, source = "legend", frameCount =  8 },
-            new SkinDef { id = "lm_sovereign_king", displayName = "Sovereign King",  price = 300, source = "legend", frameCount =  6 },
-            new SkinDef { id = "lm_royal_guard",    displayName = "Royal Guard",     price = 300, source = "legend", frameCount = 11 },
-            new SkinDef { id = "lm_knight_captain", displayName = "Knight Captain",  price = 300, source = "legend", frameCount =  8 },
-            new SkinDef { id = "lm_veteran_knight", displayName = "Veteran Knight",  price = 300, source = "legend", frameCount =  8 },
+            new SkinDef { id = "lm_monk",           displayName = "Samurai",         price = 300, source = "legend", frameCount =  8 },  // renamed Monk -> Samurai for Eastern coding
+            new SkinDef { id = "lm_crusader",       displayName = "Crusader",        price = 300, source = "legend", frameCount = 11, availableAtUnix = Catalogs.FUTURE },
+            new SkinDef { id = "lm_necromancer",    displayName = "Necromancer",     price = 300, source = "legend", frameCount =  8, availableAtUnix = Catalogs.FUTURE },
+            new SkinDef { id = "lm_dark_sage",      displayName = "Dark Sage",       price = 300, source = "legend", frameCount =  8, availableAtUnix = Catalogs.FUTURE },
+            new SkinDef { id = "lm_sovereign_king", displayName = "Sovereign King",  price = 300, source = "legend", frameCount =  6, availableAtUnix = Catalogs.FUTURE },
+            new SkinDef { id = "lm_royal_guard",    displayName = "Royal Guard",     price = 300, source = "legend", frameCount = 11, availableAtUnix = Catalogs.FUTURE },
+            new SkinDef { id = "lm_knight_captain", displayName = "Knight Captain",  price = 300, source = "legend", frameCount =  8, availableAtUnix = Catalogs.FUTURE },
+            new SkinDef { id = "lm_veteran_knight", displayName = "Veteran Knight",  price = 300, source = "legend", frameCount =  8, availableAtUnix = Catalogs.FUTURE },
 
             // Phase 5d (trimmed) — 5 distinct Cyberpunk archetypes. Jackson
             // pruned the original 18 down to a curated 1-per-style set so the
             // Cyberpunk shop section stays focused. 150g each per his pricing.
-            new SkinDef { id = "cyber_01", displayName = "Cyber Soldier",     price = 150, source = "cyberpunk" }, // blue-hair cyborg armor
-            new SkinDef { id = "cyber_04", displayName = "Bounty Hunter",     price = 150, source = "cyberpunk" }, // blonde with twin pistols
-            new SkinDef { id = "cyber_06", displayName = "Stealth Operative", price = 150, source = "cyberpunk" }, // dark armor, no hair
-            new SkinDef { id = "cyber_10", displayName = "Punk Hacker",       price = 150, source = "cyberpunk" }, // purple mohawk + twin weapons
-            new SkinDef { id = "cyber_13", displayName = "Netrunner",         price = 150, source = "cyberpunk" }, // blonde in blue casual outfit
+            // Launch cohort: Bounty Hunter (Western female), Stealth Operative
+            // (androgynous cyborg). Soldier / Punk / Netrunner deferred.
+            new SkinDef { id = "cyber_04", displayName = "Bounty Hunter",     price = 150, source = "cyberpunk" },                                       // blonde with twin pistols
+            new SkinDef { id = "cyber_06", displayName = "Stealth Operative", price = 150, source = "cyberpunk" },                                       // dark armor, no hair
+            new SkinDef { id = "cyber_01", displayName = "Cyber Soldier",     price = 150, source = "cyberpunk", availableAtUnix = Catalogs.FUTURE },    // blue-hair cyborg armor
+            new SkinDef { id = "cyber_10", displayName = "Punk Hacker",       price = 150, source = "cyberpunk", availableAtUnix = Catalogs.FUTURE },    // purple mohawk + twin weapons
+            new SkinDef { id = "cyber_13", displayName = "Netrunner",         price = 150, source = "cyberpunk", availableAtUnix = Catalogs.FUTURE },    // blonde in blue casual outfit
 
             // Phase 5e2 (trimmed per Jackson) — 3 representative pets: one
             // dog, one cat, one fantasy creature. The other 17 PNG sets stay
-            // on disk for the future-content expansion he flagged.
+            // on disk for the future-content expansion he flagged. Launch
+            // cohort: friendly Golden Retriever + Tabby Kitten only. Blue
+            // Slime + the rest sit behind availableAtUnix.
             new SkinDef { id = "pet_dog_golden", displayName = "Golden Retriever", price = 200, source = "pet", frameCount = 10 },
             new SkinDef { id = "pet_cat_01",     displayName = "Tabby Kitten",     price = 200, source = "pet", frameCount = 10 },
-            new SkinDef { id = "pet_slime",      displayName = "Blue Slime",       price = 200, source = "pet", frameCount = 14 },
+            new SkinDef { id = "pet_slime",      displayName = "Blue Slime",       price = 200, source = "pet", frameCount = 14, availableAtUnix = Catalogs.FUTURE },
         };
         public static SkinDef FindSkin(string id)
         {
@@ -389,14 +396,24 @@ namespace Gamex.Core
             };
         }
 
+        // Launch cohort (polish round 7) — Jackson's curated first impression.
+        // 11 cosmetic items chosen for diversity across gender, region, and
+        // gameplay archetype. Everything else lives in the catalog but is
+        // gated behind availableAtUnix = Catalogs.FUTURE so the shop UI
+        // skips it until we flip the flag in a content drop.
         public static readonly SetDef[] SetCatalog = new[]
         {
-            new SetDef
-            {
-                id = "elf_paladin",
-                displayName = "Elven Paladin",
-                previewSprite = "elf_paladin",
-                source = "champion",
+            // ----- LAUNCH -----
+            // Elite: 1 (Dark Horned Knight — visual hook for big spenders)
+            new SetDef { id = "champ_dark_knight",     displayName = "Dark Horned Knight", previewSprite = "champ_dark_knight",     source = "champion", pieces = ChampionPieces("champ_dark_knight", "Dark Knight", 30) },
+            // Veteran: 1 (Silver Hooded Knight — classic mid-tier paladin)
+            new SetDef { id = "champ_silver_hood",     displayName = "Silver Hooded Knight", previewSprite = "champ_silver_hood",  source = "champion", pieces = ChampionPieces("champ_silver_hood",  "Silver Hooded",  15) },
+            // Recruit: 2 (entry tier; Squire = male-coded, Pink Archer = female-coded)
+            new SetDef { id = "champ_squire",          displayName = "Squire",            previewSprite = "champ_squire",      source = "champion", pieces = ChampionPieces("champ_squire",      "Squire", 5) },
+            new SetDef { id = "champ_pink_archer",     displayName = "Pink Archer",       previewSprite = "champ_pink_archer", source = "champion", pieces = ChampionPieces("champ_pink_archer", "Pink Archer", 5) },
+
+            // ----- DEFERRED (visible after each entry's availableAtUnix) -----
+            new SetDef { id = "elf_paladin",           displayName = "Elven Paladin",     previewSprite = "elf_paladin",       source = "champion", availableAtUnix = Catalogs.FUTURE,
                 pieces = new[]
                 {
                     new EquipmentDef { id = "elfpaladin_sword",    name = "Paladin Sword",    slot = EquipSlot.Weapon, price = 200 },
@@ -405,27 +422,15 @@ namespace Gamex.Core
                     new EquipmentDef { id = "elfpaladin_boots",    name = "Paladin Boots",    slot = EquipSlot.Feet,   price = 100 },
                 },
             },
-
-            // ---- Elite — Jackson's "最帅" tier (30g/piece, bundle ≈ 144g) ----
-            new SetDef { id = "champ_dark_knight",     displayName = "Dark Horned Knight", previewSprite = "champ_dark_knight",     source = "champion", pieces = ChampionPieces("champ_dark_knight", "Dark Knight", 30) },
-            new SetDef { id = "champ_skull_warrior",   displayName = "Skull Warrior",      previewSprite = "champ_skull_warrior",   source = "champion", pieces = ChampionPieces("champ_skull_warrior", "Skull Warrior", 30) },
-            new SetDef { id = "champ_crimson_warrior", displayName = "Crimson Warrior",    previewSprite = "champ_crimson_warrior", source = "champion", pieces = ChampionPieces("champ_crimson_warrior", "Crimson Warrior", 30) },
-
-            // ---- Veteran — "中等帅" tier (15g/piece, bundle ≈ 72g) ----
-            new SetDef { id = "champ_silver_hood",  displayName = "Silver Hooded Knight", previewSprite = "champ_silver_hood",  source = "champion", pieces = ChampionPieces("champ_silver_hood",  "Silver Hooded",  15) },
-            new SetDef { id = "champ_greatsword",   displayName = "Greatsword Knight",    previewSprite = "champ_greatsword",   source = "champion", pieces = ChampionPieces("champ_greatsword",   "Greatsword",     15) },
-            new SetDef { id = "champ_caped_noble",  displayName = "Caped Noble",          previewSprite = "champ_caped_noble",  source = "champion", pieces = ChampionPieces("champ_caped_noble",  "Noble",          15) },
-            new SetDef { id = "champ_blue_mage",    displayName = "Azure Mage",           previewSprite = "champ_blue_mage",    source = "champion", pieces = ChampionPieces("champ_blue_mage",    "Azure Mage",     15) },
-            new SetDef { id = "champ_purple_axe",   displayName = "Violet Axemaster",     previewSprite = "champ_purple_axe",   source = "champion", pieces = ChampionPieces("champ_purple_axe",   "Violet Axe",     15) },
-
-            // ---- Recruit — "一般" tier (5g/piece, bundle ≈ 24g). Five distinct
-            // SPUM prefabs picked from the not-yet-used pool. Entry-level
-            // cosmetics for players just starting the gold economy.
-            new SetDef { id = "champ_cloak_sword", displayName = "Cloaked Swordsman", previewSprite = "champ_cloak_sword", source = "champion", pieces = ChampionPieces("champ_cloak_sword", "Cloak", 5) },
-            new SetDef { id = "champ_mohawk",      displayName = "Mohawk Striker",    previewSprite = "champ_mohawk",      source = "champion", pieces = ChampionPieces("champ_mohawk",      "Mohawk", 5) },
-            new SetDef { id = "champ_pink_archer", displayName = "Pink Archer",       previewSprite = "champ_pink_archer", source = "champion", pieces = ChampionPieces("champ_pink_archer", "Pink Archer", 5) },
-            new SetDef { id = "champ_squire",      displayName = "Squire",            previewSprite = "champ_squire",      source = "champion", pieces = ChampionPieces("champ_squire",      "Squire", 5) },
-            new SetDef { id = "champ_apprentice",  displayName = "Apprentice",        previewSprite = "champ_apprentice",  source = "champion", pieces = ChampionPieces("champ_apprentice",  "Apprentice", 5) },
+            new SetDef { id = "champ_skull_warrior",   displayName = "Skull Warrior",      previewSprite = "champ_skull_warrior",   source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_skull_warrior",   "Skull Warrior",   30) },
+            new SetDef { id = "champ_crimson_warrior", displayName = "Crimson Warrior",    previewSprite = "champ_crimson_warrior", source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_crimson_warrior", "Crimson Warrior", 30) },
+            new SetDef { id = "champ_greatsword",      displayName = "Greatsword Knight",  previewSprite = "champ_greatsword",      source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_greatsword",      "Greatsword",      15) },
+            new SetDef { id = "champ_caped_noble",     displayName = "Caped Noble",        previewSprite = "champ_caped_noble",     source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_caped_noble",     "Noble",           15) },
+            new SetDef { id = "champ_blue_mage",       displayName = "Azure Mage",         previewSprite = "champ_blue_mage",       source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_blue_mage",       "Azure Mage",      15) },
+            new SetDef { id = "champ_purple_axe",      displayName = "Violet Axemaster",   previewSprite = "champ_purple_axe",      source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_purple_axe",      "Violet Axe",      15) },
+            new SetDef { id = "champ_cloak_sword",     displayName = "Cloaked Swordsman",  previewSprite = "champ_cloak_sword",     source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_cloak_sword",     "Cloak",            5) },
+            new SetDef { id = "champ_mohawk",          displayName = "Mohawk Striker",     previewSprite = "champ_mohawk",          source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_mohawk",          "Mohawk",           5) },
+            new SetDef { id = "champ_apprentice",      displayName = "Apprentice",         previewSprite = "champ_apprentice",      source = "champion", availableAtUnix = Catalogs.FUTURE, pieces = ChampionPieces("champ_apprentice",      "Apprentice",       5) },
         };
         public const int KNIGHT_CHAIN_DAILY_STEPS = 5000;
         public const int KNIGHT_CHAIN_DAYS        = 10;

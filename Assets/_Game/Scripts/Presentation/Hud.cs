@@ -687,10 +687,15 @@ namespace Gamex.Game
 
             foreach (var source in SectionOrder)
             {
+                // Launch gating (polish round 7) — items with availableAtUnix
+                // in the future stay out of the shop until a content drop
+                // flips the timestamp. Live-ops dial via Catalogs.IsLive.
                 var sectionSets  = new List<SetDef>();
-                foreach (var s in GamexGame.SetCatalog)  if (s.source == source) sectionSets.Add(s);
+                foreach (var s in GamexGame.SetCatalog)
+                    if (s.source == source && Catalogs.IsLive(s.availableAtUnix)) sectionSets.Add(s);
                 var sectionSkins = new List<SkinDef>();
-                foreach (var s in GamexGame.SkinCatalog) if (s.source == source) sectionSkins.Add(s);
+                foreach (var s in GamexGame.SkinCatalog)
+                    if (s.source == source && Catalogs.IsLive(s.availableAtUnix)) sectionSkins.Add(s);
                 if (sectionSets.Count == 0 && sectionSkins.Count == 0) continue;
 
                 string headerText = SectionDisplayNames.TryGetValue(source, out var h) ? h : source;
