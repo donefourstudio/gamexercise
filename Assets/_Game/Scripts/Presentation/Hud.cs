@@ -563,32 +563,33 @@ namespace Gamex.Game
             // on the chandelier glow at image centre washed it out; in the
             // dark band it reads sharp and the throne scene below feels
             // like the world the title is calling the player into.
-            // Crown + wordmark + tagline sit in the top archway shadow zone
-            // of the throne_bg, BEFORE the god-ray fully descends. Pushing
-            // them up here keeps the gold text out of the bright god-ray
-            // glow column where it'd wash out. A horizontal dark panel
-            // backs the wordmark band so even if the god-ray bleeds up at
-            // its source the title still has solid contrast.
-            _titleCrown = MkSpriteIcon("Crown", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -60f),
-                new Vector2(140f, 100f), "crown_gold", Color.white).GetComponent<Image>();
+            // Crown removed — clashed with the MJ throne_bg's own dense
+            // pixel architecture; the throne itself IS the crown motif
+            // now. Field kept null so any future re-add is a one-liner.
+            _titleCrown = null;
 
-            // Subtle dark band behind wordmark — alpha 0.38 reads as
-            // additional archway shadow rather than a UI modal. Still
-            // gives enough contrast for the gold wordmark against the
-            // god-ray bleed from below.
-            var wordmarkBg = MkSpritePanel("WordmarkBg", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -220f), new Vector2(1080f, 240f), "panel", new Color(0f, 0f, 0f, 0.38f));
-            wordmarkBg.GetComponent<Image>().raycastTarget = false;
-
+            // Wordmark sits in the top archway shadow above the god-ray
+            // entry. Colour is a weathered amber that picks up the
+            // throne_bg's god-ray + dust-mote palette so the title reads
+            // as part of the painting, not a sticker on top. Smaller
+            // FS_BTN (44px) rather than FS_TITLE (55px) keeps the throne
+            // the focal point.
+            var wordmarkAmber = new Color(0.92f, 0.74f, 0.42f, 1f);   // dust-mote / weathered-gold tone
             _titleWordmark = MkText("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -220f), new Vector2(1000f, 140f), FS_TITLE, TextAnchor.MiddleCenter, AccentGold);
+                new Vector2(0f, -200f), new Vector2(1000f, 100f), FS_BTN, TextAnchor.MiddleCenter, wordmarkAmber);
             _titleWordmark.text = "Gamexercise";
+            // Black outline keeps it crisp where the god-ray bleeds into
+            // the wordmark band; no longer need a dark backdrop strip.
             var wordmarkOutline = _titleWordmark.gameObject.AddComponent<Outline>();
-            wordmarkOutline.effectColor    = new Color(0f, 0f, 0f, 0.95f);
+            wordmarkOutline.effectColor    = new Color(0f, 0f, 0f, 0.92f);
             wordmarkOutline.effectDistance = new Vector2(2f, -2f);
 
+            // Tagline gets a more muted warm-stone tone (matches the dim
+            // ambient amber on the side walls of the bg) and a slightly
+            // smaller body font.
+            var taglineStone = new Color(0.78f, 0.70f, 0.55f, 1f);
             _titleTagline = MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -290f), new Vector2(1000f, 60f), FS_BTN, TextAnchor.UpperCenter, TextDim);
+                new Vector2(0f, -270f), new Vector2(1000f, 60f), FS_BODY, TextAnchor.MiddleCenter, taglineStone);
             _titleTagline.text = "Walk. Train. Reign.";
             var taglineOutline = _titleTagline.gameObject.AddComponent<Outline>();
             taglineOutline.effectColor    = new Color(0f, 0f, 0f, 0.85f);
@@ -604,28 +605,24 @@ namespace Gamex.Game
             // looks redundant against the dense pixel architecture.
             _titleDivider = null;
 
-            // Four candles framing the screen — top corners flank the
-            // crown / wordmark cluster, bottom corners flank the CTA. Same
-            // sprite + size as the home mirror's candle quartet so the
-            // visual rhyme lands automatically. Each candle gets its own
-            // index so UpdateTitle can phase-offset the flicker per-candle
-            // and they read as independent flames, not a synced strobe.
-            _titleCandles[0] = MkSpriteIcon("CandleTL", _titlePanel.transform, new Vector2(0f, 1f), new Vector2(140f, -260f),
-                new Vector2(110f, 180f), "candle_lit", Color.white).GetComponent<Image>();
-            _titleCandles[1] = MkSpriteIcon("CandleTR", _titlePanel.transform, new Vector2(1f, 1f), new Vector2(-140f, -260f),
-                new Vector2(110f, 180f), "candle_lit", Color.white).GetComponent<Image>();
-            _titleCandles[2] = MkSpriteIcon("CandleBL", _titlePanel.transform, new Vector2(0f, 0f), new Vector2(140f, 320f),
-                new Vector2(110f, 180f), "candle_lit", Color.white).GetComponent<Image>();
-            _titleCandles[3] = MkSpriteIcon("CandleBR", _titlePanel.transform, new Vector2(1f, 0f), new Vector2(-140f, 320f),
-                new Vector2(110f, 180f), "candle_lit", Color.white).GetComponent<Image>();
+            // Corner candles removed — the throne_bg already has its own
+            // ambient torch glow along both side walls + dust motes in the
+            // god-ray, so the four flat candle sprites read as extra UI
+            // clutter on top of richer painted lighting. _titleCandles
+            // stays as a length-4 array of nulls so UpdateTitle's flicker
+            // loop null-checks and no-ops.
 
             // Start Game click flags the exit transition — UpdateTitle's
             // exit branch runs the fade-out then fires _onLeaveTitle. The
             // button is also disabled at that moment so a fast double-tap
-            // doesn't queue two leaves.
+            // doesn't queue two leaves. Grey stone sprite + smaller size
+            // (560x130) so the CTA reads as a stone tablet on the throne's
+            // bottom stair rather than a brown wood plank floating in the
+            // painted scene.
             var startBtn = MkButton("StartGame", _titlePanel.transform, new Vector2(0.5f, 0f),
-                new Vector2(0f, 540f), new Vector2(800f, 160f), "Start Game",
-                () => { _titleExiting = true; _titleExitT = 0f; if (_titleStartButton != null) _titleStartButton.interactable = false; });
+                new Vector2(0f, 520f), new Vector2(560f, 130f), "Start Game",
+                () => { _titleExiting = true; _titleExitT = 0f; if (_titleStartButton != null) _titleStartButton.interactable = false; },
+                "btn_grey", "btn_grey_down");
             _titleStartBtn    = startBtn.transform;
             _titleStartButton = startBtn.GetComponent<Button>();
         }
