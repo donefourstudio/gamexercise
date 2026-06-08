@@ -54,20 +54,24 @@ namespace Gamex.Game
             Check(g3.state.level == 20, "Lv 20 reached, got " + g3.state.level);
             Check(g3.phase == AppPhase.RaceSelect, "race select triggered, got " + g3.phase);
 
-            // Daily quests
+            // Daily quests — rewards are tiered (1 / 3 / 5 / 3 / 5) with a
+            // +10 all-clear bonus when every quest is done in the same day.
+            // Updated 2026-06: rewards were 1g flat in M5b but were tuned up
+            // during the launch-cohort balance pass to make daily completion
+            // pay enough for casual shop purchases.
             var g4 = new GamexGame();
             g4.AddActivity(999, 0, 0);
-            Check(g4.state.coins == 0, "no quest done at 999 steps");
-            g4.AddActivity(1, 0, 0);                    // total 1000
-            Check(g4.state.coins == 1, "walk 1000 -> 1 coin, got " + g4.state.coins);
-            g4.AddActivity(4000, 0, 0);                 // total 5000
-            Check(g4.state.coins == 2, "walk 5000 -> +1 coin, got " + g4.state.coins);
-            g4.AddActivity(5000, 0, 0);                 // total 10000
-            Check(g4.state.coins == 3, "walk 10000 -> +1 coin, got " + g4.state.coins);
-            g4.AddActivity(0, 0, 15 * 60);              // run 15 min
-            Check(g4.state.coins == 4, "run 15 -> +1 coin, got " + g4.state.coins);
-            g4.AddActivity(0, 0, 15 * 60);              // total 30 min run
-            Check(g4.state.coins == 5, "run 30 -> +1 coin, got " + g4.state.coins);
+            Check(g4.state.coins == 0, "no quest done at 999 steps, got " + g4.state.coins);
+            g4.AddActivity(1, 0, 0);                    // total 1000        -> Walk1000 (+1)
+            Check(g4.state.coins == 1, "walk 1000 -> +1, got " + g4.state.coins);
+            g4.AddActivity(4000, 0, 0);                 // total 5000        -> Walk5000 (+3) = 4
+            Check(g4.state.coins == 4, "walk 5000 -> +3, got " + g4.state.coins);
+            g4.AddActivity(5000, 0, 0);                 // total 10000       -> Walk10000 (+5) = 9
+            Check(g4.state.coins == 9, "walk 10000 -> +5, got " + g4.state.coins);
+            g4.AddActivity(0, 0, 15 * 60);              // run 15 min        -> Run15 (+3) = 12
+            Check(g4.state.coins == 12, "run 15 -> +3, got " + g4.state.coins);
+            g4.AddActivity(0, 0, 15 * 60);              // total 30 min run  -> Run30 (+5) + all-bonus (+10) = 27
+            Check(g4.state.coins == 27, "run 30 -> +5 +10 all-bonus, got " + g4.state.coins);
 
             // EndDay resets daily counters, advances streak, weekly bonus
             var g5 = new GamexGame();
@@ -98,9 +102,13 @@ namespace Gamex.Game
             // price (80% of summed pieces) and grants every piece atomically.
             var g7 = new GamexGame();
             g7.state.coins = 2000;
-            var paladin = GamexGame.SetCatalog[0];
+            // FindSet — SetCatalog index isn't stable across launch reorderings
+            // (champ_dark_knight is now at [0], elf_paladin is in the deferred
+            // section). Look up by id so the test survives future shuffling.
+            var paladin = GamexGame.FindSet("elf_paladin");
+            Check(paladin != null, "elf_paladin set exists in catalog");
             var sword = System.Array.Find(paladin.pieces, d => d.id == "elfpaladin_sword");
-            Check(sword.price == 200, "paladin sword = 200 coins, got " + sword.price);
+            Check(sword != null && sword.price == 200, "paladin sword = 200 coins, got " + (sword?.price.ToString() ?? "null"));
             Check(g7.TryBuy(sword), "buy paladin sword");
             Check(g7.state.coins == 1800, "1800 after sword, got " + g7.state.coins);
             g7.ToggleEquip("elfpaladin_sword");
@@ -125,23 +133,30 @@ namespace Gamex.Game
                 g9.AddActivity(5000, 0, 0);
                 g9.EndDay();
             }
-            Check(g9.IsOwned("knight_chest"), "10 days @ 5k+ -> chest earned");
-            Check(g9.state.knightChainStage == 1, "chain advanced to helmet slot, got " + g9.state.knightChainStage);
-            // Miss a day -> progress resets
-            g9.AddActivity(5000, 0, 0); g9.EndDay();   // progress = 1
-            g9.EndDay();                                // no steps -> reset
-            Check(g9.state.knightChainProgress == 0, "missed day resets chain progress");
+            // Updated 2026-06 (commit 926ad41 + d9ef2b8): chain now grants the
+            // WHOLE 6-piece set atomically after 10 days (was 10 days per piece).
+            // knightChainStage = KnightSet.Length acts as the "earned" flag.
+            Check(g9.IsOwned("knight_chest"),    "10 days @ 5k+ -> chest earned");
+            Check(g9.IsOwned("knight_sword"),    "10 days @ 5k+ -> sword earned (atomic 6-piece grant)");
+            Check(g9.state.knightChainStage == GamexGame.KnightSet.Length,
+                  "chain marked earned, got " + g9.state.knightChainStage);
+            // Earning the set short-circuits further chain ticking; progress
+            // stays at 0 because the gate (knightChainStage < Length) is false.
+            g9.AddActivity(5000, 0, 0); g9.EndDay();
+            g9.EndDay();
+            Check(g9.state.knightChainProgress == 0, "post-earn chain stays at 0 progress");
             // Chain inactive below Lv 20: pre-empty totalSteps stays at level 1.
             var g10 = new GamexGame();
             for (int i = 0; i < 10; i++) { g10.AddActivity(1000, 0, 0); g10.EndDay(); }
             Check(g10.state.knightChainStage == 0, "chain ignored below Lv 20");
 
-            // Save round-trip
+            // Save round-trip — use elfpaladin_sword (the piece g7 bought
+            // above) since Phase 2 dropped the old "sword_wood" tier item.
             g7.state.gender = (int)Gender.Female;
             g7.state.curse  = (int)Curse.Gluttony;
             string json = JsonUtility.ToJson(g7.state);
             var loaded = JsonUtility.FromJson<GameState>(json);
-            Check(loaded.gender == 2 && loaded.curse == 2 && loaded.owned.Contains("sword_wood"),
+            Check(loaded.gender == 2 && loaded.curse == 2 && loaded.owned.Contains("elfpaladin_sword"),
                   "save round-trip");
 
             if (fails == 0) Debug.Log("[LOGIC OK]");
