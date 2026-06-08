@@ -2233,14 +2233,24 @@ namespace Gamex.Game
                              List<string> equipped = null, string activeSkin = null)
         {
             if (avatar == null || avatar.portrait == null) return;
-            avatar.portrait.sprite = Make.Portrait(
-                gender == Gender.Unset ? Gender.Male : gender, curse, race, stage, activeSkin);
-            float a = avatar.portrait.color.a;
-            avatar.portrait.color = new Color(1f, 1f, 1f, a);
             // Skins are full-body art — their weapons/armor are painted in,
             // so applying equipment overlays on top would clash. Skip the
             // overlay routing entirely when a skin is active.
             bool skinActive = !string.IsNullOrEmpty(activeSkin) && Make.Skin(activeSkin) != null;
+            // Helmet-on bald base swap: scan equipped for a Head slot so
+            // Make.Portrait loads {race}_{gender}_bald.png instead of the
+            // haired sprite, preventing hair from clipping through the
+            // overlay. Pre-race (Race.Unset) characters don't wear armour.
+            bool helmetEquipped = false;
+            if (!skinActive && race != Race.Unset && equipped != null)
+            {
+                foreach (var id in equipped)
+                    if (GamexGame.SlotOf(id) == GamexGame.EquipSlot.Head) { helmetEquipped = true; break; }
+            }
+            avatar.portrait.sprite = Make.Portrait(
+                gender == Gender.Unset ? Gender.Male : gender, curse, race, stage, activeSkin, helmetEquipped);
+            float a = avatar.portrait.color.a;
+            avatar.portrait.color = new Color(1f, 1f, 1f, a);
             if (skinActive) equipped = null;
 
             // Equipment overlays: only on race-form characters (Lv 20+). Pre-race

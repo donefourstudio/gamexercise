@@ -105,6 +105,43 @@ namespace Gamex.EditorTools
             EditorApplication.Exit(0);
         }
 
+        // Bald variants of the 4 race forms. Used as the base portrait when
+        // a helmet is equipped so the player's hair doesn't clip through
+        // the overlay (the elf_male blonde tuft poking out of the silver
+        // knight greathelm was the trigger). Make.Portrait switches to the
+        // _bald sprite when the avatar's Head slot is occupied.
+        [MenuItem("Tools/Gamex/Bake Race Forms (Bald, for helmet)")]
+        public static void BakeRaceFormsBald()
+        {
+            string outRoot = "Assets/_Game/Resources/Char";
+            Directory.CreateDirectory(outRoot);
+            var picks = new (string assetPath, string outName)[]
+            {
+                (RACE_FORM_ELF_MALE,   "elf_male_bald.png"),
+                (RACE_FORM_ELF_FEMALE, "elf_female_bald.png"),
+                (RACE_FORM_ORC_MALE,   "orc_male_bald.png"),
+                (RACE_FORM_ORC_FEMALE, "orc_female_bald.png"),
+            };
+            foreach (var p in picks)
+            {
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(p.assetPath);
+                if (prefab == null)
+                {
+                    Debug.LogError($"[SPUMBaker] bald race-form prefab not found: {p.assetPath}");
+                    continue;
+                }
+                BakeOne(prefab, $"{outRoot}/{p.outName}", keepEquip: false, hideHair: true);
+                Debug.Log($"[SPUMBaker] bald race form {p.outName}  <-  {p.assetPath}");
+            }
+            AssetDatabase.Refresh();
+        }
+
+        public static void BakeRaceFormsBaldBatch()
+        {
+            BakeRaceFormsBald();
+            EditorApplication.Exit(0);
+        }
+
         // Picked from the bare-bake preview batch (see /tmp/spum_bake.log).
         // Each maps to a chibi character whose helmet/weapon/shield/armor were
         // disabled at bake time so Phase 2 overlays can layer real items on top.
@@ -258,7 +295,8 @@ namespace Gamex.EditorTools
         // human_11 (silver bucket-helm + plate); the chain-quest sword from
         // elf_07 isn't included because BakeOne only renders one prefab and
         // human_11's IDLE pose reads as "the knight" without the sword.
-        public static void BakeKnightSetPreviewBatch()
+        [MenuItem("Tools/Gamex/Bake Knight Set Preview")]
+        public static void BakeKnightSetPreview()
         {
             string setsRoot = "Assets/_Game/Resources/Sets";
             Directory.CreateDirectory(setsRoot);
@@ -266,13 +304,17 @@ namespace Gamex.EditorTools
             if (prefab == null)
             {
                 Debug.LogError("[SPUMBaker] knight preview prefab not found: " + KNIGHT_PREFAB_ARMOR);
-                EditorApplication.Exit(1);
                 return;
             }
             string outPath = $"{setsRoot}/knight_silver_set.png";
             BakeOne(prefab, outPath, keepEquip: true);
             Debug.Log("[SPUMBaker] knight_silver_set.png  <-  " + Path.GetFileName(KNIGHT_PREFAB_ARMOR));
             AssetDatabase.Refresh();
+        }
+
+        public static void BakeKnightSetPreviewBatch()
+        {
+            BakeKnightSetPreview();
             EditorApplication.Exit(0);
         }
 
@@ -350,7 +392,7 @@ namespace Gamex.EditorTools
             Object.DestroyImmediate(tex);
         }
 
-        static void BakeOne(GameObject prefab, string outPath, bool keepEquip = true)
+        static void BakeOne(GameObject prefab, string outPath, bool keepEquip = true, bool hideHair = false)
         {
             // Fresh empty scene so leftover GameObjects from previous bakes
             // don't bleed into this render.
@@ -373,6 +415,18 @@ namespace Gamex.EditorTools
                     {
                         if (n.Contains(kw)) { sr.enabled = false; break; }
                     }
+                }
+            }
+
+            // Bald variant — also hide hair renderers so the helmet overlay
+            // can sit on a smooth scalp instead of clipping through tufts.
+            // SPUM names hair children "7_Hair" / "6_FaceHair" etc., so a
+            // single "Hair" substring catches both head hair and face hair.
+            if (hideHair)
+            {
+                foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
+                {
+                    if (sr.gameObject.name.Contains("Hair")) sr.enabled = false;
                 }
             }
 

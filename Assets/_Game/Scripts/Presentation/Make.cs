@@ -51,7 +51,11 @@ namespace Gamex.Game
         //     Gluttony -> gluttony_stageN (zombie -> human skin tone)
         //   race != Unset (Lv 20+)  -> {race}_{gender} race form. Race.Human was
         //     dropped per Jackson: starting roster is Orc + Elf only.
-        public static Sprite Portrait(Gender gender, Curse curse, Race race, int stage, string activeSkin = null)
+        // helmetEquipped switches the base to the _bald variant so the
+        // player's hair doesn't clip through the helmet overlay. Falls
+        // back to the haired sprite when the bald variant hasn't been
+        // baked yet (BakeRaceFormsBald in SPUMBaker writes them).
+        public static Sprite Portrait(Gender gender, Curse curse, Race race, int stage, string activeSkin = null, bool helmetEquipped = false)
         {
             // Phase 4 — an applied skin overrides everything else. The skin's
             // baked-in art carries the body + clothing + weapon in one image, so
@@ -69,6 +73,11 @@ namespace Gamex.Game
             }
             string r = race == Race.Orc ? "orc" : "elf";
             string g = gender == Gender.Female ? "female" : "male";
+            if (helmetEquipped)
+            {
+                var bald = Char($"{r}_{g}_bald");
+                if (bald != null) return bald;
+            }
             return Char($"{r}_{g}");
         }
 
