@@ -805,7 +805,7 @@ namespace Gamex.Game
             _questsStreak     = null;   // dropped; Home shows it
 
             MkButton("Back", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
         }
 
         // ============================================================
@@ -967,7 +967,7 @@ namespace Gamex.Game
             contentRT.sizeDelta = new Vector2(0f, -y + 40f);
 
             MkButton("Back", _shopPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
-                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
         }
 
         // Build a vertical ScrollRect anchored to fill the parent except for
@@ -1076,7 +1076,7 @@ namespace Gamex.Game
 
             MkButton("Back", _setDetailPanel.transform, new Vector2(0.5f, 0f),
                 new Vector2(0f, 90f), new Vector2(420f, 100f),
-                "Back to Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
+                "Back to Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
         }
 
         // Tracks which set's rows are currently visible inside _setDetailPanel.
@@ -1181,7 +1181,7 @@ namespace Gamex.Game
             contentRT.sizeDelta = new Vector2(1000f, -bottomY);
 
             MkButton("Back", _inventoryPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
-                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
         }
 
         // ============================================================
@@ -2410,7 +2410,8 @@ namespace Gamex.Game
 
         static GameObject MkButton(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
                                    string label, Action onClick,
-                                   string spriteName = "btn_brown", string pressedSpriteName = "btn_brown_down")
+                                   string spriteName = "btn_brown", string pressedSpriteName = "btn_brown_down",
+                                   string sfx = "tap")
         {
             var go = MkSpritePanel(name, parent, anchor, pos, size, spriteName, Color.white);
             var btn = go.AddComponent<Button>();
@@ -2420,7 +2421,8 @@ namespace Gamex.Game
             ss.pressedSprite = Make.UI(pressedSpriteName);
             ss.highlightedSprite = Make.UI(spriteName);
             btn.spriteState = ss;
-            btn.onClick.AddListener(() => { Sfx.Play("tap"); onClick?.Invoke(); });
+            string clickSfx = sfx;
+            btn.onClick.AddListener(() => { Sfx.Play(clickSfx); onClick?.Invoke(); });
 
             var t = MkText("Label", go.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
                 size, FS_BTN, TextAnchor.MiddleCenter, new Color(0.20f, 0.12f, 0.05f));
