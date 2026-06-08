@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+        Gamexercise app-level privacy manifest. Apple combines this with the
+        Unity engine's bundled framework manifest at submit time, so we only
+        declare APIs OUR app code touches on top of what Unity already covers.
+
+        Posture (as of 2026-06): zero data leaves the device. HealthKit data
+        is read in-process and consumed by the game state; nothing is sent to
+        any server. No tracking, no analytics SDKs, no third-party trackers.
+
+        When Game Center leaderboards land: scores submitted via GKScore go
+        to Apple's servers (not Anthropic / us), and Apple's own privacy
+        nutrition covers that pipeline. NSPrivacyCollectedDataTypes stays
+        empty for our manifest. NSPrivacyTracking stays false.
+
+        When ANY of these change, also update App Store Connect's privacy
+        questionnaire to match — the manifest and the questionnaire must
+        agree or the reviewer flags it.
+    -->
+
+    <!-- We do not link user data with third-party data for targeted ads. -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+
+    <!-- No domains classified as tracking by Apple. -->
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <!--
+        No data types collected. HealthKit step count stays on-device. Game
+        Center scores (future) are sent to Apple, not us, so they don't go
+        in this list per Apple's "data not received by your app" rule.
+    -->
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array/>
+
+    <!--
+        Required-reason API declarations. Each entry covers one Apple-flagged
+        API category our code (or a system framework we trigger) touches.
+        Reason codes are from Apple's published table — see
+        https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
+    -->
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!--
+            File timestamps: SaveSystem.cs uses File.WriteAllText /
+            File.ReadAllText against Application.persistentDataPath. The
+            underlying NSFileManager touches creation/modification dates as
+            side effects of those calls. We never read the timestamps out;
+            they sit inside the app's container and don't transmit. 3B52.1
+            covers "access info inside the app or app group container".
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>3B52.1</string>
+            </array>
+        </dict>
+
+        <!--
+            System boot time: Unity engine reads mach_absolute_time / similar
+            for Time.realtimeSinceStartup, used pervasively for animations
+            (Hud's stage-up flash, coin floater, candle flash, etc.). The
+            value never leaves the device. 35F9.1 covers "calculate event
+            timestamps that only display to the user or are kept on-device".
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>35F9.1</string>
+            </array>
+        </dict>
+
+        <!--
+            User defaults: Unity engine maps PlayerPrefs to NSUserDefaults
+            for some internal bookkeeping (graphics quality, audio config,
+            etc.). Our app code uses File-based save (SaveSystem.cs) so we
+            don't directly touch user defaults — but the engine does, and
+            the manifest covers the linked binary's surface area. CA92.1
+            covers "access information for your app's own functionality".
+        -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
+        </dict>
+    </array>
+</dict>
+</plist>
