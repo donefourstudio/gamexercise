@@ -538,15 +538,16 @@ namespace Gamex.Game
             // conflict (fade-in alpha * exit alpha).
             _titleCanvasGroup = _titlePanel.AddComponent<CanvasGroup>();
 
-            // Background scene — Midjourney-generated pixel-art throne room
-            // (1024x1024). Fills the screen width (1080px) with native 1:1
-            // aspect ratio centred, leaving ~420px of dark margin top + bottom
-            // that the crown / candles / Start Game button live in. The
-            // throne / chandelier / archway in the image naturally framed
-            // the wordmark + tagline + divider that overlay its centre.
-            // Added FIRST so it renders BEHIND all other title elements.
+            // Background scene — Midjourney-generated pixel-art throne hall
+            // (816x1456 native 9:16). Fills the full screen since its
+            // aspect ratio matches the 1080x1920 design canvas exactly.
+            // The image's own composition has natural dark zones at top
+            // (archway shadow above the throne) and bottom (stone stairs)
+            // that the wordmark + crown + tagline (top) and Start Game
+            // button (bottom) overlay into. Added FIRST so it renders
+            // BEHIND all other title elements.
             var bg = MkSpriteIcon("TitleBg", _titlePanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 0f), new Vector2(1080f, 1080f), "title_bg", Color.white);
+                new Vector2(0f, 0f), new Vector2(1080f, 1920f), "title_bg", Color.white);
             bg.GetComponent<Image>().raycastTarget = false;
             bg.GetComponent<Image>().preserveAspect = true;
 
@@ -562,21 +563,32 @@ namespace Gamex.Game
             // on the chandelier glow at image centre washed it out; in the
             // dark band it reads sharp and the throne scene below feels
             // like the world the title is calling the player into.
-            _titleCrown = MkSpriteIcon("Crown", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -130f),
-                new Vector2(160f, 115f), "crown_gold", Color.white).GetComponent<Image>();
+            // Crown + wordmark + tagline sit in the top archway shadow zone
+            // of the throne_bg, BEFORE the god-ray fully descends. Pushing
+            // them up here keeps the gold text out of the bright god-ray
+            // glow column where it'd wash out. A horizontal dark panel
+            // backs the wordmark band so even if the god-ray bleeds up at
+            // its source the title still has solid contrast.
+            _titleCrown = MkSpriteIcon("Crown", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -60f),
+                new Vector2(140f, 100f), "crown_gold", Color.white).GetComponent<Image>();
+
+            // Subtle dark band behind wordmark — alpha 0.38 reads as
+            // additional archway shadow rather than a UI modal. Still
+            // gives enough contrast for the gold wordmark against the
+            // god-ray bleed from below.
+            var wordmarkBg = MkSpritePanel("WordmarkBg", _titlePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -220f), new Vector2(1080f, 240f), "panel", new Color(0f, 0f, 0f, 0.38f));
+            wordmarkBg.GetComponent<Image>().raycastTarget = false;
 
             _titleWordmark = MkText("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -260f), new Vector2(1000f, 160f), FS_TITLE, TextAnchor.UpperCenter, AccentGold);
+                new Vector2(0f, -220f), new Vector2(1000f, 140f), FS_TITLE, TextAnchor.MiddleCenter, AccentGold);
             _titleWordmark.text = "Gamexercise";
-            // Outline keeps the wordmark crisp against bg artefacts that
-            // might extend into the dark band (image edges, bottom of
-            // chandelier glow). Cheaper than a full panel backdrop.
             var wordmarkOutline = _titleWordmark.gameObject.AddComponent<Outline>();
             wordmarkOutline.effectColor    = new Color(0f, 0f, 0f, 0.95f);
             wordmarkOutline.effectDistance = new Vector2(2f, -2f);
 
             _titleTagline = MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -380f), new Vector2(1000f, 60f), FS_BTN, TextAnchor.UpperCenter, TextDim);
+                new Vector2(0f, -290f), new Vector2(1000f, 60f), FS_BTN, TextAnchor.UpperCenter, TextDim);
             _titleTagline.text = "Walk. Train. Reign.";
             var taglineOutline = _titleTagline.gameObject.AddComponent<Outline>();
             taglineOutline.effectColor    = new Color(0f, 0f, 0f, 0.85f);
@@ -587,13 +599,10 @@ namespace Gamex.Game
             // we render TWO mirrored halves with the key-ends pointing
             // outward and the fades meeting at centre. Closes off the
             // title cluster with a "Mystic Vale"-style rule.
-            _titleDivider = MkSpriteIcon("TitleDividerL", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(-160f, -450f), new Vector2(320f, 40f), "divider_ornate", AccentGold).GetComponent<Image>();
-            _titleDivider.raycastTarget = false;
-            var divR = MkSpriteIcon("TitleDividerR", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(160f, -450f), new Vector2(320f, 40f), "divider_ornate", AccentGold).GetComponent<Image>();
-            divR.raycastTarget = false;
-            divR.rectTransform.localScale = new Vector3(-1f, 1f, 1f);   // horizontal mirror
+            // Divider removed — the throne_bg's own stone archway provides
+            // plenty of ornamentation, and an extra Kenney divider on top
+            // looks redundant against the dense pixel architecture.
+            _titleDivider = null;
 
             // Four candles framing the screen — top corners flank the
             // crown / wordmark cluster, bottom corners flank the CTA. Same
