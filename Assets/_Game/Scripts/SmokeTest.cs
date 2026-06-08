@@ -209,13 +209,17 @@ namespace Gamex.Game
             // Title screen — cold-launch landing. Wait for the wordmark +
             // tagline fade-in (~0.7s) and a beat of the Start Game pulse so
             // the steady-state composition lands in the screenshot, then
-            // click the Start Game button so subsequent captures continue
-            // through the opening flow.
+            // click the Start Game button. The button arms a 0.4s exit
+            // fade before the actual phase transition fires, so we capture
+            // a mid-fade frame for the transition baseline and then wait
+            // the rest of the fade out before continuing to the opening.
             yield return new WaitForSecondsRealtime(0.8f);
             Capture("/tmp/gamex_title.png");
             var startBtn = GameObject.Find("StartGame")?.GetComponent<UnityEngine.UI.Button>();
             if (startBtn != null) startBtn.onClick.Invoke();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_title_fadeout.png");                // mid-fade snapshot
+            yield return new WaitForSecondsRealtime(0.4f);          // let exit fade complete + Refresh land
 
             // Opening sequence (first-run only).
             Capture("/tmp/gamex_op1_intro.png");

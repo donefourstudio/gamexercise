@@ -33,18 +33,28 @@ namespace Gamex.Game
 
         // ---- panels ----
         GameObject _titlePanel;
-        // Title screen polish — fade-in for the wordmark + tagline and a
-        // continuous gentle pulse on the Start Game CTA. _titleT counts up
-        // from 0 on every Title entry so the same animation plays each cold
-        // start. Stored references avoid GameObject.Find in Refresh.
+        // Title screen polish — fade-in for the wordmark + tagline, gentle
+        // pulse on the Start Game CTA, independent candle flicker, and a
+        // fade-out transition when the player taps Start Game (only AFTER
+        // the fade does the actual phase change fire). _titleT counts up
+        // from 0 on every Title entry. Stored Image / Transform / Button
+        // refs avoid GameObject.Find in Refresh.
         Text _titleWordmark, _titleTagline;
+        Image _titleCrown;
+        Image[] _titleCandles = new Image[4];
         Transform _titleStartBtn;
+        Button _titleStartButton;
+        CanvasGroup _titleCanvasGroup;
         float _titleT;
+        bool  _titleExiting;
+        float _titleExitT;
         const float TITLE_FADEIN_DURATION   = 0.6f;
         const float TITLE_TAGLINE_DELAY     = 0.3f;
         const float TITLE_TAGLINE_DURATION  = 0.4f;
         const float TITLE_PULSE_PERIOD      = 1.8f;
         const float TITLE_PULSE_AMP         = 0.04f;
+        const float TITLE_EXIT_DURATION     = 0.4f;
+        const float CANDLE_FLICKER_ALPHA_MIN = 0.82f;   // never drops to fully transparent — candles stay readable
         GameObject _openingIntroPanel, _openingHeroShownPanel, _openingCurseLoomsPanel, _openingAmnesiaPanel;
         GameObject _curseAnimPanel;
         GameObject _raceSelectPanel, _raceAnimPanel;
@@ -520,12 +530,17 @@ namespace Gamex.Game
         void BuildTitle(Transform root)
         {
             _titlePanel = MkFullPanel("TitlePanel", root);
+            // CanvasGroup drives the exit fade-out by multiplying every
+            // child element's alpha. Per-element color.a is still used for
+            // staggered fade-IN, so the two effects compose without
+            // conflict (fade-in alpha * exit alpha).
+            _titleCanvasGroup = _titlePanel.AddComponent<CanvasGroup>();
 
             // Crown floats above the wordmark, matching the home mirror's
             // "crown on the head" motif. Keep it modest — too large reads
             // as a logo, this is meant to feel decorative.
-            MkSpriteIcon("Crown", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -380f),
-                new Vector2(180f, 130f), "crown_gold", Color.white);
+            _titleCrown = MkSpriteIcon("Crown", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -380f),
+                new Vector2(180f, 130f), "crown_gold", Color.white).GetComponent<Image>();
 
             _titleWordmark = MkText("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f),
                 new Vector2(0f, -560f), new Vector2(1000f, 180f), FS_TITLE, TextAnchor.UpperCenter, AccentGold);
@@ -538,19 +553,27 @@ namespace Gamex.Game
             // Four candles framing the screen — top corners flank the
             // crown / wordmark cluster, bottom corners flank the CTA. Same
             // sprite + size as the home mirror's candle quartet so the
-            // visual rhyme lands automatically.
-            MkSpriteIcon("CandleTL", _titlePanel.transform, new Vector2(0f, 1f), new Vector2(140f, -260f),
-                new Vector2(110f, 180f), "candle_lit", Color.white);
-            MkSpriteIcon("CandleTR", _titlePanel.transform, new Vector2(1f, 1f), new Vector2(-140f, -260f),
-                new Vector2(110f, 180f), "candle_lit", Color.white);
-            MkSpriteIcon("CandleBL", _titlePanel.transform, new Vector2(0f, 0f), new Vector2(140f, 320f),
-                new Vector2(110f, 180f), "candle_lit", Color.white);
-            MkSpriteIcon("CandleBR", _titlePanel.transform, new Vector2(1f, 0f), new Vector2(-140f, 320f),
-                new Vector2(110f, 180f), "candle_lit", Color.white);
+            // visual rhyme lands automatically. Each candle gets its own
+            // index so UpdateTitle can phase-offset the flicker per-candle
+            // and they read as independent flames, not a synced strobe.
+            _titleCandles[0] = MkSpriteIcon("CandleTL", _titlePanel.transform, new Vector2(0f, 1f), new Vector2(140f, -260f),
+                new Vector2(110f, 180f), "candle_lit", Color.white).GetComponent<Image>();
+            _titleCandles[1] = MkSpriteIcon("CandleTR", _titlePanel.transform, new Vector2(1f, 1f), new Vector2(-140f, -260f),
+                new Vector2(110f, 180f), "candle_lit", Color.white).GetComponent<Image>();
+            _titleCandles[2] = MkSpriteIcon("CandleBL", _titlePanel.transform, new Vector2(0f, 0f), new Vector2(140f, 320f),
+                new Vector2(110f, 180f), "candle_lit", Color.white).GetComponent<Image>();
+            _titleCandles[3] = MkSpriteIcon("CandleBR", _titlePanel.transform, new Vector2(1f, 0f), new Vector2(-140f, 320f),
+                new Vector2(110f, 180f), "candle_lit", Color.white).GetComponent<Image>();
 
+            // Start Game click flags the exit transition — UpdateTitle's
+            // exit branch runs the fade-out then fires _onLeaveTitle. The
+            // button is also disabled at that moment so a fast double-tap
+            // doesn't queue two leaves.
             var startBtn = MkButton("StartGame", _titlePanel.transform, new Vector2(0.5f, 0f),
-                new Vector2(0f, 540f), new Vector2(800f, 160f), "Start Game", () => _onLeaveTitle?.Invoke());
-            _titleStartBtn = startBtn.transform;
+                new Vector2(0f, 540f), new Vector2(800f, 160f), "Start Game",
+                () => { _titleExiting = true; _titleExitT = 0f; if (_titleStartButton != null) _titleStartButton.interactable = false; });
+            _titleStartBtn    = startBtn.transform;
+            _titleStartButton = startBtn.GetComponent<Button>();
         }
 
         void BuildOpeningIntro(Transform root)
@@ -1551,7 +1574,14 @@ namespace Gamex.Game
             {
                 if (g.phase == AppPhase.CurseAnim)         _curseAnimT = 0f;
                 if (g.phase == AppPhase.RaceTransformAnim) _raceAnimT  = 0f;
-                if (g.phase == AppPhase.Title)             _titleT     = 0f;
+                if (g.phase == AppPhase.Title)
+                {
+                    _titleT       = 0f;
+                    _titleExiting = false;
+                    _titleExitT   = 0f;
+                    if (_titleCanvasGroup != null)  _titleCanvasGroup.alpha = 1f;
+                    if (_titleStartButton != null)  _titleStartButton.interactable = true;
+                }
                 _lastPhase = g.phase;
             }
 
@@ -2226,11 +2256,11 @@ namespace Gamex.Game
             }
         }
 
-        // Title screen tick — drives the wordmark / tagline fade-in and a
-        // gentle continuous pulse on the Start Game button so the screen
-        // breathes while waiting for the player to commit. _titleT is reset
-        // to 0 on phase entry (see the phase-change block at the top of
-        // Refresh) so each cold start replays the intro from the beginning.
+        // Title screen tick — drives wordmark / tagline fade-in, gentle
+        // continuous pulse on the Start Game button, independent candle
+        // flicker, and the post-tap fade-out before the actual phase
+        // transition. _titleT is reset to 0 on phase entry so each cold
+        // start replays the intro from the beginning.
         void UpdateTitle()
         {
             _titleT += Time.unscaledDeltaTime;
@@ -2254,6 +2284,43 @@ namespace Gamex.Game
                 // its rect or surrounding candles.
                 float s = 1f + TITLE_PULSE_AMP * Mathf.Sin(_titleT * (Mathf.PI * 2f / TITLE_PULSE_PERIOD));
                 _titleStartBtn.localScale = new Vector3(s, s, 1f);
+            }
+
+            // Candle flicker — each lamp gets a hardcoded phase + frequency
+            // offset so the four flames flicker out of sync. Two coupled
+            // sin waves (one for alpha, one for scale) at slightly different
+            // frequencies give an irregular, organic-looking flame instead
+            // of a metronomic strobe. Alpha floor is 0.82 so the candle
+            // shape stays readable even at the trough.
+            for (int i = 0; i < _titleCandles.Length; i++)
+            {
+                var c = _titleCandles[i];
+                if (c == null) continue;
+                float phase  = i * 1.37f;                                // arbitrary, mutually-prime-ish
+                float aFreq  = 2.1f + i * 0.27f;                         // 2.1..2.91 Hz per lamp
+                float sFreq  = 1.6f + i * 0.18f;                         // 1.6..2.14 Hz per lamp
+                float aMul   = CANDLE_FLICKER_ALPHA_MIN + (1f - CANDLE_FLICKER_ALPHA_MIN)
+                               * (0.5f + 0.5f * Mathf.Sin(_titleT * aFreq + phase));
+                float sMul   = 1f + 0.025f * Mathf.Sin(_titleT * sFreq + phase * 1.4f);
+                var col = c.color; col.a = aMul; c.color = col;
+                c.rectTransform.localScale = new Vector3(sMul, sMul, 1f);
+            }
+
+            // Exit transition — Start Game's onClick set _titleExiting and
+            // disabled the button. Fade the whole panel via CanvasGroup,
+            // then fire _onLeaveTitle once the fade completes so the next
+            // phase swap (OpeningIntro / Home / RaceSelect) happens after
+            // the player sees the title resolve, not snap-cut away.
+            if (_titleExiting)
+            {
+                _titleExitT += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(_titleExitT / TITLE_EXIT_DURATION);
+                if (_titleCanvasGroup != null) _titleCanvasGroup.alpha = 1f - t;
+                if (t >= 1f)
+                {
+                    _titleExiting = false;   // arm again for any future re-entry (Reset Progress)
+                    _onLeaveTitle?.Invoke();
+                }
             }
         }
 
