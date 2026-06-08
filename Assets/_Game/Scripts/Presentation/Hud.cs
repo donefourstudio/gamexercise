@@ -568,28 +568,34 @@ namespace Gamex.Game
             // now. Field kept null so any future re-add is a one-liner.
             _titleCrown = null;
 
-            // Wordmark sits in the top archway shadow above the god-ray
-            // entry. Colour is a weathered amber that picks up the
-            // throne_bg's god-ray + dust-mote palette so the title reads
-            // as part of the painting, not a sticker on top. Smaller
-            // FS_BTN (44px) rather than FS_TITLE (55px) keeps the throne
-            // the focal point.
-            var wordmarkAmber = new Color(0.92f, 0.74f, 0.42f, 1f);   // dust-mote / weathered-gold tone
+            // Wordmark — Gamexercise is the GAME NAME so it carries the
+            // most visual weight on the screen. FS_BIG (77px) gives it
+            // proper scale, and TWO stacked Outline components in opposite
+            // diagonal offsets simulate a bold-weight stroke (Cubic 11 is
+            // a pixel font with no native bold variant; stacked outlines
+            // are how pixel-art games typically fake weight). Weathered
+            // amber tint matches the god-ray + dust-mote palette so the
+            // title reads as paint not sticker.
+            var wordmarkAmber = new Color(0.92f, 0.74f, 0.42f, 1f);
             _titleWordmark = MkText("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -200f), new Vector2(1000f, 100f), FS_BTN, TextAnchor.MiddleCenter, wordmarkAmber);
+                new Vector2(0f, -220f), new Vector2(1000f, 140f), FS_BIG, TextAnchor.MiddleCenter, wordmarkAmber);
             _titleWordmark.text = "Gamexercise";
-            // Black outline keeps it crisp where the god-ray bleeds into
-            // the wordmark band; no longer need a dark backdrop strip.
-            var wordmarkOutline = _titleWordmark.gameObject.AddComponent<Outline>();
-            wordmarkOutline.effectColor    = new Color(0f, 0f, 0f, 0.92f);
-            wordmarkOutline.effectDistance = new Vector2(2f, -2f);
+            // Outline #1 — wider bottom-right offset for primary stroke
+            var wordmarkOutlineA = _titleWordmark.gameObject.AddComponent<Outline>();
+            wordmarkOutlineA.effectColor    = new Color(0f, 0f, 0f, 0.95f);
+            wordmarkOutlineA.effectDistance = new Vector2(4f, -4f);
+            // Outline #2 — top-left offset; two combined make the letter
+            // shape ~2px thicker in every direction, reading as bold.
+            var wordmarkOutlineB = _titleWordmark.gameObject.AddComponent<Outline>();
+            wordmarkOutlineB.effectColor    = new Color(0f, 0f, 0f, 0.9f);
+            wordmarkOutlineB.effectDistance = new Vector2(-4f, 4f);
 
             // Tagline gets a more muted warm-stone tone (matches the dim
             // ambient amber on the side walls of the bg) and a slightly
-            // smaller body font.
+            // smaller body font, pushed below the now-larger wordmark.
             var taglineStone = new Color(0.78f, 0.70f, 0.55f, 1f);
             _titleTagline = MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -270f), new Vector2(1000f, 60f), FS_BODY, TextAnchor.MiddleCenter, taglineStone);
+                new Vector2(0f, -320f), new Vector2(1000f, 60f), FS_BODY, TextAnchor.MiddleCenter, taglineStone);
             _titleTagline.text = "Walk. Train. Reign.";
             var taglineOutline = _titleTagline.gameObject.AddComponent<Outline>();
             taglineOutline.effectColor    = new Color(0f, 0f, 0f, 0.85f);
@@ -615,16 +621,19 @@ namespace Gamex.Game
             // Start Game click flags the exit transition — UpdateTitle's
             // exit branch runs the fade-out then fires _onLeaveTitle. The
             // button is also disabled at that moment so a fast double-tap
-            // doesn't queue two leaves. Grey stone sprite + smaller size
-            // (560x130) so the CTA reads as a stone tablet on the throne's
-            // bottom stair rather than a brown wood plank floating in the
-            // painted scene.
+            // doesn't queue two leaves. Pushed down to y=300 from bottom
+            // so it sits on the lowest stair (close to the foreground
+            // edge) rather than floating midway up the steps. Image alpha
+            // dropped to 0.55 so the stone tablet shape blends into the
+            // painted stairs instead of reading as a glued-on UI plate.
             var startBtn = MkButton("StartGame", _titlePanel.transform, new Vector2(0.5f, 0f),
-                new Vector2(0f, 520f), new Vector2(560f, 130f), "Start Game",
+                new Vector2(0f, 300f), new Vector2(560f, 130f), "Start Game",
                 () => { _titleExiting = true; _titleExitT = 0f; if (_titleStartButton != null) _titleStartButton.interactable = false; },
                 "btn_grey", "btn_grey_down");
             _titleStartBtn    = startBtn.transform;
             _titleStartButton = startBtn.GetComponent<Button>();
+            var startBtnImg = startBtn.GetComponent<Image>();
+            if (startBtnImg != null) startBtnImg.color = new Color(1f, 1f, 1f, 0.55f);
         }
 
         void BuildOpeningIntro(Transform root)
@@ -2328,14 +2337,10 @@ namespace Gamex.Game
                 float a = Mathf.Clamp01((_titleT - TITLE_TAGLINE_DELAY) / TITLE_TAGLINE_DURATION);
                 var c = _titleTagline.color; c.a = a; _titleTagline.color = c;
             }
-            if (_titleStartBtn != null)
-            {
-                // 1 + amp * sin gives a symmetric scale around 1.0 — never
-                // grows beyond 1 + amp so the button never visually clips
-                // its rect or surrounding candles.
-                float s = 1f + TITLE_PULSE_AMP * Mathf.Sin(_titleT * (Mathf.PI * 2f / TITLE_PULSE_PERIOD));
-                _titleStartBtn.localScale = new Vector3(s, s, 1f);
-            }
+            // Start Game pulse removed — the button now reads as a faded
+            // stone tablet sitting on the stair, and a scaling tablet
+            // looks more like a flickering UI bug than a deliberate
+            // breathing effect against the static painted bg.
 
             // Crown halo breathing — slow ~3.4s cycle on the Kenney glow
             // sprite. Alpha rides between 0.28 and 0.42, scale rides ±2%,
