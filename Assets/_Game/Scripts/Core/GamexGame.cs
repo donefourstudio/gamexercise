@@ -243,9 +243,10 @@ namespace Gamex.Core
                 }
             }
 
-            state.todaySteps      = 0;
-            state.todayRunSteps   = 0;
-            state.todayRunSeconds = 0;
+            state.todaySteps           = 0;
+            state.todayRunSteps        = 0;
+            state.todayRunSeconds      = 0;
+            state.todayHealthKitSteps  = 0;   // fresh baseline so the next HK sync writes the full new-day total as delta
             if (state.questDone == null || state.questDone.Length != (int)Quest.Count)
                 state.questDone = new bool[(int)Quest.Count];
             else

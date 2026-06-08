@@ -178,5 +178,18 @@ namespace Gamex.Core
         // shown again. Survives save migrations since JsonUtility defaults
         // to false for older payloads.
         public bool tutorialDone;
+
+        // HealthKit sync state (iOS only; non-iOS builds keep both fields at 0).
+        //   todayHealthKitSteps = cumulative HK step count at last sync. The
+        //   GameRunner's sync routine computes delta = newSteps - this, calls
+        //   AddActivity(delta, 0, 0), then writes the new total back. Reset
+        //   to 0 in EndDay so a fresh day starts at zero baseline.
+        //   healthKitAsked = true once the OS permission modal has been shown
+        //   (regardless of the user's answer). Prevents the post-tutorial
+        //   trigger from re-prompting on every app launch — iOS itself only
+        //   shows the modal the first time anyway, but we gate at the C#
+        //   layer too so the flow stays clean.
+        public int  todayHealthKitSteps;
+        public bool healthKitAsked;
     }
 }

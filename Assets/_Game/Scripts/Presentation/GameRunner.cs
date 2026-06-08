@@ -1,5 +1,6 @@
 using UnityEngine;
 using Gamex.Core;
+using Gamex.Platform;
 
 namespace Gamex.Game
 {
@@ -110,9 +111,41 @@ namespace Gamex.Game
                 });
         }
 
+        void Start()
+        {
+            // Pull whatever steps HealthKit already has for today (e.g. user
+            // walked around before opening the game). No-op on non-iOS and
+            // when the user hasn't granted HK permission yet.
+            SyncHealthKit();
+        }
+
+        void OnApplicationFocus(bool focused)
+        {
+            // Re-sync when the player returns from another app. iOS doesn't
+            // give us a reliable "step update" push, so we lazily catch up
+            // each time the game becomes interactive.
+            if (focused) SyncHealthKit();
+        }
+
         void Update()
         {
             _hud?.Refresh(_game);
+
+            // First-time HealthKit prompt — fires once, immediately after the
+            // tutorial walkthrough finishes. Timing on purpose: the player has
+            // already seen the mirror / quests / shop so they understand WHY
+            // we need step data, which lifts the permission acceptance rate
+            // versus a cold-boot prompt. iOS only shows the modal once; we
+            // gate at the C# layer via healthKitAsked so a denied user isn't
+            // re-asked every launch (the system would silently no-op anyway,
+            // but the intent is clearer this way).
+            if (_game.state.tutorialDone && !_game.state.healthKitAsked && HealthKitBridge.IsAvailable())
+            {
+                _game.state.healthKitAsked = true;
+                _game.onSave?.Invoke();
+                HealthKitBridge.RequestAuthorization(_ => SyncHealthKit());
+            }
+
             // debug keys for fast iteration
             if (Input.GetKeyDown(KeyCode.E)) _game.EndDay();                  // advance one day
             if (Input.GetKeyDown(KeyCode.R) &&
@@ -137,6 +170,26 @@ namespace Gamex.Game
                 _game.phase = AppPhase.OpeningIntro;
                 Debug.Log("[Gamex] save wiped, replaying opening");
             }
+        }
+
+        // Pulls today's cumulative step total from HealthKit and feeds the
+        // delta since the last sync into the normal AddActivity pipeline.
+        // That keeps quest progress / gold drops / level-ups all firing
+        // through the same code path the debug step key already exercises,
+        // so HK steps and Editor manual steps are interchangeable. EndDay
+        // resets todayHealthKitSteps to 0 so the first sync of a new day
+        // writes the full new-day total as one big delta.
+        void SyncHealthKit()
+        {
+            if (HealthKitBridge.CurrentStatus() != HealthKitBridge.AuthStatus.Authorized) return;
+            HealthKitBridge.QueryTodaySteps(steps =>
+            {
+                if (steps < 0 || _game == null) return;
+                int delta = steps - _game.state.todayHealthKitSteps;
+                if (delta > 0) _game.AddActivity(delta, 0, 0);
+                _game.state.todayHealthKitSteps = steps;
+                _game.onSave?.Invoke();
+            });
         }
 
         static void DisableDefaultSceneObjects()
