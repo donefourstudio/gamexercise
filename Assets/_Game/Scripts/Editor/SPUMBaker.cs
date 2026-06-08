@@ -130,7 +130,7 @@ namespace Gamex.EditorTools
                     Debug.LogError($"[SPUMBaker] bald race-form prefab not found: {p.assetPath}");
                     continue;
                 }
-                BakeOne(prefab, $"{outRoot}/{p.outName}", keepEquip: false, hideHair: true);
+                BakeOne(prefab, $"{outRoot}/{p.outName}", keepEquip: false, hideHair: true, hideArms: true);
                 Debug.Log($"[SPUMBaker] bald race form {p.outName}  <-  {p.assetPath}");
             }
             AssetDatabase.Refresh();
@@ -392,7 +392,7 @@ namespace Gamex.EditorTools
             Object.DestroyImmediate(tex);
         }
 
-        static void BakeOne(GameObject prefab, string outPath, bool keepEquip = true, bool hideHair = false)
+        static void BakeOne(GameObject prefab, string outPath, bool keepEquip = true, bool hideHair = false, bool hideArms = false)
         {
             // Fresh empty scene so leftover GameObjects from previous bakes
             // don't bleed into this render.
@@ -427,6 +427,26 @@ namespace Gamex.EditorTools
                 foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
                 {
                     if (sr.gameObject.name.Contains("Hair")) sr.enabled = false;
+                }
+            }
+
+            // Armless variant — hide the same SRs the Wrists slot overlays
+            // (shoulder / _arm / carm) so the gauntlet sprite is the only
+            // thing drawn at the arm region. Without this, the elf's bare
+            // hand pokes out past the silver cuff because the gauntlet bake
+            // doesn't extend as far down as the elf's open IDLE hand. Chain
+            // match (not just direct name) so we catch SRs nested under
+            // P_LArm / P_RCArm / ArmL / ArmR pivots too.
+            if (hideArms)
+            {
+                string[] armKeys = { "shoulder", "_arm", "carm" };
+                foreach (var sr in instance.GetComponentsInChildren<SpriteRenderer>(true))
+                {
+                    string chain = "";
+                    for (var t = sr.transform; t != null; t = t.parent)
+                        chain += "/" + t.gameObject.name.ToLowerInvariant();
+                    foreach (var kw in armKeys)
+                        if (chain.Contains(kw)) { sr.enabled = false; break; }
                 }
             }
 
