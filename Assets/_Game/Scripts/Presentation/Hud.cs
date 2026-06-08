@@ -2233,16 +2233,41 @@ namespace Gamex.Game
                              List<string> equipped = null, string activeSkin = null)
         {
             if (avatar == null || avatar.portrait == null) return;
-            // Skins are full-body art — their weapons/armor are painted in,
-            // so applying equipment overlays on top would clash. Skip the
-            // overlay routing entirely when a skin is active.
+
+            // Three render paths, in priority order:
+            //   1. Skin active — full-body skin sprite, no overlays
+            //   2. Outfit fully equipped — full-body set composite, no overlays
+            //   3. Race form base — race-form sprite + per-slot equipment overlays
+            //
+            // (2) is the regression fix for "outfit overlays leak the underlying
+            // race form's hair / skin / accessories". Every shop set and the
+            // Knight Set has a pre-baked Sets/<id>.png composite, so when the
+            // player has a fully matching set on we render that one sprite and
+            // skip the overlay routing entirely — same shape as the skin path.
             bool skinActive = !string.IsNullOrEmpty(activeSkin) && Make.Skin(activeSkin) != null;
-            // Helmet-on bald base swap: scan equipped for a Head slot so
-            // Make.Portrait loads {race}_{gender}_bald.png instead of the
-            // haired sprite, preventing hair from clipping through the
-            // overlay. Pre-race (Race.Unset) characters don't wear armour.
+            var activeOutfit = (!skinActive && race != Race.Unset)
+                ? GamexGame.FindActiveOutfit(equipped) : null;
+            Sprite outfitSprite = activeOutfit != null ? Make.SetPreview(activeOutfit.id) : null;
+
+            if (skinActive || outfitSprite != null)
+            {
+                avatar.portrait.sprite = outfitSprite != null ? outfitSprite : Make.Skin(activeSkin);
+                float aOverride = avatar.portrait.color.a;
+                avatar.portrait.color = new Color(1f, 1f, 1f, aOverride);
+                SetOverlay(avatar.sword,     null, aOverride);
+                SetOverlay(avatar.armor,     null, aOverride);
+                SetOverlay(avatar.helmet,    null, aOverride);
+                SetOverlay(avatar.leggings,  null, aOverride);
+                SetOverlay(avatar.gauntlets, null, aOverride);
+                SetOverlay(avatar.boots,     null, aOverride);
+                return;
+            }
+
+            // Race-form path — partial / non-set equipment overlaid on the
+            // bare race form. The bald variant kicks in when a Head slot is
+            // occupied (helmet on a smooth scalp instead of through hair).
             bool helmetEquipped = false;
-            if (!skinActive && race != Race.Unset && equipped != null)
+            if (race != Race.Unset && equipped != null)
             {
                 foreach (var id in equipped)
                     if (GamexGame.SlotOf(id) == GamexGame.EquipSlot.Head) { helmetEquipped = true; break; }
@@ -2251,13 +2276,7 @@ namespace Gamex.Game
                 gender == Gender.Unset ? Gender.Male : gender, curse, race, stage, activeSkin, helmetEquipped);
             float a = avatar.portrait.color.a;
             avatar.portrait.color = new Color(1f, 1f, 1f, a);
-            if (skinActive) equipped = null;
 
-            // Equipment overlays: only on race-form characters (Lv 20+). Pre-race
-            // skeleton / zombie bodies don't wear armour — and the overlay sprites
-            // are positioned for the race-form silhouette anyway. Slot routing
-            // is centralised in GamexGame.SlotOf so the Inventory paper-doll
-            // and the avatar overlay agree on where each item lives.
             string swordId = null, armorId = null, helmetId = null,
                    leggingsId = null, gauntletsId = null, bootsId = null;
             if (race != Race.Unset && equipped != null)

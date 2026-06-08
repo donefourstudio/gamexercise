@@ -562,6 +562,29 @@ namespace Gamex.Core
             return true;
         }
 
+        // Returns the SetDef whose pieces exactly fill the given equipped
+        // list, or null if equipped doesn't match any known outfit. Drives
+        // the "render the full-body composite" path in ApplyAvatarLook so
+        // outfits use one pre-baked sprite (no clipping) instead of N per-
+        // slot overlays on top of the race form (which leak hair / skin /
+        // accessories the equipment overlays can't cover).
+        public static SetDef FindActiveOutfit(System.Collections.Generic.List<string> equipped)
+        {
+            if (equipped == null || equipped.Count == 0) return null;
+            foreach (var set in SetCatalog)
+                if (MatchesPieces(equipped, set.pieces)) return set;
+            if (MatchesPieces(equipped, KnightOutfit.pieces)) return KnightOutfit;
+            return null;
+        }
+
+        static bool MatchesPieces(System.Collections.Generic.List<string> equipped, EquipmentDef[] pieces)
+        {
+            if (equipped.Count != pieces.Length) return false;
+            foreach (var p in pieces)
+                if (!equipped.Contains(p.id)) return false;
+            return true;
+        }
+
         // Equipment slots — the Inventory paper-doll has exactly one cell per slot,
         // so equipping a new item replaces whatever else is in that slot. Catalog
         // IDs follow naming conventions so this routing can be done by string

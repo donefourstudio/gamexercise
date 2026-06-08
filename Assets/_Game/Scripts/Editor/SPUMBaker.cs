@@ -290,25 +290,27 @@ namespace Gamex.EditorTools
             EditorApplication.Exit(0);
         }
 
-        // Full-character Knight Set preview for the Inventory cell — same
-        // BakeOne(keepEquip:true) pipeline the shop sets use. Source is
-        // human_11 (silver bucket-helm + plate); the chain-quest sword from
-        // elf_07 isn't included because BakeOne only renders one prefab and
-        // human_11's IDLE pose reads as "the knight" without the sword.
+        // Full-character Knight Set preview for the Inventory paper-doll —
+        // human_11 (silver bucket-helm + plate + shield) composed with
+        // elf_07's right-hand silver longsword in one render so the
+        // composite reads as the full knight loadout. Both prefabs share
+        // the SPUM coordinate system so the overlay sword lands in the
+        // right-hand position.
         [MenuItem("Tools/Gamex/Bake Knight Set Preview")]
         public static void BakeKnightSetPreview()
         {
             string setsRoot = "Assets/_Game/Resources/Sets";
             Directory.CreateDirectory(setsRoot);
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(KNIGHT_PREFAB_ARMOR);
-            if (prefab == null)
+            var mainPrefab    = AssetDatabase.LoadAssetAtPath<GameObject>(KNIGHT_PREFAB_ARMOR);
+            var overlayPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(KNIGHT_PREFAB_SWORD);
+            if (mainPrefab == null || overlayPrefab == null)
             {
-                Debug.LogError("[SPUMBaker] knight preview prefab not found: " + KNIGHT_PREFAB_ARMOR);
+                Debug.LogError("[SPUMBaker] knight preview prefab missing: armor=" + (mainPrefab == null) + " sword=" + (overlayPrefab == null));
                 return;
             }
             string outPath = $"{setsRoot}/knight_silver_set.png";
-            BakeOne(prefab, outPath, keepEquip: true);
-            Debug.Log("[SPUMBaker] knight_silver_set.png  <-  " + Path.GetFileName(KNIGHT_PREFAB_ARMOR));
+            BakeCompose(mainPrefab, overlayPrefab, outPath, new[] { "weapon" });
+            Debug.Log("[SPUMBaker] knight_silver_set.png  <-  human_11 + elf_07 sword");
             AssetDatabase.Refresh();
         }
 
@@ -495,6 +497,88 @@ namespace Gamex.EditorTools
             // without leaking, and destroy in dependency order.
             cam.targetTexture = null;
             Object.DestroyImmediate(instance);
+            Object.DestroyImmediate(camGO);
+            Object.DestroyImmediate(rt);
+            Object.DestroyImmediate(tex);
+        }
+
+        // Composite bake: render mainPrefab (full gear) with overlayPrefab's
+        // matching SRs drawn into the same image. Used when one SPUM prefab
+        // is missing a piece the equippable set should have — e.g. human_11
+        // (knight armor) has an empty R_Weapon in IDLE, so we add elf_07's
+        // longsword from the same coordinate space.
+        static void BakeCompose(GameObject mainPrefab, GameObject overlayPrefab, string outPath, string[] overlayKeys)
+        {
+            EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+
+            var main = (GameObject)PrefabUtility.InstantiatePrefab(mainPrefab);
+            main.transform.position   = Vector3.zero;
+            main.transform.localScale = Vector3.one;
+
+            var overlay = (GameObject)PrefabUtility.InstantiatePrefab(overlayPrefab);
+            overlay.transform.position   = Vector3.zero;
+            overlay.transform.localScale = Vector3.one;
+
+            // Strip the overlay prefab to only the SRs that match overlayKeys
+            // (chain-walked, case-insensitive). The activation-up-the-tree is
+            // needed because parents can be SetActive(false) in the prefab.
+            foreach (var sr in overlay.GetComponentsInChildren<SpriteRenderer>(true))
+            {
+                string chain = "";
+                for (var t = sr.transform; t != null; t = t.parent)
+                    chain += "/" + t.gameObject.name.ToLowerInvariant();
+                bool keep = false;
+                foreach (var kw in overlayKeys)
+                    if (chain.Contains(kw.ToLowerInvariant())) { keep = true; break; }
+                sr.enabled = keep;
+                if (keep)
+                {
+                    for (var t = sr.transform; t != null && t != overlay.transform.parent; t = t.parent)
+                        if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+                }
+            }
+
+            var camGO = new GameObject("BakeCam");
+            var cam   = camGO.AddComponent<Camera>();
+            cam.orthographic       = true;
+            cam.orthographicSize   = 0.6f;
+            cam.transform.position = new Vector3(0f, 0.35f, -10f);
+            cam.clearFlags         = CameraClearFlags.SolidColor;
+            cam.backgroundColor    = new Color(0f, 0f, 0f, 0f);
+            cam.cullingMask        = ~0;
+
+            foreach (var anim in main.GetComponentsInChildren<Animator>())
+            {
+                if (anim.runtimeAnimatorController != null)
+                {
+                    anim.Update(0f); anim.Play(0, 0, 0f); anim.Update(0f);
+                }
+            }
+            foreach (var anim in overlay.GetComponentsInChildren<Animator>())
+            {
+                if (anim.runtimeAnimatorController != null)
+                {
+                    anim.Update(0f); anim.Play(0, 0, 0f); anim.Update(0f);
+                }
+            }
+
+            var rt = new RenderTexture(SIZE, SIZE, 32, RenderTextureFormat.ARGB32);
+            cam.targetTexture = rt;
+            cam.Render();
+
+            var prev = RenderTexture.active;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(SIZE, SIZE, TextureFormat.RGBA32, false);
+            tex.ReadPixels(new Rect(0, 0, SIZE, SIZE), 0, 0);
+            tex.Apply();
+            RenderTexture.active = prev;
+
+            Directory.CreateDirectory(Path.GetDirectoryName(outPath));
+            File.WriteAllBytes(outPath, tex.EncodeToPNG());
+
+            cam.targetTexture = null;
+            Object.DestroyImmediate(main);
+            Object.DestroyImmediate(overlay);
             Object.DestroyImmediate(camGO);
             Object.DestroyImmediate(rt);
             Object.DestroyImmediate(tex);
