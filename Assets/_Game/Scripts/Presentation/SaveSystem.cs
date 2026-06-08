@@ -16,7 +16,13 @@ namespace Gamex.Game
 
         public static void Save(GameState s)
         {
-            try { File.WriteAllText(Path, JsonUtility.ToJson(s)); }
+            try
+            {
+                // Stamp the current schema version on every write so loads of
+                // this file don't run unnecessary migrations next session.
+                if (s != null) s.schemaVersion = Migrations.CurrentVersion;
+                File.WriteAllText(Path, JsonUtility.ToJson(s));
+            }
             catch (System.Exception e) { Debug.LogWarning("[Gamex] save failed: " + e.Message); }
         }
 
@@ -25,7 +31,13 @@ namespace Gamex.Game
             try
             {
                 if (File.Exists(Path))
-                    return JsonUtility.FromJson<GameState>(File.ReadAllText(Path));
+                {
+                    var s = JsonUtility.FromJson<GameState>(File.ReadAllText(Path));
+                    // Run the migration ladder before handing the state back —
+                    // old saves get fields backfilled, future saves no-op.
+                    Migrations.Apply(s);
+                    return s;
+                }
             }
             catch (System.Exception e) { Debug.LogWarning("[Gamex] load failed: " + e.Message); }
             return null;

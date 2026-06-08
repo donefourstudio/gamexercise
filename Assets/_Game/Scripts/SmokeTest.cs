@@ -16,6 +16,25 @@ namespace Gamex.Game
             int fails = 0;
             void Check(bool cond, string msg) { if (!cond) { Debug.LogError("[LOGIC FAIL] " + msg); fails++; } }
 
+            // Schema migration runs first — independent of game state and the
+            // later (stale) coin / catalog tests, so a regression here is
+            // never masked by an earlier failure. JSON without a
+            // schemaVersion field (the pre-2026-06 save format) deserialises
+            // with the field at 0; Migrations.Apply bumps it to
+            // CurrentVersion while preserving all other fields.
+            var v0Json = "{\"level\":5,\"coins\":123}";
+            var v0 = JsonUtility.FromJson<GameState>(v0Json);
+            Check(v0.schemaVersion == 0, "legacy save deserialises as v0, got " + v0.schemaVersion);
+            Migrations.Apply(v0);
+            Check(v0.schemaVersion == Migrations.CurrentVersion,
+                  $"Apply bumps to current v{Migrations.CurrentVersion}, got v{v0.schemaVersion}");
+            Check(v0.level == 5 && v0.coins == 123,
+                  "Apply preserves pre-existing fields, got lvl=" + v0.level + " coins=" + v0.coins);
+            // Idempotency — re-running Apply on a current-version save is a
+            // no-op (no field corruption, version stays put).
+            Migrations.Apply(v0);
+            Check(v0.schemaVersion == Migrations.CurrentVersion, "Apply is idempotent on current-version save");
+
             // Linear XP: 5000 steps per level, no curve.
             var g = new GamexGame();
             Check(g.state.level == 1, "starts at lv 1");

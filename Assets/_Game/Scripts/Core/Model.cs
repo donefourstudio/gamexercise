@@ -139,6 +139,18 @@ namespace Gamex.Core
     [Serializable]
     public class GameState
     {
+        // Save schema version. Zero means "pre-versioning save written before
+        // 2026-06" — Migrations.Apply bumps these to the current version on
+        // load, running any field-rename / type-change migrations along the
+        // way. JsonUtility serialises this just like any other public field
+        // and deserialises missing-in-JSON to 0 (the default), so old saves
+        // light up the migration path automatically.
+        //
+        // **To roll a new schema version**: add a `if (s.schemaVersion < N)
+        // { ... transform ... ; s.schemaVersion = N; }` block to
+        // Migrations.Apply, then bump Migrations.CurrentVersion to N.
+        public int schemaVersion;
+
         // ---- skins (Phase 4) ----
         public string activeSkin;      // empty/null = race form; otherwise SkinDef.id whose sprite to render
         public List<string> ownedSkins = new(); // every skin id the player has purchased
