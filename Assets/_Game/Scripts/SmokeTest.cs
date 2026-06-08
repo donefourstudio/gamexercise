@@ -206,8 +206,12 @@ namespace Gamex.Game
             var runner = FindFirstObjectByType<GameRunner>();
             if (runner == null || runner.Game == null) { Debug.LogWarning("[Smoke] no runner"); EditorApplication.Exit(1); yield break; }
 
-            // Title screen — cold-launch landing. Capture then click the
-            // Start Game button so subsequent captures see the opening flow.
+            // Title screen — cold-launch landing. Wait for the wordmark +
+            // tagline fade-in (~0.7s) and a beat of the Start Game pulse so
+            // the steady-state composition lands in the screenshot, then
+            // click the Start Game button so subsequent captures continue
+            // through the opening flow.
+            yield return new WaitForSecondsRealtime(0.8f);
             Capture("/tmp/gamex_title.png");
             var startBtn = GameObject.Find("StartGame")?.GetComponent<UnityEngine.UI.Button>();
             if (startBtn != null) startBtn.onClick.Invoke();

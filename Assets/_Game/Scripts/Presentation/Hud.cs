@@ -33,6 +33,18 @@ namespace Gamex.Game
 
         // ---- panels ----
         GameObject _titlePanel;
+        // Title screen polish — fade-in for the wordmark + tagline and a
+        // continuous gentle pulse on the Start Game CTA. _titleT counts up
+        // from 0 on every Title entry so the same animation plays each cold
+        // start. Stored references avoid GameObject.Find in Refresh.
+        Text _titleWordmark, _titleTagline;
+        Transform _titleStartBtn;
+        float _titleT;
+        const float TITLE_FADEIN_DURATION   = 0.6f;
+        const float TITLE_TAGLINE_DELAY     = 0.3f;
+        const float TITLE_TAGLINE_DURATION  = 0.4f;
+        const float TITLE_PULSE_PERIOD      = 1.8f;
+        const float TITLE_PULSE_AMP         = 0.04f;
         GameObject _openingIntroPanel, _openingHeroShownPanel, _openingCurseLoomsPanel, _openingAmnesiaPanel;
         GameObject _curseAnimPanel;
         GameObject _raceSelectPanel, _raceAnimPanel;
@@ -499,18 +511,46 @@ namespace Gamex.Game
         // cinematic the instant the app loads. New players continue to
         // OpeningIntro from here; returning players jump to Home (or
         // RaceSelect mid-run) via GameRunner.DetermineInitialPhase.
+        //
+        // Composition reuses the in-game "throne room" visual language —
+        // a gold crown centred over the wordmark and four lit candles
+        // framing the screen — so the launch screen reads as part of the
+        // same world the rest of the UI inhabits. Fade-in and CTA pulse
+        // are driven from Refresh via _titleT.
         void BuildTitle(Transform root)
         {
             _titlePanel = MkFullPanel("TitlePanel", root);
 
-            MkText("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -540f),
-                new Vector2(1000f, 180f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Gamexercise";
+            // Crown floats above the wordmark, matching the home mirror's
+            // "crown on the head" motif. Keep it modest — too large reads
+            // as a logo, this is meant to feel decorative.
+            MkSpriteIcon("Crown", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -380f),
+                new Vector2(180f, 130f), "crown_gold", Color.white);
 
-            MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -720f),
-                new Vector2(1000f, 60f), FS_BTN, TextAnchor.UpperCenter, TextDim).text = "Walk. Train. Reign.";
+            _titleWordmark = MkText("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -560f), new Vector2(1000f, 180f), FS_TITLE, TextAnchor.UpperCenter, AccentGold);
+            _titleWordmark.text = "Gamexercise";
 
-            MkButton("StartGame", _titlePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 540f),
-                new Vector2(800f, 160f), "Start Game", () => _onLeaveTitle?.Invoke());
+            _titleTagline = MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -740f), new Vector2(1000f, 60f), FS_BTN, TextAnchor.UpperCenter, TextDim);
+            _titleTagline.text = "Walk. Train. Reign.";
+
+            // Four candles framing the screen — top corners flank the
+            // crown / wordmark cluster, bottom corners flank the CTA. Same
+            // sprite + size as the home mirror's candle quartet so the
+            // visual rhyme lands automatically.
+            MkSpriteIcon("CandleTL", _titlePanel.transform, new Vector2(0f, 1f), new Vector2(140f, -260f),
+                new Vector2(110f, 180f), "candle_lit", Color.white);
+            MkSpriteIcon("CandleTR", _titlePanel.transform, new Vector2(1f, 1f), new Vector2(-140f, -260f),
+                new Vector2(110f, 180f), "candle_lit", Color.white);
+            MkSpriteIcon("CandleBL", _titlePanel.transform, new Vector2(0f, 0f), new Vector2(140f, 320f),
+                new Vector2(110f, 180f), "candle_lit", Color.white);
+            MkSpriteIcon("CandleBR", _titlePanel.transform, new Vector2(1f, 0f), new Vector2(-140f, 320f),
+                new Vector2(110f, 180f), "candle_lit", Color.white);
+
+            var startBtn = MkButton("StartGame", _titlePanel.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 540f), new Vector2(800f, 160f), "Start Game", () => _onLeaveTitle?.Invoke());
+            _titleStartBtn = startBtn.transform;
         }
 
         void BuildOpeningIntro(Transform root)
@@ -1511,6 +1551,7 @@ namespace Gamex.Game
             {
                 if (g.phase == AppPhase.CurseAnim)         _curseAnimT = 0f;
                 if (g.phase == AppPhase.RaceTransformAnim) _raceAnimT  = 0f;
+                if (g.phase == AppPhase.Title)             _titleT     = 0f;
                 _lastPhase = g.phase;
             }
 
@@ -1589,6 +1630,7 @@ namespace Gamex.Game
             }
 
             Set(_titlePanel,              g.phase == AppPhase.Title);
+            if (g.phase == AppPhase.Title) UpdateTitle();
             Set(_openingIntroPanel,       g.phase == AppPhase.OpeningIntro);
             Set(_openingHeroShownPanel,   g.phase == AppPhase.OpeningHeroShown);
             Set(_openingCurseLoomsPanel,  g.phase == AppPhase.OpeningCurseLooms);
@@ -2181,6 +2223,37 @@ namespace Gamex.Game
             {
                 _invGridIds[i] = null;
                 if (_invGridRoots[i].activeSelf) _invGridRoots[i].SetActive(false);
+            }
+        }
+
+        // Title screen tick — drives the wordmark / tagline fade-in and a
+        // gentle continuous pulse on the Start Game button so the screen
+        // breathes while waiting for the player to commit. _titleT is reset
+        // to 0 on phase entry (see the phase-change block at the top of
+        // Refresh) so each cold start replays the intro from the beginning.
+        void UpdateTitle()
+        {
+            _titleT += Time.unscaledDeltaTime;
+
+            if (_titleWordmark != null)
+            {
+                float a = Mathf.Clamp01(_titleT / TITLE_FADEIN_DURATION);
+                var c = _titleWordmark.color; c.a = a; _titleWordmark.color = c;
+            }
+            if (_titleTagline != null)
+            {
+                // Tagline starts a beat after the wordmark so the eye lands
+                // on the title first, then the subtitle resolves.
+                float a = Mathf.Clamp01((_titleT - TITLE_TAGLINE_DELAY) / TITLE_TAGLINE_DURATION);
+                var c = _titleTagline.color; c.a = a; _titleTagline.color = c;
+            }
+            if (_titleStartBtn != null)
+            {
+                // 1 + amp * sin gives a symmetric scale around 1.0 — never
+                // grows beyond 1 + amp so the button never visually clips
+                // its rect or surrounding candles.
+                float s = 1f + TITLE_PULSE_AMP * Mathf.Sin(_titleT * (Mathf.PI * 2f / TITLE_PULSE_PERIOD));
+                _titleStartBtn.localScale = new Vector3(s, s, 1f);
             }
         }
 
