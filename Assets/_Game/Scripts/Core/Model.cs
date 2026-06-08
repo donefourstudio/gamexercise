@@ -38,6 +38,9 @@ namespace Gamex.Core
         // race cinematic (M3c+M3d), then back to Home.
         RaceSelect,
         RaceTransformAnim,
+        // Audio toggles + HealthKit re-link + reset-save. Reachable from a
+        // small button at the top-right of Home; closes back to Home.
+        Settings,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
@@ -191,5 +194,11 @@ namespace Gamex.Core
         //   layer too so the flow stays clean.
         public int  todayHealthKitSteps;
         public bool healthKitAsked;
+
+        // Audio mutes (inverted so the default-false JsonUtility deserialization
+        // for old saves means "audio enabled" — matches user expectation that
+        // upgrading the app doesn't suddenly silence the game).
+        public bool sfxMuted;
+        public bool bgmMuted;
     }
 }

@@ -118,6 +118,7 @@ namespace Gamex.Core
         public void GoShop()     { phase = AppPhase.Shop;       activeSetId = null; onSave?.Invoke(); }
         public void GoInventory(){ phase = AppPhase.Inventory;  onSave?.Invoke(); }
         public void GoSetDetail(string setId) { activeSetId = setId; phase = AppPhase.SetDetail; onSave?.Invoke(); }
+        public void GoSettings() => phase = AppPhase.Settings;
         // Currently-open set on the SetDetail screen. Cleared whenever we
         // navigate back to plain Shop or anywhere else.
         public string activeSetId;

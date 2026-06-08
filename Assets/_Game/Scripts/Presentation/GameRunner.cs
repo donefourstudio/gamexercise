@@ -108,7 +108,27 @@ namespace Gamex.Game
                     }
                     _game.ApplyOutfit(id);
                     Sfx.Play("apply_outfit");
+                },
+                onGoSettings:    () => _game.GoSettings(),
+                onToggleSfx:     () => { _game.state.sfxMuted = !_game.state.sfxMuted; Sfx.Enabled = !_game.state.sfxMuted; _game.onSave?.Invoke(); if (Sfx.Enabled) Sfx.Play("tap"); },
+                onToggleBgm:     () => { _game.state.bgmMuted = !_game.state.bgmMuted; Bgm.Enabled = !_game.state.bgmMuted; if (_game.state.bgmMuted) Bgm.Stop(); _game.onSave?.Invoke(); Sfx.Play("tap"); },
+                onResetProgress: () =>
+                {
+                    SaveSystem.Wipe();
+                    _game.state = new GameState();
+                    _game.phase = AppPhase.OpeningIntro;
+                    // SyncHealthKit reads state.todayHealthKitSteps which is
+                    // now 0, so the next focus event will write the full HK
+                    // total as one delta — same as a fresh-install flow.
+                    Sfx.Play("milestone");   // gives the reset some weight
                 });
+
+            // Mirror persisted audio mutes into the Sfx/Bgm singletons so the
+            // very first Refresh after Hud construction respects them. The
+            // GamexGame state was loaded from disk in Awake before we got
+            // here; flipping the toggles via Settings keeps these in sync.
+            Sfx.Enabled = !_game.state.sfxMuted;
+            Bgm.Enabled = !_game.state.bgmMuted;
         }
 
         void Start()

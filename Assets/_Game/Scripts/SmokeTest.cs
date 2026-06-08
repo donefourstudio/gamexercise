@@ -367,6 +367,14 @@ namespace Gamex.Game
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_inventory.png");
 
+            // Settings panel — audio mutes, HealthKit status, reset button.
+            // Captured with the SFX row toggled off so the inverted state
+            // reads in the screenshot ("Sound effects: OFF").
+            runner.Game.state.sfxMuted = true;
+            runner.Game.GoSettings();
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            Capture("/tmp/gamex_settings.png");
+
             yield return new WaitForSecondsRealtime(0.2f);
             Debug.Log("[SmokeTest] ran cleanly, exiting");
             EditorApplication.Exit(0);

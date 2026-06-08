@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 using Gamex.Core;
+using Gamex.Platform;
 
 namespace Gamex.Game
 {
@@ -36,6 +37,14 @@ namespace Gamex.Game
         GameObject _raceSelectPanel, _raceAnimPanel;
         GameObject _cursePanel, _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
         GameObject _inventoryPanel;
+        GameObject _settingsPanel;
+        Text _settingsSfxLabel, _settingsBgmLabel, _settingsHKLabel, _settingsResetLabel;
+        // Two-tap confirm timer for Reset Progress. First tap arms the
+        // button (label flips to "Tap again to confirm" + red tint) and
+        // sets _resetArmedUntil; second tap within the window actually
+        // wipes the save. Stored as unscaled time so it survives pause.
+        float _resetArmedUntil;
+        const float RESET_CONFIRM_WINDOW = 3f;
         // _genderPanel removed — gender chosen at Lv 20 RaceSelect (Q2=C)
 
         // ---- avatars ----
@@ -275,6 +284,7 @@ namespace Gamex.Game
         readonly Action         _onFinishFirstMirror;
         readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onGoInventory, _onFakeRep;
         readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet, _onSkinAction, _onApplyOutfit;
+        readonly Action         _onGoSettings, _onToggleSfx, _onToggleBgm, _onResetProgress;
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -293,7 +303,11 @@ namespace Gamex.Game
             Action<string> onGoSetDetail,
             Action<string> onBuySet,
             Action<string> onSkinAction,
-            Action<string> onApplyOutfit)
+            Action<string> onApplyOutfit,
+            Action onGoSettings,
+            Action onToggleSfx,
+            Action onToggleBgm,
+            Action onResetProgress)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -312,6 +326,10 @@ namespace Gamex.Game
             _onBuySet              = onBuySet;
             _onSkinAction          = onSkinAction;
             _onApplyOutfit         = onApplyOutfit;
+            _onGoSettings          = onGoSettings;
+            _onToggleSfx           = onToggleSfx;
+            _onToggleBgm           = onToggleBgm;
+            _onResetProgress       = onResetProgress;
 
             if (EventSystem.current == null)
             {
@@ -345,6 +363,7 @@ namespace Gamex.Game
             BuildInventory(root);
             BuildRaceSelect(root);
             BuildRaceTransformAnim(root);
+            BuildSettings(root);
             BuildTutorialOverlay(root);
         }
 
@@ -717,6 +736,13 @@ namespace Gamex.Game
                 new Vector2(800f, 160f), "Quests", () => _onGoQuests?.Invoke());
             MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
+
+            // Settings — small button at the top-right corner, below the coin
+            // counter. Intentionally low-key so it doesn't draw attention away
+            // from the mirror, but reachable for audio mute / HealthKit re-link
+            // / reset progress without burying it behind a long-press.
+            MkButton("SettingsBtn", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-160f, -180f),
+                new Vector2(280f, 70f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
@@ -1184,6 +1210,86 @@ namespace Gamex.Game
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
         }
 
+        // Settings panel — audio mute toggles, HealthKit status + open-iOS-
+        // Settings shortcut, two-tap Reset Progress. Dynamic state (labels)
+        // is refreshed in UpdateSettings; this method just builds the
+        // skeleton once at boot.
+        void BuildSettings(Transform root)
+        {
+            _settingsPanel = MkFullPanel("SettingsPanel", root);
+
+            MkText("Title", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -90f),
+                new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Settings";
+
+            // Section: Audio
+            MkText("AudioHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -240f),
+                new Vector2(800f, 50f), FS_BODY, TextAnchor.UpperCenter, AccentGold).text = "Audio";
+
+            _settingsSfxLabel = MkButtonWithLabel("SfxRow", _settingsPanel.transform,
+                new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Vector2(880f, 90f),
+                "Sound effects: ON", () => _onToggleSfx?.Invoke());
+
+            _settingsBgmLabel = MkButtonWithLabel("BgmRow", _settingsPanel.transform,
+                new Vector2(0.5f, 1f), new Vector2(0f, -450f), new Vector2(880f, 90f),
+                "Music: OFF", () => _onToggleBgm?.Invoke());
+
+            // Section: HealthKit (iOS surfaces status; non-iOS shows "Unavailable" + non-clickable)
+            MkText("HKHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -580f),
+                new Vector2(800f, 50f), FS_BODY, TextAnchor.UpperCenter, AccentGold).text = "HealthKit";
+
+            _settingsHKLabel = MkButtonWithLabel("HKRow", _settingsPanel.transform,
+                new Vector2(0.5f, 1f), new Vector2(0f, -680f), new Vector2(880f, 90f),
+                "HealthKit: Not connected (tap to open Settings)", OpenHealthKitSettings);
+
+            // Section: Data
+            MkText("DataHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -810f),
+                new Vector2(800f, 50f), FS_BODY, TextAnchor.UpperCenter, AccentGold).text = "Data";
+
+            _settingsResetLabel = MkButtonWithLabel("ResetRow", _settingsPanel.transform,
+                new Vector2(0.5f, 1f), new Vector2(0f, -910f), new Vector2(880f, 90f),
+                "Reset progress", HandleResetTap);
+
+            MkButton("Back", _settingsPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
+        }
+
+        // Helper — clickable text row styled as a grey button. Returns the
+        // Text component so the caller can update the label later (e.g.
+        // "Sound effects: ON" -> "Sound effects: OFF" after a toggle).
+        Text MkButtonWithLabel(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
+                               string label, Action onClick)
+        {
+            var go = MkButton(name, parent, anchor, pos, size, label, onClick, "btn_grey", "btn_grey_down");
+            // The label Text is added as a child by MkButton; fetch it back so
+            // UpdateSettings can mutate the text without re-creating the button.
+            var labelT = go.transform.Find("Label")?.GetComponent<Text>();
+            return labelT;
+        }
+
+        // First tap arms the confirm window; second tap within RESET_CONFIRM_WINDOW
+        // seconds calls onResetProgress. Window timer is shown via the row label
+        // ("Tap again to confirm (3s)"); UpdateSettings repaints it every frame.
+        void HandleResetTap()
+        {
+            float now = Time.unscaledTime;
+            if (now < _resetArmedUntil) { _resetArmedUntil = 0f; _onResetProgress?.Invoke(); }
+            else                          _resetArmedUntil = now + RESET_CONFIRM_WINDOW;
+        }
+
+        // iOS apps can't re-trigger the HealthKit permission modal — once the
+        // user has answered (or denied), the OS remembers and silently no-ops
+        // subsequent requestAuthorization calls. The supported pattern is to
+        // deep-link to the app's own iOS Settings page where Health toggles
+        // live under "Health" subpage. UIApplication.openSettingsURLString
+        // resolves to "app-settings:" which Application.OpenURL can fire on
+        // iOS. No-op on other platforms (Settings panel is iOS-meaningful only).
+        static void OpenHealthKitSettings()
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            Application.OpenURL("app-settings:");
+#endif
+        }
+
         // ============================================================
         // First-run tutorial coach-marks. Four dim rects form a cutout
         // around the active step's target; the caption + Next button live
@@ -1472,6 +1578,8 @@ namespace Gamex.Game
             Set(_inventoryPanel,          g.phase == AppPhase.Inventory);
             Set(_raceSelectPanel,         g.phase == AppPhase.RaceSelect);
             Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
+            Set(_settingsPanel,           g.phase == AppPhase.Settings);
+            if (g.phase == AppPhase.Settings) UpdateSettings(g);
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {
@@ -2048,6 +2156,42 @@ namespace Gamex.Game
             {
                 _invGridIds[i] = null;
                 if (_invGridRoots[i].activeSelf) _invGridRoots[i].SetActive(false);
+            }
+        }
+
+        // Settings panel refresh — repaints the 4 row labels every frame so
+        // toggles + HK status + the reset-confirm countdown reflect live
+        // state. Cheap (4 Text mutations) so running on every Refresh is fine.
+        void UpdateSettings(GamexGame g)
+        {
+            if (_settingsSfxLabel != null)
+                _settingsSfxLabel.text = "Sound effects: " + (g.state.sfxMuted ? "OFF" : "ON");
+            if (_settingsBgmLabel != null)
+                _settingsBgmLabel.text = "Music: " + (g.state.bgmMuted ? "OFF (clip pending)" : "ON (clip pending)");
+
+            if (_settingsHKLabel != null)
+            {
+                string hk;
+                if (!HealthKitBridge.IsAvailable()) hk = "Not available on this device";
+                else switch (HealthKitBridge.CurrentStatus())
+                {
+                    case HealthKitBridge.AuthStatus.Authorized: hk = "Connected (tap to open iOS Settings)"; break;
+                    case HealthKitBridge.AuthStatus.Denied:     hk = "Denied (tap to open iOS Settings)"; break;
+                    default:                                    hk = "Not yet asked"; break;
+                }
+                _settingsHKLabel.text = hk;
+            }
+
+            if (_settingsResetLabel != null)
+            {
+                float remaining = _resetArmedUntil - Time.unscaledTime;
+                if (remaining > 0f)
+                    _settingsResetLabel.text = $"Tap again to confirm ({Mathf.CeilToInt(remaining)}s)";
+                else
+                {
+                    _resetArmedUntil = 0f;
+                    _settingsResetLabel.text = "Reset progress";
+                }
             }
         }
 

@@ -15,6 +15,12 @@ namespace Gamex.Game
         const float THROTTLE_S = 0.04f;
         const float DEFAULT_VOLUME = 0.65f;
 
+        // Global mute, mirrored from PlayerState.sfxMuted by GameRunner so the
+        // Settings panel can flip it without every Sfx.Play call site needing
+        // to check state. Default true so audio is on for the very first frame
+        // before the runner finishes loading save data.
+        public static bool Enabled = true;
+
         static AudioSource _src;
         static readonly Dictionary<string, AudioClip> _clipCache = new();
         static readonly Dictionary<string, float>     _lastPlayed = new();
@@ -32,6 +38,7 @@ namespace Gamex.Game
 
         public static void Play(string name, float volume = 1f)
         {
+            if (!Enabled) return;
             if (string.IsNullOrEmpty(name)) return;
             float now = Time.unscaledTime;
             if (_lastPlayed.TryGetValue(name, out var t) && now - t < THROTTLE_S) return;
@@ -53,6 +60,13 @@ namespace Gamex.Game
     public static class Bgm
     {
         const float DEFAULT_VOLUME = 0.32f;   // sits well behind SFX
+
+        // Mirrored from PlayerState.bgmMuted (see Sfx.Enabled rationale).
+        // When flipped to false mid-track, the next PlayLoop call early-exits
+        // — but a Stop() is needed to halt audio already playing, so Settings
+        // panel calls Bgm.Stop() right after flipping this.
+        public static bool Enabled = true;
+
         static UnityEngine.AudioSource _src;
         static string _current;
 
@@ -70,6 +84,7 @@ namespace Gamex.Game
 
         public static void PlayLoop(string name)
         {
+            if (!Enabled) { Stop(); return; }
             if (string.IsNullOrEmpty(name)) { Stop(); return; }
             if (_current == name && Source().isPlaying) return;
             var clip = UnityEngine.Resources.Load<UnityEngine.AudioClip>("Audio/" + name);
