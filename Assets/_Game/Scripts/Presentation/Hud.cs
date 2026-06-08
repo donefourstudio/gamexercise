@@ -1384,17 +1384,14 @@ namespace Gamex.Game
                 _lastPhase = g.phase;
             }
 
-            // Background music — calm drone on every screen the player lingers on.
-            // Idempotent: PlayLoop no-ops if the same track is already playing,
-            // so calling it every Refresh is cheap. Cinematics (CurseAnim,
-            // RaceTransformAnim) stay quiet so the SFX hits land hard.
-            bool bgmOn = g.phase == AppPhase.Home
-                      || g.phase == AppPhase.Quests
-                      || g.phase == AppPhase.Shop
-                      || g.phase == AppPhase.SetDetail
-                      || g.phase == AppPhase.Inventory;
-            if (bgmOn) Bgm.PlayLoop("bgm_home");
-            else       Bgm.Stop();
+            // Background music disabled while Jackson sources a replacement
+            // for the placeholder bgm_home.wav (uncomfortable to listen to).
+            // The Bgm singleton stays wired and Stop() is called every Refresh
+            // so any in-progress loop from a prior build is halted on the next
+            // tick. When the new clip lands, swap this for:
+            //   bool bgmOn = g.phase == AppPhase.Home || ... ;
+            //   if (bgmOn) Bgm.PlayLoop("<new_clip_name>"); else Bgm.Stop();
+            Bgm.Stop();
 
             // First-run tutorial. Process the pending-finish flag BEFORE the
             // trigger check — otherwise the trigger fires again on the same
