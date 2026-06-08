@@ -41,6 +41,8 @@ namespace Gamex.Game
         // refs avoid GameObject.Find in Refresh.
         Text _titleWordmark, _titleTagline;
         Image _titleCrown;
+        Image _titleCrownHalo;   // Kenney particle-pack glow_round behind the crown; breathes via UpdateTitle
+        Image _titleDivider;     // Kenney fantasy-ui-borders divider_ornate under the tagline
         Image[] _titleCandles = new Image[4];
         Transform _titleStartBtn;
         Button _titleStartButton;
@@ -536,6 +538,17 @@ namespace Gamex.Game
             // conflict (fade-in alpha * exit alpha).
             _titleCanvasGroup = _titlePanel.AddComponent<CanvasGroup>();
 
+            // Crown halo — Kenney particle-pack glow_round (a radial soft
+            // gradient, 512x512 of white falloff). Tinted gold + scaled
+            // generously behind the crown+wordmark cluster so the focal
+            // point reads as "the throne shines". Centred between the
+            // crown and the tagline so the warm glow covers both. Breathing
+            // animation lives in UpdateTitle.
+            _titleCrownHalo = MkSpriteIcon("CrownHalo", _titlePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -520f), new Vector2(620f, 620f), "glow_round",
+                new Color(1f, 0.85f, 0.40f, 0.22f)).GetComponent<Image>();
+            _titleCrownHalo.raycastTarget = false;
+
             // Crown floats above the wordmark, matching the home mirror's
             // "crown on the head" motif. Keep it modest — too large reads
             // as a logo, this is meant to feel decorative.
@@ -549,6 +562,19 @@ namespace Gamex.Game
             _titleTagline = MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f),
                 new Vector2(0f, -740f), new Vector2(1000f, 60f), FS_BTN, TextAnchor.UpperCenter, TextDim);
             _titleTagline.text = "Walk. Train. Reign.";
+
+            // Decorative divider — Kenney fantasy-ui-borders divider_ornate
+            // is asymmetric (key-shape on one end, fade on the other), so
+            // we render TWO mirrored halves with the key-ends pointing
+            // outward and the fades meeting at centre. Closes off the
+            // title cluster with a "Mystic Vale"-style rule.
+            _titleDivider = MkSpriteIcon("TitleDividerL", _titlePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(-175f, -850f), new Vector2(350f, 48f), "divider_ornate", AccentGold).GetComponent<Image>();
+            _titleDivider.raycastTarget = false;
+            var divR = MkSpriteIcon("TitleDividerR", _titlePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(175f, -850f), new Vector2(350f, 48f), "divider_ornate", AccentGold).GetComponent<Image>();
+            divR.raycastTarget = false;
+            divR.rectTransform.localScale = new Vector3(-1f, 1f, 1f);   // horizontal mirror
 
             // Four candles framing the screen — top corners flank the
             // crown / wordmark cluster, bottom corners flank the CTA. Same
@@ -2284,6 +2310,19 @@ namespace Gamex.Game
                 // its rect or surrounding candles.
                 float s = 1f + TITLE_PULSE_AMP * Mathf.Sin(_titleT * (Mathf.PI * 2f / TITLE_PULSE_PERIOD));
                 _titleStartBtn.localScale = new Vector3(s, s, 1f);
+            }
+
+            // Crown halo breathing — slow ~3.4s cycle on the Kenney glow
+            // sprite. Alpha rides between 0.28 and 0.42, scale rides ±2%,
+            // both phase-offset from the candle flicker so the throne-
+            // room "lights" don't pulse in lockstep.
+            if (_titleCrownHalo != null)
+            {
+                float haloT  = _titleT * (Mathf.PI * 2f / 3.4f);
+                float haloA  = 0.35f + 0.07f * Mathf.Sin(haloT);
+                float haloS  = 1f    + 0.02f * Mathf.Sin(haloT + 0.6f);
+                var col = _titleCrownHalo.color; col.a = haloA; _titleCrownHalo.color = col;
+                _titleCrownHalo.rectTransform.localScale = new Vector3(haloS, haloS, 1f);
             }
 
             // Candle flicker — each lamp gets a hardcoded phase + frequency
