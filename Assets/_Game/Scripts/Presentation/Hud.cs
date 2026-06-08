@@ -2011,6 +2011,29 @@ namespace Gamex.Game
                 if (!_invGridRoots[gridIdx].activeSelf) _invGridRoots[gridIdx].SetActive(true);
                 gridIdx++;
             }
+            // Knight Set sits outside SetCatalog (it's a chain-quest reward,
+            // not a shop bundle), so the SetCatalog loop above never sees it.
+            // Render it as its own cell once the chain has granted all 6
+            // pieces — tap routes through ApplyOutfit("knight_silver_set")
+            // because FindSet picks up KnightOutfit as a fallback.
+            if (gridIdx < INV_GRID_CAPACITY)
+            {
+                var knight = GamexGame.KnightOutfit;
+                bool fullyOwned = true;
+                foreach (var p in knight.pieces)
+                    if (!g.IsOwned(p.id)) { fullyOwned = false; break; }
+                if (fullyOwned)
+                {
+                    _invGridIds[gridIdx] = knight.id;
+                    var spr = Make.SetPreview(knight.id);
+                    if (spr != null) _invGridIcons[gridIdx].sprite = spr;
+                    bool active = g.IsOutfitActive(knight.id);
+                    if (_invGridBadges[gridIdx].activeSelf != active)
+                        _invGridBadges[gridIdx].SetActive(active);
+                    if (!_invGridRoots[gridIdx].activeSelf) _invGridRoots[gridIdx].SetActive(true);
+                    gridIdx++;
+                }
+            }
             // Owned skins (Legends + Cyberpunk; pets are hidden for launch).
             foreach (var id in g.state.ownedSkins)
             {

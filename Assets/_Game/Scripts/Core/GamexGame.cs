@@ -300,6 +300,21 @@ namespace Gamex.Core
             new EquipmentDef { id = "knight_sword",     name = "Knight Longsword",  slot = EquipSlot.Weapon },
         };
 
+        // Synthetic SetDef wrapping the Knight chain pieces. Lives outside
+        // SetCatalog on purpose — SetCatalog is what the Shop iterates, and
+        // Knight Set is a chain-quest reward, not a sellable bundle. FindSet
+        // / ApplyOutfit / IsOutfitActive consult it as a fallback so the
+        // outfit-only Inventory grid can show a "Knight Set" cell + apply
+        // all 6 pieces on tap, the same way it handles champion outfits.
+        public static readonly SetDef KnightOutfit = new SetDef
+        {
+            id            = "knight_silver_set",
+            displayName   = "Silver Knight Set",
+            previewSprite = "Sets/knight_silver_set",
+            source        = "quest",
+            pieces        = KnightSet,
+        };
+
         // M5g (Phase 4) — purchasable full-body skins. Each entry is a SPUM /
         // Luiz Melo / Cyberpunk-style packaged portrait the player can swap to
         // instead of their race form. Phase 4 ships SPUM Bundle placeholders;
@@ -584,6 +599,7 @@ namespace Gamex.Core
         public static SetDef FindSet(string setId)
         {
             foreach (var set in SetCatalog) if (set.id == setId) return set;
+            if (KnightOutfit.id == setId) return KnightOutfit;
             return null;
         }
         public string EquippedInSlot(EquipSlot slot)

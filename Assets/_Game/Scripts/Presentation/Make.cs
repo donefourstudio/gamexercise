@@ -25,8 +25,16 @@ namespace Gamex.Game
         public static Sprite Skin(string id)        => string.IsNullOrEmpty(id) ? null : Resources.Load<Sprite>("Skins/" + id);
         // Full-gear bake of a shop set's source prefab — used by the shop set
         // card + set detail header so the player sees the whole loadout at a
-        // glance before drilling into the per-piece list.
-        public static Sprite SetPreview(string id)  => Resources.Load<Sprite>("Sets/" + id);
+        // glance before drilling into the per-piece list. Knight Set falls
+        // back to the chest piece sprite when the composite hasn't been
+        // baked yet (BakeKnightSetPreviewBatch in SPUMBaker writes it).
+        public static Sprite SetPreview(string id)
+        {
+            var s = Resources.Load<Sprite>("Sets/" + id);
+            if (s != null) return s;
+            if (id == "knight_silver_set") return Resources.Load<Sprite>("Equip/knight_chest");
+            return null;
+        }
         // Icon variant — tight-bbox cropped sprite for inventory cells / paper-doll
         // slot icons. Falls back to the 256x256 overlay if the icon hasn't been
         // baked yet (e.g. during a partial asset import).

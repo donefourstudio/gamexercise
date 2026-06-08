@@ -253,6 +253,29 @@ namespace Gamex.EditorTools
             EditorApplication.Exit(0);
         }
 
+        // Full-character Knight Set preview for the Inventory cell — same
+        // BakeOne(keepEquip:true) pipeline the shop sets use. Source is
+        // human_11 (silver bucket-helm + plate); the chain-quest sword from
+        // elf_07 isn't included because BakeOne only renders one prefab and
+        // human_11's IDLE pose reads as "the knight" without the sword.
+        public static void BakeKnightSetPreviewBatch()
+        {
+            string setsRoot = "Assets/_Game/Resources/Sets";
+            Directory.CreateDirectory(setsRoot);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(KNIGHT_PREFAB_ARMOR);
+            if (prefab == null)
+            {
+                Debug.LogError("[SPUMBaker] knight preview prefab not found: " + KNIGHT_PREFAB_ARMOR);
+                EditorApplication.Exit(1);
+                return;
+            }
+            string outPath = $"{setsRoot}/knight_silver_set.png";
+            BakeOne(prefab, outPath, keepEquip: true);
+            Debug.Log("[SPUMBaker] knight_silver_set.png  <-  " + Path.GetFileName(KNIGHT_PREFAB_ARMOR));
+            AssetDatabase.Refresh();
+            EditorApplication.Exit(0);
+        }
+
         // Renders the prefab with ONLY SpriteRenderers whose GameObject name
         // contains one of the keywords (case-insensitive). Everything else is
         // disabled — including Shadow, Body, hair — so the output PNG is the

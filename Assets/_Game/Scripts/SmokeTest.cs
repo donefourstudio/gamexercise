@@ -343,9 +343,14 @@ namespace Gamex.Game
                 Capture("/tmp/gamex_home_skin.png");
             }
 
-            // M5f Inventory — knight set already owned from above. Phase 2
-            // dropped shop tier items so storage shows only the 5 knight
-            // pieces (all equipped here, all with the ✓ badge).
+            // M5f Inventory — outfits-only grid. With all 6 knight pieces in
+            // state.owned (granted above) + the bought champ_dark_knight set
+            // + the applied lm_iron_knight skin, the grid should show:
+            //   1. champ_dark_knight outfit cell (fullyOwned via SetCatalog)
+            //   2. Knight Set outfit cell (fullyOwned via KnightOutfit fallback)
+            //   3. one skin cell per owned skin (lm_iron_knight active badge)
+            // The Knight Set cell here is the regression check for the
+            // "chain quest grants pieces but no inventory cell" bug.
             runner.Game.GoInventory();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_inventory.png");
