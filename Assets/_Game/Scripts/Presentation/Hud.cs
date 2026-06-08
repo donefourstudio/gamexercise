@@ -618,28 +618,31 @@ namespace Gamex.Game
             // stays as a length-4 array of nulls so UpdateTitle's flicker
             // loop null-checks and no-ops.
 
-            // Start Game click flags the exit transition — UpdateTitle's
-            // exit branch runs the fade-out then fires _onLeaveTitle. The
-            // button is also disabled at that moment so a fast double-tap
-            // doesn't queue two leaves. Sits on the lowest stair (y=300
-            // from bottom). Solid dark cool-stone tint multiplies the
-            // btn_grey sprite down so the CTA reads as a carved stone
-            // plaque matching the throne hall walls — not a faded UI
-            // ghost, not a bright wood plank. Light-amber label colour
-            // makes the text legible on the now-dark plate.
+            // CTA is now a frameless "Tap to Start" floating directly on
+            // the lowest stair — no plate, no sprite, just text. The
+            // sprite Image alpha is zeroed (raycastTarget stays true so
+            // taps still register) and the label is recoloured to a dark
+            // black-grey that reads as an unobtrusive prompt without
+            // competing with the painted scene's own light values.
             var startBtn = MkButton("StartGame", _titlePanel.transform, new Vector2(0.5f, 0f),
-                new Vector2(0f, 300f), new Vector2(560f, 130f), "Start Game",
+                new Vector2(0f, 300f), new Vector2(560f, 130f), "Tap to Start",
                 () => { _titleExiting = true; _titleExitT = 0f; if (_titleStartButton != null) _titleStartButton.interactable = false; },
                 "btn_grey", "btn_grey_down");
             _titleStartBtn    = startBtn.transform;
             _titleStartButton = startBtn.GetComponent<Button>();
             var startBtnImg = startBtn.GetComponent<Image>();
-            if (startBtnImg != null) startBtnImg.color = new Color(0.32f, 0.36f, 0.42f, 1f);   // dark blue-grey stone matching the throne hall walls
-            // Lighten the label so it stays readable against the dark
-            // stone plate (MkButton's default is a dark brown that looks
-            // like ink on the original light-grey sprite).
+            if (startBtnImg != null) startBtnImg.color = new Color(1f, 1f, 1f, 0f);   // invisible plate; click still works via raycastTarget
             var startBtnLabel = startBtn.transform.Find("Label")?.GetComponent<Text>();
-            if (startBtnLabel != null) startBtnLabel.color = new Color(0.92f, 0.74f, 0.42f, 1f);   // weathered amber, same as wordmark
+            if (startBtnLabel != null)
+            {
+                startBtnLabel.color = new Color(0.28f, 0.28f, 0.30f, 1f);   // dark black-grey
+                // Faint outline keeps it just legible against the slightly
+                // varied stair colours; without an outline it'd vanish into
+                // the darker stair shadows entirely.
+                var startBtnLabelOutline = startBtnLabel.gameObject.AddComponent<Outline>();
+                startBtnLabelOutline.effectColor    = new Color(0f, 0f, 0f, 0.55f);
+                startBtnLabelOutline.effectDistance = new Vector2(1.5f, -1.5f);
+            }
         }
 
         void BuildOpeningIntro(Transform root)
