@@ -140,6 +140,18 @@ namespace Gamex.Game
             EditorApplication.EnterPlaymode();
         }
 
+        // Run BEFORE GameRunner.Awake() so SaveSystem.Load() returns null and
+        // the runner spins up a fresh GameState. Without this the smoke test
+        // inherits whatever the developer's last manual Play Mode session
+        // wrote to gamex_save.json — owned items, race choice, equipped set
+        // and all — which makes shop/inventory captures non-deterministic.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void WipeBeforeSmoke()
+        {
+            if (!SessionState.GetBool("GAMEX_SMOKE", false)) return;
+            SaveSystem.Wipe();
+        }
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Hook()
         {
