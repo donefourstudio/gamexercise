@@ -33,19 +33,10 @@ namespace Gamex.Game
             _game.onSave = () => SaveSystem.Save(_game.state);
             _game.CatchUpDays();
 
-            // Route based on persisted state. Opening (Intro -> HeroShown -> CurseLooms ->
-            // CurseSelect -> CurseAnim -> Amnesia -> FirstMirror) runs once for new players.
-            // Gender + race chosen together at the Lv 20 RaceSelect, so we only need to
-            // detect "post-opening but pre-race" as a resume case.
-            if (_game.state.firstMirrorDone)
-            {
-                if (_game.state.race == 0 && _game.state.level >= 20)
-                    _game.phase = AppPhase.RaceSelect;
-                else
-                    _game.phase = AppPhase.Home;
-            }
-            else if (_game.state.curse != 0) _game.phase = AppPhase.OpeningAmnesia;
-            else                              _game.phase = AppPhase.OpeningIntro;
+            // Cold start always lands on the Title screen — tapping "Start
+            // Game" routes to DetermineInitialPhase() which picks the same
+            // resume / new-player branch the bootstrap used to pick directly.
+            _game.phase = AppPhase.Title;
 
             var camGO = new GameObject("MainCamera") { tag = "MainCamera" };
             var cam = camGO.AddComponent<Camera>();
@@ -116,12 +107,13 @@ namespace Gamex.Game
                 {
                     SaveSystem.Wipe();
                     _game.state = new GameState();
-                    _game.phase = AppPhase.OpeningIntro;
+                    _game.phase = AppPhase.Title;   // back to the front door
                     // SyncHealthKit reads state.todayHealthKitSteps which is
                     // now 0, so the next focus event will write the full HK
                     // total as one delta — same as a fresh-install flow.
                     Sfx.Play("milestone");   // gives the reset some weight
-                });
+                },
+                onLeaveTitle:    () => _game.phase = DetermineInitialPhase());
 
             // Mirror persisted audio mutes into the Sfx/Bgm singletons so the
             // very first Refresh after Hud construction respects them. The
@@ -190,6 +182,23 @@ namespace Gamex.Game
                 _game.phase = AppPhase.OpeningIntro;
                 Debug.Log("[Gamex] save wiped, replaying opening");
             }
+        }
+
+        // Returns the phase a returning or new player should resume into
+        // after leaving the title screen. Same branching the cold-boot path
+        // used to do directly: new players run the opening sequence; players
+        // who already saw the first mirror go to Home (or RaceSelect if
+        // they've crossed Lv 20 but haven't picked race + gender yet).
+        AppPhase DetermineInitialPhase()
+        {
+            if (_game.state.firstMirrorDone)
+            {
+                if (_game.state.race == 0 && _game.state.level >= 20)
+                    return AppPhase.RaceSelect;
+                return AppPhase.Home;
+            }
+            if (_game.state.curse != 0) return AppPhase.OpeningAmnesia;
+            return AppPhase.OpeningIntro;
         }
 
         // Pulls today's cumulative step total from HealthKit and feeds the

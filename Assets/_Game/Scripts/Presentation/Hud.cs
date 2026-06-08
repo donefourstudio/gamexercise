@@ -32,6 +32,7 @@ namespace Gamex.Game
         const int FS_HUGE    = 154;
 
         // ---- panels ----
+        GameObject _titlePanel;
         GameObject _openingIntroPanel, _openingHeroShownPanel, _openingCurseLoomsPanel, _openingAmnesiaPanel;
         GameObject _curseAnimPanel;
         GameObject _raceSelectPanel, _raceAnimPanel;
@@ -285,6 +286,7 @@ namespace Gamex.Game
         readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onGoInventory, _onFakeRep;
         readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet, _onSkinAction, _onApplyOutfit;
         readonly Action         _onGoSettings, _onToggleSfx, _onToggleBgm, _onResetProgress;
+        readonly Action         _onLeaveTitle;
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -307,7 +309,8 @@ namespace Gamex.Game
             Action onGoSettings,
             Action onToggleSfx,
             Action onToggleBgm,
-            Action onResetProgress)
+            Action onResetProgress,
+            Action onLeaveTitle)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -330,6 +333,7 @@ namespace Gamex.Game
             _onToggleSfx           = onToggleSfx;
             _onToggleBgm           = onToggleBgm;
             _onResetProgress       = onResetProgress;
+            _onLeaveTitle          = onLeaveTitle;
 
             if (EventSystem.current == null)
             {
@@ -349,6 +353,7 @@ namespace Gamex.Game
             var root = canvasGO.transform;
 
             BuildBackground(root);
+            BuildTitle(root);
             BuildOpeningIntro(root);
             BuildOpeningHeroShown(root);
             BuildOpeningCurseLooms(root);
@@ -487,6 +492,25 @@ namespace Gamex.Game
             MkText("Hint", go.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
             return go;
+        }
+
+        // App title / launch screen. Plays once per cold start so the player
+        // taps in deliberately instead of being dumped into the opening
+        // cinematic the instant the app loads. New players continue to
+        // OpeningIntro from here; returning players jump to Home (or
+        // RaceSelect mid-run) via GameRunner.DetermineInitialPhase.
+        void BuildTitle(Transform root)
+        {
+            _titlePanel = MkFullPanel("TitlePanel", root);
+
+            MkText("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -540f),
+                new Vector2(1000f, 180f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Gamexercise";
+
+            MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -720f),
+                new Vector2(1000f, 60f), FS_BTN, TextAnchor.UpperCenter, TextDim).text = "Walk. Train. Reign.";
+
+            MkButton("StartGame", _titlePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 540f),
+                new Vector2(800f, 160f), "Start Game", () => _onLeaveTitle?.Invoke());
         }
 
         void BuildOpeningIntro(Transform root)
@@ -1564,6 +1588,7 @@ namespace Gamex.Game
                 }
             }
 
+            Set(_titlePanel,              g.phase == AppPhase.Title);
             Set(_openingIntroPanel,       g.phase == AppPhase.OpeningIntro);
             Set(_openingHeroShownPanel,   g.phase == AppPhase.OpeningHeroShown);
             Set(_openingCurseLoomsPanel,  g.phase == AppPhase.OpeningCurseLooms);

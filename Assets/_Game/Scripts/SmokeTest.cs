@@ -206,6 +206,13 @@ namespace Gamex.Game
             var runner = FindFirstObjectByType<GameRunner>();
             if (runner == null || runner.Game == null) { Debug.LogWarning("[Smoke] no runner"); EditorApplication.Exit(1); yield break; }
 
+            // Title screen — cold-launch landing. Capture then click the
+            // Start Game button so subsequent captures see the opening flow.
+            Capture("/tmp/gamex_title.png");
+            var startBtn = GameObject.Find("StartGame")?.GetComponent<UnityEngine.UI.Button>();
+            if (startBtn != null) startBtn.onClick.Invoke();
+            yield return null; yield return new WaitForSecondsRealtime(0.2f);
+
             // Opening sequence (first-run only).
             Capture("/tmp/gamex_op1_intro.png");
             runner.Game.TapAdvanceOpening();

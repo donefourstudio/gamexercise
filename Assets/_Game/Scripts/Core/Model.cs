@@ -6,6 +6,11 @@ namespace Gamex.Core
     public enum AppPhase
     {
         Boot,
+        // App title / launch screen — shown on every cold start (NOT on
+        // background -> foreground resume since OnApplicationFocus doesn't
+        // touch phase). Tap "Start Game" routes to OpeningIntro for new
+        // players or Home (or RaceSelect if Lv 20+) for returning ones.
+        Title,
         // Opening sequence (first run only). Order:
         // OpeningIntro       — black, "你曾是这个时代最强的勇士……"   (tap)
         // OpeningHeroShown   — hero standing, bright                  (tap)
