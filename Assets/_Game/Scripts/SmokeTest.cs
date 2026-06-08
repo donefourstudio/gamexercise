@@ -191,7 +191,54 @@ namespace Gamex.Game
             runner.Game.state.coins = 60;
             runner.Game.state.streakDays = 7;
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
+            // First-run tutorial step 1 is up — capture it before dismissing so
+            // the coach-mark spotlight + caption is visible in smoke output.
+            Capture("/tmp/gamex_tutorial_step1.png");
+
+            // Click through all 3 tutorial steps so subsequent home captures
+            // show the actual UI rather than the coach-mark overlay. The Next
+            // button is re-found per iteration so we don't hold a stale ref
+            // after the overlay re-deactivates on the final step. Capture
+            // each step after-click so we have a screenshot per coach-mark.
+            string[] tutCaptures = { "/tmp/gamex_tutorial_step2.png", "/tmp/gamex_tutorial_step3.png", null };
+            for (int i = 0; i < 3; i++)
+            {
+                var tutGO = GameObject.Find("TutorialOverlay");
+                var nextBtn = FindChildButton(tutGO, "Next");
+                if (nextBtn == null) break;
+                nextBtn.onClick.Invoke();
+                yield return null; yield return new WaitForSecondsRealtime(0.1f);
+                if (tutCaptures[i] != null) Capture(tutCaptures[i]);
+            }
+            yield return null;
             Capture("/tmp/gamex_home.png");
+
+            // Trigger one more level-up after the prev-level tracker has initialised
+            // so the LEVEL UP toast + Lv pulse are mid-animation in the capture.
+            runner.Game.AddActivity(5000, 0, 0);
+            yield return null; yield return new WaitForSecondsRealtime(0.35f);  // mid-bell of 1.2s
+            Capture("/tmp/gamex_home_levelup.png");
+
+            // Wait out the level-up window, then bump coins so only the
+            // coin floater is animating in the next capture.
+            yield return new WaitForSecondsRealtime(1.3f);
+            runner.Game.state.coins += 25;
+            yield return null; yield return new WaitForSecondsRealtime(0.4f);  // mid-rise of 1.5s
+            Capture("/tmp/gamex_home_coinfloat.png");
+
+            // Daily-ritual transition. Reset todaySteps + idle one Refresh so
+            // the candle tracker baselines at 0, then step into 2 and 4
+            // candles to capture mid-flash + crown-burst frames.
+            yield return new WaitForSecondsRealtime(1.6f);
+            runner.Game.state.todaySteps = 0;
+            yield return null; yield return new WaitForSecondsRealtime(0.1f);   // baseline
+            runner.Game.state.todaySteps = 2600;
+            yield return null; yield return new WaitForSecondsRealtime(0.25f);  // mid-flash of 0.55s
+            Capture("/tmp/gamex_ritual_2candles.png");
+            yield return new WaitForSecondsRealtime(0.5f);                      // let candle flash settle
+            runner.Game.state.todaySteps = 5100;
+            yield return null; yield return new WaitForSecondsRealtime(0.4f);   // mid-crown-burst of 0.8s
+            Capture("/tmp/gamex_ritual_crown.png");
 
             // Lv 20 race-select flow
             runner.Game.AddActivity(75000, 0, 0);   // total 100k -> lv 21
@@ -214,6 +261,9 @@ namespace Gamex.Game
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_home_after_race.png");
 
+            // Force a partial Knight Set chain so the progress bar shows ~40%
+            // fill in the capture (Lv 20+ unlocks the chain).
+            runner.Game.state.knightChainProgress = 4;
             runner.Game.GoQuests();
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_training.png");
@@ -223,12 +273,43 @@ namespace Gamex.Game
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_shop.png");
 
+            // Wait out the floater from the state.coins=2000 bump so the next
+            // capture shows a clean "+50" and not the aggregated total.
+            yield return new WaitForSecondsRealtime(1.6f);
+            runner.Game.state.coins += 50;
+            yield return null; yield return new WaitForSecondsRealtime(0.45f);   // ~30% into 1.5s
+            Capture("/tmp/gamex_shop_coinfloat.png");
+            yield return new WaitForSecondsRealtime(1.2f);                       // let floater settle
+
+            // Buy two sets so the next shop capture shows the gold-glow tint
+            // for owned set cards next to the default-tan unowned cards.
+            var ownedSet = GamexGame.FindSet("champ_squire");
+            if (ownedSet != null) { runner.Game.state.coins = 10000; runner.Game.TryBuySet(ownedSet); }
+            var ownedSet2 = GamexGame.FindSet("champ_pink_archer");
+            if (ownedSet2 != null) { runner.Game.TryBuySet(ownedSet2); }
+
+            // Trigger a press bounce directly via the PressBounce component so
+            // we capture mid-shrink without GoSetDetail swapping phases. This
+            // verifies both the press scale tween AND the gold-glow tint side
+            // by side (champion squire + pink archer owned, others not).
+            var topCard = GameObject.Find("SetCard_champ_dark_knight");
+            var bounce  = topCard != null ? topCard.GetComponent<PressBounce>() : null;
+            if (bounce != null) bounce.Trigger();
+            yield return null; yield return new WaitForSecondsRealtime(0.07f);  // ~30% into 0.22s, peak shrink
+            Capture("/tmp/gamex_shop_owned.png");
+
             // Phase 3 set detail — tap the first set card programmatically.
             if (GamexGame.SetCatalog.Length > 0)
             {
                 runner.Game.GoSetDetail(GamexGame.SetCatalog[0].id);
                 yield return null; yield return new WaitForSecondsRealtime(0.2f);
                 Capture("/tmp/gamex_set_detail.png");
+
+                // Wait out any prior floater, then bump for a clean capture.
+                yield return new WaitForSecondsRealtime(1.6f);
+                runner.Game.state.coins += 75;
+                yield return null; yield return new WaitForSecondsRealtime(0.45f);
+                Capture("/tmp/gamex_set_detail_coinfloat.png");
             }
 
             // Phase 4 — buy + apply a skin so home + inventory show the
@@ -272,6 +353,18 @@ namespace Gamex.Game
             yield return new WaitForSecondsRealtime(0.2f);
             Debug.Log("[SmokeTest] ran cleanly, exiting");
             EditorApplication.Exit(0);
+        }
+
+        // Walk an overlay's transform tree to find a child Button by name.
+        // Used only by the smoke harness to click through coach-marks without
+        // exposing a public API on Hud.
+        static UnityEngine.UI.Button FindChildButton(GameObject root, string childName)
+        {
+            if (root == null) return null;
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                if (t.name == childName)
+                    return t.GetComponent<UnityEngine.UI.Button>();
+            return null;
         }
 
         static void Capture(string path)

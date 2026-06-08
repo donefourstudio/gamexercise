@@ -173,5 +173,10 @@ namespace Gamex.Core
         public List<string> owned = new();
         public List<string> equipped = new();
         public bool firstMirrorDone;
+        // First-run coach-mark walkthrough on Home (mirror, Quests, Shop).
+        // Set true after the player taps "Got it" on the last step; never
+        // shown again. Survives save migrations since JsonUtility defaults
+        // to false for older payloads.
+        public bool tutorialDone;
     }
 }

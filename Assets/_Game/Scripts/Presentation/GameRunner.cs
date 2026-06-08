@@ -64,18 +64,30 @@ namespace Gamex.Game
                 onGoHome:             () => _game.GoHome(),
                 onGoInventory:        () => _game.GoInventory(),
                 onFakeRep:            () => _game.DoRep(Exercise.Pushup),
-                onBuy:                id => _game.TryBuy(GamexGame.FindPiece(id)),
-                onToggleEquip:        id => _game.ToggleEquip(id),
+                onBuy:                id =>
+                {
+                    if (_game.TryBuy(GamexGame.FindPiece(id))) Sfx.Play("purchase");
+                    else                                       Sfx.Play("error");
+                },
+                onToggleEquip:        id => { _game.ToggleEquip(id); Sfx.Play("apply_outfit"); },
                 onGoSetDetail:        id => _game.GoSetDetail(id),
-                onBuySet:             id => _game.TryBuySet(GamexGame.FindSet(id)),
+                onBuySet:             id =>
+                {
+                    if (_game.TryBuySet(GamexGame.FindSet(id))) Sfx.Play("purchase");
+                    else                                        Sfx.Play("error");
+                },
                 onSkinAction:         id =>
                 {
                     var skin = GamexGame.FindSkin(id);
                     if (skin == null) return;
-                    if      (!_game.IsSkinOwned(id))  _game.TryBuySkin(skin);
-                    else if (!_game.IsSkinActive(id)) _game.ApplySkin(id);
-                    else if (skin.source == "pet")    _game.RemoveActivePet();
-                    else                              _game.RemoveActiveSkin();
+                    if      (!_game.IsSkinOwned(id))
+                    {
+                        if (_game.TryBuySkin(skin)) Sfx.Play("purchase");
+                        else                        Sfx.Play("error");
+                    }
+                    else if (!_game.IsSkinActive(id)) { _game.ApplySkin(id);    Sfx.Play("apply_outfit"); }
+                    else if (skin.source == "pet")    { _game.RemoveActivePet(); Sfx.Play("apply_outfit"); }
+                    else                              { _game.RemoveActiveSkin(); Sfx.Play("apply_outfit"); }
                 },
                 onApplyOutfit:       id =>
                 {
@@ -84,14 +96,17 @@ namespace Gamex.Game
                     if (GamexGame.FindSet(id) != null && _game.IsOutfitActive(id))
                     {
                         _game.state.equipped.Clear();
+                        Sfx.Play("apply_outfit");
                         return;
                     }
                     if (GamexGame.FindSkin(id) != null && _game.IsSkinActive(id))
                     {
                         _game.RemoveActiveSkin();
+                        Sfx.Play("apply_outfit");
                         return;
                     }
                     _game.ApplyOutfit(id);
+                    Sfx.Play("apply_outfit");
                 });
         }
 

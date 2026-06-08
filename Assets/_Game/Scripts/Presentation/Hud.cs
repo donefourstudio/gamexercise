@@ -57,6 +57,16 @@ namespace Gamex.Game
         // ---- daily ritual icons (Home) ----
         Image[] _candleImgs = new Image[4];   // 4 candles bracketing the mirror
         Image _crownImg;                       // hovers above the mirror character
+
+        // ---- daily ritual feedback ----
+        readonly float[] _candleFlashT = new float[4];   // > 0 -> candle scale-pop after lighting
+        float _crownLandT;                                // > 0 -> crown scale-pop on transition to fully gold
+        int _prevCandlesLit = -1;                         // -1 = uninit (first Refresh just records)
+        const int   STEPS_PER_CANDLE       = 1250;        // 4 candles, 5k step goal
+        const float CANDLE_FLASH_DURATION  = 0.55f;
+        const float CANDLE_FLASH_SCALE_AMP = 0.50f;
+        const float CROWN_LAND_DURATION    = 0.80f;
+        const float CROWN_LAND_SCALE_AMP   = 0.35f;
         // crown y when floating (maintenance not yet met) vs landed on the head (met)
         const float CROWN_Y_FLOATING = 660f;
         const float CROWN_Y_LANDED   = 540f;
@@ -64,10 +74,16 @@ namespace Gamex.Game
         // ---- mirror polish (breathing + stage-up flash + milestone dialogue) ----
         Image _stageUpFlash;          // white overlay inside the mirror, lerps up + back
         Text  _milestoneText;         // 4s line below the mirror after a stage transition
+        Text  _levelUpToast;          // "LEVEL UP!" pop on regular level-ups (non-stage)
         int   _prevStage  = -1;       // -1 = uninitialised, set on first Home Refresh
         int   _prevLevel  = 1;
+        // Sound triggers — uninit sentinel = -1 so the first Refresh after a
+        // save load doesn't fire a fake "coin earned" / "level up".
+        long  _prevCoins  = -1;
+        bool[] _prevQuestDone;
         float _stageUpT;              // > 0 while flash + scale-pulse is playing
         float _milestoneT;            // > 0 while milestone line is visible
+        float _levelUpT;              // > 0 while LEVEL UP toast + Lv-label pulse is playing
 
         const float BREATH_AMP        = 0.015f;
         const float BREATH_FREQ       = 1.8f;
@@ -76,6 +92,20 @@ namespace Gamex.Game
         const float STAGEUP_FLASH_A   = 0.5f;
         const float MILESTONE_DURATION = 4f;
         const float MILESTONE_FADE_OUT = 1f;
+        const float LEVELUP_DURATION  = 1.2f;
+        const float LEVELUP_PULSE_AMP = 0.22f;
+
+        // ---- coin earn floater (Home + Shop + SetDetail) ----
+        Text  _homeCoinFloater, _shopCoinFloater, _setDetailCoinFloater;
+        float _coinFloatT;
+        long  _coinFloatAmount;   // accumulated +N during an ongoing burst
+        const float COIN_FLOAT_DURATION = 1.5f;
+        // Home counter sits at y=-60, Shop/SetDetail counters at y=-90.
+        // Floater rises ~80px into its respective counter from below.
+        const float COIN_FLOAT_HOME_START_Y  = -150f;
+        const float COIN_FLOAT_HOME_END_Y    = -70f;
+        const float COIN_FLOAT_SHOP_START_Y  = -180f;
+        const float COIN_FLOAT_SHOP_END_Y    = -100f;
 
         // 6 lines surface in order at the 6 stage transitions (Lv 6 / 11 / 16 / 21 / 26 / 30).
         static readonly string[] MILESTONE_LINES = new[]
@@ -95,6 +125,41 @@ namespace Gamex.Game
         const float CURSE_ANIM_DURATION = 1.5f;
         const float CURSE_ANIM_SWAP_AT  = 0.7f;
 
+        // ---- first-run tutorial coach-marks ----
+        GameObject _tutorialOverlay;
+        Image _tutorialDimTop, _tutorialDimBottom, _tutorialDimLeft, _tutorialDimRight;
+        Image _tutorialCaptionBg;          // solid panel under caption + Next so it occludes dim Home text
+        Text  _tutorialCaption;
+        Text  _tutorialNextLabel;
+        int   _tutorialStep = -1;          // -1 = not active; 0..N-1 = current step
+        // Each step: target rect (canvas-center coords) + caption position + caption text.
+        // Last step's button reads "Got it" instead of "Next".
+        struct TutorialStep
+        {
+            public Vector2 targetCenter;
+            public Vector2 targetSize;
+            public Vector2 captionCenter;
+            public string  caption;
+        }
+        // Target centers / sizes match the actual Home rects:
+        //   Mirror frame: anchor (0.5,0.5), pos (0,260), size (520,660) -> y[-70, 590]
+        //   Quests btn:   anchor (0.5,0),  pos (0,280), size (800,160) -> y[-680, -520], center y = -600
+        //   Shop btn:     anchor (0.5,0),  pos (0,120), size (420,100) -> y[-840, -740], center y = -790
+        // Targets are padded ~20px each side so the spotlight reads as a
+        // generous outline rather than hugging the element tightly.
+        static readonly TutorialStep[] TUTORIAL_STEPS = new[]
+        {
+            new TutorialStep { targetCenter = new Vector2(0f,  260f), targetSize = new Vector2(560f, 700f),
+                               captionCenter = new Vector2(0f, -260f),
+                               caption = "Tap your reflection\nto dress up." },
+            new TutorialStep { targetCenter = new Vector2(0f, -600f), targetSize = new Vector2(840f, 200f),
+                               captionCenter = new Vector2(0f, -280f),
+                               caption = "Complete daily quests\nto earn coins." },
+            new TutorialStep { targetCenter = new Vector2(0f, -790f), targetSize = new Vector2(480f, 140f),
+                               captionCenter = new Vector2(0f, -500f),
+                               caption = "Spend coins on\nnew outfits." },
+        };
+
         // ---- home refs ----
         Text _homeLevel, _homeCoins, _homeProgress, _homeStreak, _homeNextHint;
         // Coin sprite references — repositioned every Refresh to track the
@@ -102,12 +167,29 @@ namespace Gamex.Game
         // the digits with the same gap.
         Image _homeCoinIcon, _shopCoinIcon, _setDetailCoinIcon;
         Image _xpBar;
+        // XP bar animation — _xpDisplayPct lags the actual XP fraction and
+        // eases toward it; on level-up, the bar fills the rest of the way to
+        // 100%, holds briefly, then drops to 0% before resuming the chase.
+        float _xpDisplayPct = -1f;            // -1 = uninit (first Refresh snaps)
+        int   _xpPrevLevel  = -1;
+        enum XpAnim { Normal, LevelUpFill, LevelUpHold, LevelUpDrop }
+        XpAnim _xpAnimState = XpAnim.Normal;
+        float  _xpAnimT;
+        float  _xpAnimStartPct;
+        const float XP_SMOOTH_SPEED      = 7f;   // higher = snappier convergence in Normal
+        const float XP_LEVELUP_FILL_DUR  = 0.30f;
+        const float XP_LEVELUP_HOLD_DUR  = 0.10f;
+        const float XP_LEVELUP_DROP_DUR  = 0.20f;
 
         // ---- quests refs (M5b/d) ----
         Text _questsStreak, _questsTotalSteps, _questsTotalRun, _questsKnight;
-        GameObject _questsKnightRow;
+        GameObject _questsKnightRow, _questsKnightBarBg;
+        Image _questsKnightBarFill;
         readonly Image[] _questCheckmarks = new Image[(int)Quest.Count];
         readonly Text[]  _questRowLabels  = new Text[(int)Quest.Count];
+        readonly float[] _questPopT       = new float[(int)Quest.Count]; // > 0 -> trophy scale-pop
+        const float TROPHY_POP_DURATION  = 0.45f;
+        const float TROPHY_POP_AMP       = 0.45f;   // peak overshoot above 1.0x
         // Coin + reward chip (per quest) — hidden once the quest is done so
         // the trophy can take its spot without overlapping.
         readonly GameObject[] _questChipRoots = new GameObject[(int)Quest.Count];
@@ -263,6 +345,7 @@ namespace Gamex.Game
             BuildInventory(root);
             BuildRaceSelect(root);
             BuildRaceTransformAnim(root);
+            BuildTutorialOverlay(root);
         }
 
         // ============================================================
@@ -530,6 +613,15 @@ namespace Gamex.Game
             _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -60f),
                 new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
+            // Coin gain floater — "+N" pops in just below the counter and rises
+            // into it while fading, so quest rewards / streak bonuses have a
+            // visible source. Aggregates rapid bursts so a multi-quest payout
+            // doesn't spawn overlapping floaters.
+            _homeCoinFloater = MkText("CoinFloat", _homePanel.transform, new Vector2(1f, 1f),
+                new Vector2(-40f, COIN_FLOAT_HOME_START_Y), new Vector2(200f, 50f),
+                FS_TITLE, TextAnchor.MiddleRight, AccentGold);
+            _homeCoinFloater.color = new Color(1f, 0.84f, 0.42f, 0f);
+
             // Mirror — centered, holds the player's CURRENT reflection. The body
             // shape morphs from cursed -> hero as stage advances. No more
             // separate "small cursed avatar + big hero in mirror" split.
@@ -565,6 +657,15 @@ namespace Gamex.Game
             _milestoneText = MkText("Milestone", _homePanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -110f), new Vector2(1000f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
             _milestoneText.color = new Color(1f, 0.84f, 0.42f, 0f);
+
+            // Level-up toast — same slot as the milestone text, but mutually
+            // exclusive: stage-transition levels (10/15/20/30) fire the milestone
+            // quote instead so we never stack two banners. Slightly bigger font
+            // makes the regular level-up feel rewarding without being intrusive.
+            _levelUpToast = MkText("LevelUpToast", _homePanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -110f), new Vector2(1000f, 60f), FS_TITLE, TextAnchor.MiddleCenter, AccentGold);
+            _levelUpToast.text  = "LEVEL UP!";
+            _levelUpToast.color = new Color(1f, 0.84f, 0.42f, 0f);
 
             // Daily ritual icons:
             //   4 candles bracket the mirror frame (2 left, 2 right).
@@ -681,9 +782,20 @@ namespace Gamex.Game
             // beneath the daily-quest rows. Streak got pulled — already
             // shown on the Home mirror page, no need to duplicate.
             _questsKnightRow = MkSpritePanel("Q_Knight", _trainPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -260f), new Vector2(950f, 110f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
+                new Vector2(0f, -260f), new Vector2(950f, 150f), "panel", new Color(0.85f, 0.78f, 1f, 1f));
             _questsKnight = MkText("KnightLabel", _questsKnightRow.transform, new Vector2(0.5f, 0.5f),
-                Vector2.zero, new Vector2(920f, 90f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.18f, 0.08f, 0.20f));
+                new Vector2(0f, 30f), new Vector2(920f, 60f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.18f, 0.08f, 0.20f));
+            // Progress bar — solid rects, fill pivots on the left so width
+            // alone drives the visual fraction (same trick as the XP bar).
+            _questsKnightBarBg = MkPanel("KnightBarBg", _questsKnightRow.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -30f), new Vector2(840f, 28f), new Color(0.20f, 0.12f, 0.22f, 1f));
+            var knightFill = MkPanel("KnightBarFill", _questsKnightBarBg.transform, new Vector2(0f, 0.5f),
+                Vector2.zero, new Vector2(840f, 24f), AccentGold);
+            _questsKnightBarFill = knightFill.GetComponent<Image>();
+            var kfRT = _questsKnightBarFill.rectTransform;
+            kfRT.pivot = new Vector2(0f, 0.5f);
+            kfRT.anchorMin = kfRT.anchorMax = new Vector2(0f, 0.5f);
+            kfRT.anchoredPosition = Vector2.zero;
             _questsKnightRow.SetActive(false);
 
             _questsTotalSteps = MkText("TotalSteps", _trainPanel.transform, new Vector2(0.5f, 0.5f),
@@ -724,6 +836,10 @@ namespace Gamex.Game
                 new Vector2(80f, 80f), "coin", Color.white).GetComponent<Image>();
             _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -90f),
                 new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
+            _shopCoinFloater = MkText("CoinFloat", _shopPanel.transform, new Vector2(1f, 1f),
+                new Vector2(-40f, COIN_FLOAT_SHOP_START_Y), new Vector2(200f, 50f),
+                FS_TITLE, TextAnchor.MiddleRight, AccentGold);
+            _shopCoinFloater.color = new Color(1f, 0.84f, 0.42f, 0f);
 
             // Phase 5c — content lives inside a ScrollRect so an arbitrary
             // number of sections + cards can stack without overflowing the
@@ -777,7 +893,8 @@ namespace Gamex.Game
                     cardBtn.transition = Selectable.Transition.ColorTint;
                     var cb = cardBtn.colors; cb.highlightedColor = new Color(1f, 0.95f, 0.78f, 1f); cardBtn.colors = cb;
                     string capSetId = set.id;
-                    cardBtn.onClick.AddListener(() => _onGoSetDetail?.Invoke(capSetId));
+                    var setBounce = card.AddComponent<PressBounce>();
+                    cardBtn.onClick.AddListener(() => { Sfx.Play("tap"); setBounce.Trigger(); _onGoSetDetail?.Invoke(capSetId); });
 
                     // anchor (0, 0.5) -> pivot (0, 0.5) means pos.x is the rect's
                     // LEFT edge, not its centre. Earlier layouts had preview at
@@ -835,6 +952,8 @@ namespace Gamex.Game
                     var actionGO = MkButton("Action_" + skin.id, card.transform,
                         new Vector2(1f, 0.5f), new Vector2(-50f, 0f), new Vector2(220f, 110f),
                         "Buy", () => _onSkinAction?.Invoke(capSkinId), "btn_grey", "btn_grey_down");
+                    var skinBounce = card.AddComponent<PressBounce>();
+                    actionGO.GetComponent<Button>().onClick.AddListener(() => skinBounce.Trigger());
                     _shopSkinCards.Add((skin.id, card, stateLabel,
                         actionGO.GetComponentInChildren<Text>(),
                         actionGO.GetComponent<Button>()));
@@ -925,6 +1044,10 @@ namespace Gamex.Game
             _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
                 new Vector2(-40f, -90f), new Vector2(200f, 60f),
                 FS_BIG, TextAnchor.MiddleRight, AccentGold);
+            _setDetailCoinFloater = MkText("CoinFloat", _setDetailPanel.transform, new Vector2(1f, 1f),
+                new Vector2(-40f, COIN_FLOAT_SHOP_START_Y), new Vector2(200f, 50f),
+                FS_TITLE, TextAnchor.MiddleRight, AccentGold);
+            _setDetailCoinFloater.color = new Color(1f, 0.84f, 0.42f, 0f);
 
             // Header preview frame — big square showing the full-gear bake.
             var previewFrame = MkSpritePanel("PreviewFrame", _setDetailPanel.transform,
@@ -1038,10 +1161,14 @@ namespace Gamex.Game
                 var cb = btn.colors;
                 cb.highlightedColor = new Color(0.32f, 0.34f, 0.44f, 1f);
                 btn.colors = cb;
+                var cellBounce = cell.AddComponent<PressBounce>();
                 btn.onClick.AddListener(() =>
                 {
                     var id = _invGridIds[capIdx];
-                    if (!string.IsNullOrEmpty(id)) _onApplyOutfit?.Invoke(id);
+                    if (string.IsNullOrEmpty(id)) return;
+                    cellBounce.Trigger();
+                    Sfx.Play("tap");
+                    _onApplyOutfit?.Invoke(id);
                 });
 
                 cell.SetActive(false);
@@ -1055,6 +1182,140 @@ namespace Gamex.Game
 
             MkButton("Back", _inventoryPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+        }
+
+        // ============================================================
+        // First-run tutorial coach-marks. Four dim rects form a cutout
+        // around the active step's target; the caption + Next button live
+        // on top. AdvanceTutorial bumps the step or finishes (persists
+        // tutorialDone). Sits at the very top of the canvas hierarchy so
+        // it covers every other UI panel when active.
+        // ============================================================
+        void BuildTutorialOverlay(Transform root)
+        {
+            _tutorialOverlay = MkFullPanel("TutorialOverlay", root);
+            // The full panel from MkFullPanel adds a transparent Image already;
+            // keep it but make it non-blocking — the 4 dim quadrants do the
+            // actual raycast-blocking around the spotlight.
+            var bg = _tutorialOverlay.GetComponent<Image>();
+            if (bg != null) bg.raycastTarget = false;
+
+            var dimColor = new Color(0f, 0f, 0f, 0.92f);
+            _tutorialDimTop    = MkPanel("DimT", _tutorialOverlay.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero, dimColor).GetComponent<Image>();
+            _tutorialDimBottom = MkPanel("DimB", _tutorialOverlay.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero, dimColor).GetComponent<Image>();
+            _tutorialDimLeft   = MkPanel("DimL", _tutorialOverlay.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero, dimColor).GetComponent<Image>();
+            _tutorialDimRight  = MkPanel("DimR", _tutorialOverlay.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero, dimColor).GetComponent<Image>();
+
+            // Solid card backing under the caption + button. Sits between
+            // the dim panels and the text so partially-dimmed Home labels
+            // (streak, today-steps, etc.) don't bleed into the caption.
+            _tutorialCaptionBg = MkSpritePanel("CaptionBg", _tutorialOverlay.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(880f, 360f), "panel_light", new Color(0.10f, 0.08f, 0.05f, 1f))
+                .GetComponent<Image>();
+
+            _tutorialCaption = MkText("Caption", _tutorialOverlay.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(820f, 200f), FS_TITLE, TextAnchor.MiddleCenter, AccentGold);
+            _tutorialCaption.text = "";
+
+            // Next button sits below the caption inside the same group so it
+            // moves with the caption block per-step. Last-step relabels to
+            // "Got it" inside UpdateTutorial.
+            var btnGO = MkButton("Next", _tutorialOverlay.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(280f, 110f), "Next", AdvanceTutorial);
+            _tutorialNextLabel = btnGO.GetComponentInChildren<Text>();
+
+            _tutorialOverlay.SetActive(false);
+        }
+
+        void StartTutorial()
+        {
+            _tutorialStep = 0;
+            _tutorialOverlay.SetActive(true);
+            UpdateTutorial();
+        }
+
+        void AdvanceTutorial()
+        {
+            _tutorialStep++;
+            if (_tutorialStep >= TUTORIAL_STEPS.Length)
+            {
+                // Last step dismissed — Refresh will pick up the flag, set
+                // state.tutorialDone, and persist it via g.onSave.
+                _pendingTutorialFinish = true;
+                _tutorialStep = -1;
+                _tutorialOverlay.SetActive(false);
+            }
+            else
+            {
+                UpdateTutorial();
+            }
+        }
+
+        bool _pendingTutorialFinish;
+
+        void UpdateTutorial()
+        {
+            if (_tutorialStep < 0 || _tutorialStep >= TUTORIAL_STEPS.Length) return;
+            var s = TUTORIAL_STEPS[_tutorialStep];
+
+            // Canvas half-extents (matches CanvasScaler.referenceResolution 1080x1920).
+            const float HW = 540f, HH = 960f;
+
+            float tl = s.targetCenter.x - s.targetSize.x / 2f;  // target left
+            float tr = s.targetCenter.x + s.targetSize.x / 2f;  // target right
+            float tb = s.targetCenter.y - s.targetSize.y / 2f;  // target bottom
+            float tt = s.targetCenter.y + s.targetSize.y / 2f;  // target top
+
+            // Top dim: full-width band above the target.
+            SetRect(_tutorialDimTop.rectTransform,
+                new Vector2(0f, (tt + HH) / 2f), new Vector2(HW * 2f, HH - tt));
+            // Bottom dim: full-width band below the target.
+            SetRect(_tutorialDimBottom.rectTransform,
+                new Vector2(0f, (tb - HH) / 2f), new Vector2(HW * 2f, tb + HH));
+            // Left + right dims: only span the vertical strip of the target.
+            float midY = (tb + tt) / 2f;
+            float midH = tt - tb;
+            SetRect(_tutorialDimLeft.rectTransform,
+                new Vector2((tl - HW) / 2f, midY), new Vector2(tl + HW, midH));
+            SetRect(_tutorialDimRight.rectTransform,
+                new Vector2((tr + HW) / 2f, midY), new Vector2(HW - tr, midH));
+
+            _tutorialCaption.text = s.caption;
+            _tutorialCaption.rectTransform.anchoredPosition = s.captionCenter;
+
+            // Next button sits just below the caption text.
+            var btnRT = _tutorialNextLabel.transform.parent.GetComponent<RectTransform>();
+            btnRT.anchoredPosition = new Vector2(s.captionCenter.x, s.captionCenter.y - 130f);
+            _tutorialNextLabel.text = (_tutorialStep == TUTORIAL_STEPS.Length - 1) ? "Got it" : "Next";
+
+            // Card backing wraps caption (top) + Next button (bottom) with padding.
+            // Caption height 200 (top edge at +100), Next height 110 centered
+            // at -130 (bottom edge at -185). Pad 35 above caption, 25 below Next.
+            SetRect(_tutorialCaptionBg.rectTransform,
+                new Vector2(s.captionCenter.x, s.captionCenter.y - 42.5f),
+                new Vector2(900f, 320f));
+        }
+
+        static void SetRect(RectTransform rt, Vector2 center, Vector2 size)
+        {
+            rt.anchoredPosition = center;
+            rt.sizeDelta = size;
+        }
+
+        // Per-frame position + alpha update for one coin floater Text. Driven
+        // from the shared _coinFloatT timer so Home / Shop / SetDetail floaters
+        // all rise + fade in lockstep — only the active panel's actually shows.
+        static void TickCoinFloater(Text floater, float t01, float alpha, float startY, float endY)
+        {
+            if (floater == null) return;
+            float y = Mathf.Lerp(startY, endY, t01);
+            var rt = floater.rectTransform;
+            rt.anchoredPosition = new Vector2(rt.anchoredPosition.x, y);
+            var c = floater.color; c.a = alpha; floater.color = c;
         }
 
         // Build one horizontal row of capacity SK_ROW_CAPACITY cells + a "—
@@ -1121,6 +1382,83 @@ namespace Gamex.Game
                 if (g.phase == AppPhase.CurseAnim)         _curseAnimT = 0f;
                 if (g.phase == AppPhase.RaceTransformAnim) _raceAnimT  = 0f;
                 _lastPhase = g.phase;
+            }
+
+            // Background music — calm drone on every screen the player lingers on.
+            // Idempotent: PlayLoop no-ops if the same track is already playing,
+            // so calling it every Refresh is cheap. Cinematics (CurseAnim,
+            // RaceTransformAnim) stay quiet so the SFX hits land hard.
+            bool bgmOn = g.phase == AppPhase.Home
+                      || g.phase == AppPhase.Quests
+                      || g.phase == AppPhase.Shop
+                      || g.phase == AppPhase.SetDetail
+                      || g.phase == AppPhase.Inventory;
+            if (bgmOn) Bgm.PlayLoop("bgm_home");
+            else       Bgm.Stop();
+
+            // First-run tutorial. Process the pending-finish flag BEFORE the
+            // trigger check — otherwise the trigger fires again on the same
+            // Refresh that should be tearing the overlay down.
+            if (_pendingTutorialFinish)
+            {
+                _pendingTutorialFinish = false;
+                g.state.tutorialDone = true;
+                g.onSave?.Invoke();
+            }
+            if (g.phase == AppPhase.Home && g.state.firstMirrorDone
+                && !g.state.tutorialDone && _tutorialStep < 0
+                && _tutorialOverlay != null && !_tutorialOverlay.activeSelf)
+            {
+                StartTutorial();
+            }
+
+            // Passive coin gain (quest reward / streak bonus) — purchases
+            // decrease state.coins so any positive delta is always a gain
+            // worth jingling. Skip if uninitialised (just-loaded save).
+            if (_prevCoins >= 0 && g.state.coins > _prevCoins)
+            {
+                long delta = g.state.coins - _prevCoins;
+                Sfx.Play("coin");
+                // Aggregate inside an active float so a multi-quest burst lands
+                // as a single "+N" rather than stacking overlapping floaters.
+                _coinFloatAmount = (_coinFloatT > 0f) ? _coinFloatAmount + delta : delta;
+                _coinFloatT      = COIN_FLOAT_DURATION;
+                string txt = "+" + _coinFloatAmount;
+                if (_homeCoinFloater      != null) _homeCoinFloater.text      = txt;
+                if (_shopCoinFloater      != null) _shopCoinFloater.text      = txt;
+                if (_setDetailCoinFloater != null) _setDetailCoinFloater.text = txt;
+            }
+            _prevCoins = g.state.coins;
+
+            // Coin floater tick — runs every Refresh regardless of phase so the
+            // active screen's "+N" animates wherever the player happens to be
+            // when coins land. Each panel has its own floater Text; only the
+            // active-phase one renders.
+            if (_coinFloatT > 0f)
+            {
+                _coinFloatT -= Time.unscaledDeltaTime;
+                float t01 = 1f - Mathf.Clamp01(_coinFloatT / COIN_FLOAT_DURATION);
+                float a   = (t01 < 0.5f) ? 1f : Mathf.Clamp01(1f - (t01 - 0.5f) / 0.5f);
+                TickCoinFloater(_homeCoinFloater,      t01, a, COIN_FLOAT_HOME_START_Y, COIN_FLOAT_HOME_END_Y);
+                TickCoinFloater(_shopCoinFloater,      t01, a, COIN_FLOAT_SHOP_START_Y, COIN_FLOAT_SHOP_END_Y);
+                TickCoinFloater(_setDetailCoinFloater, t01, a, COIN_FLOAT_SHOP_START_Y, COIN_FLOAT_SHOP_END_Y);
+                if (_coinFloatT <= 0f) _coinFloatAmount = 0;
+            }
+
+            // Quest completion — detect any false -> true flip in questDone.
+            if (g.state.questDone != null)
+            {
+                if (_prevQuestDone == null || _prevQuestDone.Length != g.state.questDone.Length)
+                    _prevQuestDone = new bool[g.state.questDone.Length];
+                for (int i = 0; i < g.state.questDone.Length; i++)
+                {
+                    if (g.state.questDone[i] && !_prevQuestDone[i])
+                    {
+                        Sfx.Play("quest_done");
+                        if (i < _questPopT.Length) _questPopT[i] = TROPHY_POP_DURATION;
+                    }
+                    _prevQuestDone[i] = g.state.questDone[i];
+                }
             }
 
             Set(_openingIntroPanel,       g.phase == AppPhase.OpeningIntro);
@@ -1201,9 +1539,68 @@ namespace Gamex.Game
                 _homeCoins.text   = $"{g.state.coins}";
                 LayoutCoinNextToText(_homeCoinIcon, _homeCoins, marginRight: 40f, coinYOffset: -54f);
                 _homeStreak.text  = $"{g.state.streakDays}-day streak";
-                _homeProgress.text = $"Today {g.state.todaySteps} steps";
+                bool dailyGoalMet = g.state.todaySteps >= 5000;
+                _homeProgress.text  = dailyGoalMet
+                    ? $"Today {g.state.todaySteps} steps  ✓"
+                    : $"Today {g.state.todaySteps} steps";
+                _homeProgress.color = dailyGoalMet ? AccentGold : TextDim;
+                float xpTarget = (float)g.XpInCurrentLevel / Mathf.Max(1, g.XpToNextLevel);
+                if (_xpDisplayPct < 0f)
+                {
+                    _xpDisplayPct = xpTarget;   // first Refresh, snap silently
+                    _xpPrevLevel  = g.state.level;
+                }
+                else if (_xpAnimState == XpAnim.Normal && g.state.level > _xpPrevLevel)
+                {
+                    // Level-up: enter the fill -> hold -> drop sequence so the
+                    // bar finishes the lap before chasing the new XP value.
+                    _xpAnimStartPct = _xpDisplayPct;
+                    _xpAnimState    = XpAnim.LevelUpFill;
+                    _xpAnimT        = XP_LEVELUP_FILL_DUR;
+                }
+                _xpPrevLevel = g.state.level;
+
+                float dt = Time.unscaledDeltaTime;
+                switch (_xpAnimState)
+                {
+                    case XpAnim.Normal:
+                        // Exponential ease — fast initial chase, smooth settle.
+                        _xpDisplayPct = Mathf.Lerp(_xpDisplayPct, xpTarget,
+                            1f - Mathf.Exp(-XP_SMOOTH_SPEED * dt));
+                        break;
+                    case XpAnim.LevelUpFill:
+                        _xpAnimT -= dt;
+                        float tf = 1f - Mathf.Clamp01(_xpAnimT / XP_LEVELUP_FILL_DUR);
+                        _xpDisplayPct = Mathf.Lerp(_xpAnimStartPct, 1f, tf);
+                        if (_xpAnimT <= 0f)
+                        {
+                            _xpDisplayPct = 1f;
+                            _xpAnimState  = XpAnim.LevelUpHold;
+                            _xpAnimT      = XP_LEVELUP_HOLD_DUR;
+                        }
+                        break;
+                    case XpAnim.LevelUpHold:
+                        _xpAnimT -= dt;
+                        _xpDisplayPct = 1f;
+                        if (_xpAnimT <= 0f)
+                        {
+                            _xpAnimState = XpAnim.LevelUpDrop;
+                            _xpAnimT     = XP_LEVELUP_DROP_DUR;
+                        }
+                        break;
+                    case XpAnim.LevelUpDrop:
+                        _xpAnimT -= dt;
+                        float td = 1f - Mathf.Clamp01(_xpAnimT / XP_LEVELUP_DROP_DUR);
+                        _xpDisplayPct = Mathf.Lerp(1f, 0f, td);
+                        if (_xpAnimT <= 0f)
+                        {
+                            _xpDisplayPct = 0f;
+                            _xpAnimState  = XpAnim.Normal;
+                        }
+                        break;
+                }
                 _xpBar.rectTransform.sizeDelta = new Vector2(
-                    700f * Mathf.Clamp01((float)g.XpInCurrentLevel / Mathf.Max(1, g.XpToNextLevel)), 28f);
+                    700f * Mathf.Clamp01(_xpDisplayPct), 28f);
 
                 // Next-milestone hint — guides the player toward the Lv 10
                 // form shift, Lv 15 fuller body, Lv 20 race transformation.
@@ -1239,6 +1636,12 @@ namespace Gamex.Game
                             int idx = Mathf.Clamp(currentStage - 1, 0, MILESTONE_LINES.Length - 1);
                             _milestoneText.text = MILESTONE_LINES[idx];
                             _milestoneT = MILESTONE_DURATION;
+                            Sfx.Play("milestone");
+                        }
+                        else if (g.state.level > _prevLevel)
+                        {
+                            Sfx.Play("level_up");
+                            _levelUpT = LEVELUP_DURATION;
                         }
                         // hitting max level for the first time fires the 6th line, even
                         // though Stage doesn't change (Lv 26-30 are all stage 5).
@@ -1283,15 +1686,96 @@ namespace Gamex.Game
                     _milestoneText.color = tc;
                 }
 
-                // Daily ritual: candles light + crown turns gold and drops when maintenance met.
-                // Ritual = today's daily quest progress. Crown + candles light up once any
-                // step-quest has been completed today; M5b will tie this to specific quests.
-                bool ritualDone = g.state.todaySteps >= 5000;   // 5k step daily goal lights the ritual
-                var candleSprite = Make.UI(ritualDone ? "candle_lit" : "candle_unlit");
-                foreach (var c in _candleImgs) if (c != null) c.sprite = candleSprite;
-                _crownImg.sprite = Make.UI(ritualDone ? "crown_gold" : "crown_grey");
-                // Crown stays put per Jackson — only the sprite flips between
-                // grey and gold; no more landing animation.
+                // Level-up celebration — sine-pulse the Lv label scale + fade the
+                // "LEVEL UP!" toast in/hold/out over LEVELUP_DURATION. The pulse
+                // pivots from the label's top-left (anchor 0,1) so it grows toward
+                // the mirror rather than off-screen.
+                if (_levelUpT > 0f)
+                {
+                    _levelUpT -= Time.unscaledDeltaTime;
+                    float t01  = 1f - Mathf.Clamp01(_levelUpT / LEVELUP_DURATION);
+                    float bell = Mathf.Sin(t01 * Mathf.PI);
+                    float s    = 1f + LEVELUP_PULSE_AMP * bell;
+                    _homeLevel.transform.localScale = new Vector3(s, s, 1f);
+
+                    // Toast alpha: fade in over first 15%, hold, fade out over last 35%.
+                    float a;
+                    if      (t01 < 0.15f) a = t01 / 0.15f;
+                    else if (t01 > 0.65f) a = Mathf.Clamp01((1f - t01) / 0.35f);
+                    else                  a = 1f;
+                    var lc = _levelUpToast.color; lc.a = a; _levelUpToast.color = lc;
+
+                    if (_levelUpT <= 0f)
+                    {
+                        _homeLevel.transform.localScale = Vector3.one;
+                        _levelUpToast.color = new Color(1f, 0.84f, 0.42f, 0f);
+                    }
+                }
+
+
+                // Daily ritual: 4 candles light up incrementally at 1.25k / 2.5k /
+                // 3.75k / 5k steps. The crown switches to gold + bursts when all
+                // four are lit. Each newly-lit candle scale-pops and chimes;
+                // the 4th additionally fires the milestone sound + crown burst.
+                int candlesLit = Mathf.Clamp(g.state.todaySteps / STEPS_PER_CANDLE, 0, 4);
+                var litSprite   = Make.UI("candle_lit");
+                var unlitSprite = Make.UI("candle_unlit");
+                for (int i = 0; i < _candleImgs.Length; i++)
+                {
+                    if (_candleImgs[i] == null) continue;
+                    _candleImgs[i].sprite = (i < candlesLit) ? litSprite : unlitSprite;
+                }
+                _crownImg.sprite = Make.UI(candlesLit >= 4 ? "crown_gold" : "crown_grey");
+
+                // Transition detection — first Home Refresh just records the
+                // baseline, no celebration fires for a save that loaded
+                // mid-day with candles already lit. Decreases (day rollover)
+                // also update the tracker so the next mid-day light-up fires.
+                if (_prevCandlesLit < 0)
+                {
+                    _prevCandlesLit = candlesLit;
+                }
+                else if (candlesLit != _prevCandlesLit)
+                {
+                    if (candlesLit > _prevCandlesLit)
+                    {
+                        for (int i = _prevCandlesLit; i < candlesLit && i < _candleFlashT.Length; i++)
+                        {
+                            _candleFlashT[i] = CANDLE_FLASH_DURATION;
+                            Sfx.Play("quest_done");
+                        }
+                        if (_prevCandlesLit < 4 && candlesLit >= 4)
+                        {
+                            _crownLandT = CROWN_LAND_DURATION;
+                            Sfx.Play("milestone");
+                        }
+                    }
+                    _prevCandlesLit = candlesLit;
+                }
+
+                // Per-frame ticks for candle pops + crown burst. Sine-bell scale.
+                for (int i = 0; i < _candleImgs.Length; i++)
+                {
+                    if (_candleImgs[i] == null) continue;
+                    if (_candleFlashT[i] > 0f)
+                    {
+                        _candleFlashT[i] -= Time.unscaledDeltaTime;
+                        float t01  = 1f - Mathf.Clamp01(_candleFlashT[i] / CANDLE_FLASH_DURATION);
+                        float s    = 1f + CANDLE_FLASH_SCALE_AMP * Mathf.Sin(t01 * Mathf.PI);
+                        _candleImgs[i].rectTransform.localScale = new Vector3(s, s, 1f);
+                        if (_candleFlashT[i] <= 0f)
+                            _candleImgs[i].rectTransform.localScale = Vector3.one;
+                    }
+                }
+                if (_crownLandT > 0f)
+                {
+                    _crownLandT -= Time.unscaledDeltaTime;
+                    float t01 = 1f - Mathf.Clamp01(_crownLandT / CROWN_LAND_DURATION);
+                    float s   = 1f + CROWN_LAND_SCALE_AMP * Mathf.Sin(t01 * Mathf.PI);
+                    _crownImg.rectTransform.localScale = new Vector3(s, s, 1f);
+                    if (_crownLandT <= 0f)
+                        _crownImg.rectTransform.localScale = Vector3.one;
+                }
             }
 
             if (g.phase == AppPhase.Quests)
@@ -1306,7 +1790,11 @@ namespace Gamex.Game
                 _ownedSnapshot.Clear();
                 foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
 
-                // Per-card price/owned labels.
+                // Per-card price/owned labels + gold-glow tint when owned.
+                // ColorTint button transition multiplies these so the press
+                // highlight still lifts on top of the owned tint.
+                var setOwnedTint   = new Color(1.00f, 0.92f, 0.55f, 1f);
+                var setDefaultTint = new Color(0.95f, 0.86f, 0.66f, 1f);
                 foreach (var card in _shopSetCards)
                 {
                     var set = GamexGame.FindSet(card.setId);
@@ -1318,9 +1806,16 @@ namespace Gamex.Game
                         card.priceLabel.text = "✓ Complete set owned";
                     else
                         card.priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
+                    var img = card.root.GetComponent<Image>();
+                    if (img != null) img.color = fullyOwned ? setOwnedTint : setDefaultTint;
                 }
 
                 // Phase 4b: per-skin Buy / Apply / Remove + locked state.
+                // Owned = warm gold tint; Active = brightest gold so the
+                // currently-worn skin pops at a glance.
+                var skinDefaultTint = new Color(0.92f, 0.84f, 0.62f, 1f);
+                var skinOwnedTint   = new Color(0.98f, 0.88f, 0.55f, 1f);
+                var skinActiveTint  = new Color(1.00f, 0.92f, 0.45f, 1f);
                 foreach (var card in _shopSkinCards)
                 {
                     var skin = GamexGame.FindSkin(card.skinId);
@@ -1345,6 +1840,11 @@ namespace Gamex.Game
                         card.actionLabel.text = "Remove";
                         card.actionBtn.interactable = true;
                     }
+                    var img = card.root.GetComponent<Image>();
+                    if (img != null)
+                        img.color = active ? skinActiveTint
+                                    : owned ? skinOwnedTint
+                                            : skinDefaultTint;
                 }
             }
 
@@ -1575,7 +2075,23 @@ namespace Gamex.Game
                             : $"{progress} / {spec.goal} steps");
                     _questRowLabels[i].text = $"{spec.label}\n{status}";
                 }
-                if (_questCheckmarks[i] != null) _questCheckmarks[i].gameObject.SetActive(done);
+                if (_questCheckmarks[i] != null)
+                {
+                    _questCheckmarks[i].gameObject.SetActive(done);
+                    // Scale-pop: overshoot to 1+AMP at midpoint, settle to 1.0.
+                    // Idle trophies stay at 1.0; the pop only runs for the
+                    // freshly-completed one.
+                    if (_questPopT[i] > 0f)
+                    {
+                        _questPopT[i] -= Time.unscaledDeltaTime;
+                        float t01  = 1f - Mathf.Clamp01(_questPopT[i] / TROPHY_POP_DURATION);
+                        float bell = Mathf.Sin(t01 * Mathf.PI);
+                        float s    = 1f + TROPHY_POP_AMP * bell;
+                        _questCheckmarks[i].rectTransform.localScale = new Vector3(s, s, 1f);
+                        if (_questPopT[i] <= 0f)
+                            _questCheckmarks[i].rectTransform.localScale = Vector3.one;
+                    }
+                }
                 // Coin chip vs trophy — mutually exclusive on the right side.
                 if (_questChipRoots[i] != null && _questChipRoots[i].activeSelf == done)
                     _questChipRoots[i].SetActive(!done);
@@ -1590,14 +2106,16 @@ namespace Gamex.Game
             if (_questsStreak != null) _questsStreak.text = $"{g.state.streakDays}-day streak";
 
             // Knight Set chain row: only visible once Lv 20 is reached. Shows the
-            // next piece + day progress, or a celebratory line once all 5 are earned.
+            // next piece + day progress, or a celebratory line once all earned.
+            // Bar fills 0..1 across the 10-day chain so the player sees grind progress.
             if (_questsKnightRow != null)
             {
                 bool show = g.state.level >= GamexGame.KNIGHT_CHAIN_UNLOCK_LEVEL;
                 _questsKnightRow.SetActive(show);
                 if (show && _questsKnight != null)
                 {
-                    if (g.state.knightChainStage >= GamexGame.KnightSet.Length)
+                    bool earned = g.state.knightChainStage >= GamexGame.KnightSet.Length;
+                    if (earned)
                     {
                         _questsKnight.text = "Knight Set earned ✓";
                     }
@@ -1606,6 +2124,12 @@ namespace Gamex.Game
                         int days = g.state.knightChainProgress;
                         int needed = GamexGame.KNIGHT_CHAIN_DAYS;
                         _questsKnight.text = $"Knight Set — {days}/{needed} days (5k+ steps each)";
+                    }
+                    if (_questsKnightBarBg != null) _questsKnightBarBg.SetActive(!earned);
+                    if (_questsKnightBarFill != null && !earned)
+                    {
+                        float pct = Mathf.Clamp01((float)g.state.knightChainProgress / GamexGame.KNIGHT_CHAIN_DAYS);
+                        _questsKnightBarFill.rectTransform.sizeDelta = new Vector2(840f * pct, 24f);
                     }
                 }
             }
@@ -1847,12 +2371,37 @@ namespace Gamex.Game
             ss.pressedSprite = Make.UI(pressedSpriteName);
             ss.highlightedSprite = Make.UI(spriteName);
             btn.spriteState = ss;
-            btn.onClick.AddListener(() => onClick?.Invoke());
+            btn.onClick.AddListener(() => { Sfx.Play("tap"); onClick?.Invoke(); });
 
             var t = MkText("Label", go.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
                 size, FS_BTN, TextAnchor.MiddleCenter, new Color(0.20f, 0.12f, 0.05f));
             t.text = label;
             return go;
+        }
+    }
+
+    // Shop-card press feedback. Attached to each shop card root; Trigger() runs
+    // a quick "push down + bounce back" scale tween so taps feel committed.
+    // Unscaled time keeps the bounce snappy even if a future menu pauses gameplay.
+    public class PressBounce : UnityEngine.MonoBehaviour
+    {
+        const float DURATION  = 0.22f;
+        const float SCALE_AMP = 0.07f;   // peak shrink amount
+        const float SHRINK_PCT = 0.30f;  // first 30% of duration shrinks, rest expands back
+        float _t;
+
+        public void Trigger() { _t = DURATION; }
+
+        void Update()
+        {
+            if (_t <= 0f) return;
+            _t -= UnityEngine.Time.unscaledDeltaTime;
+            float t01 = 1f - UnityEngine.Mathf.Clamp01(_t / DURATION);
+            float s = t01 < SHRINK_PCT
+                ? UnityEngine.Mathf.Lerp(1f, 1f - SCALE_AMP, t01 / SHRINK_PCT)
+                : UnityEngine.Mathf.Lerp(1f - SCALE_AMP, 1f, (t01 - SHRINK_PCT) / (1f - SHRINK_PCT));
+            transform.localScale = new UnityEngine.Vector3(s, s, 1f);
+            if (_t <= 0f) transform.localScale = UnityEngine.Vector3.one;
         }
     }
 }
