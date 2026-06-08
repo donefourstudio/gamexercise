@@ -41,6 +41,7 @@ namespace Gamex.Game
         // refs avoid GameObject.Find in Refresh.
         Text _titleWordmark, _titleTagline;
         Image _titleCrown;
+        Text  _titleStartLabel;     // "Tap to Start" label — alpha breathes via UpdateTitle
         Image _titleCrownHalo;   // Kenney particle-pack glow_round behind the crown; breathes via UpdateTitle
         Image _titleDivider;     // Kenney fantasy-ui-borders divider_ornate under the tagline
         Image[] _titleCandles = new Image[4];
@@ -632,16 +633,17 @@ namespace Gamex.Game
             _titleStartButton = startBtn.GetComponent<Button>();
             var startBtnImg = startBtn.GetComponent<Image>();
             if (startBtnImg != null) startBtnImg.color = new Color(1f, 1f, 1f, 0f);   // invisible plate; click still works via raycastTarget
-            var startBtnLabel = startBtn.transform.Find("Label")?.GetComponent<Text>();
-            if (startBtnLabel != null)
+            _titleStartLabel = startBtn.transform.Find("Label")?.GetComponent<Text>();
+            if (_titleStartLabel != null)
             {
-                startBtnLabel.color = new Color(0.28f, 0.28f, 0.30f, 1f);   // dark black-grey
-                // Faint outline keeps it just legible against the slightly
-                // varied stair colours; without an outline it'd vanish into
-                // the darker stair shadows entirely.
-                var startBtnLabelOutline = startBtnLabel.gameObject.AddComponent<Outline>();
-                startBtnLabelOutline.effectColor    = new Color(0f, 0f, 0f, 0.55f);
-                startBtnLabelOutline.effectDistance = new Vector2(1.5f, -1.5f);
+                // Lighter warm-grey so the prompt actually reads on dark
+                // stairs; alpha is then breathed in UpdateTitle to draw a
+                // subtle "tap me" pulse without the previous full-button
+                // scale wobble.
+                _titleStartLabel.color = new Color(0.78f, 0.78f, 0.80f, 1f);
+                var startBtnLabelOutline = _titleStartLabel.gameObject.AddComponent<Outline>();
+                startBtnLabelOutline.effectColor    = new Color(0f, 0f, 0f, 0.7f);
+                startBtnLabelOutline.effectDistance = new Vector2(2f, -2f);
             }
         }
 
@@ -2346,10 +2348,19 @@ namespace Gamex.Game
                 float a = Mathf.Clamp01((_titleT - TITLE_TAGLINE_DELAY) / TITLE_TAGLINE_DURATION);
                 var c = _titleTagline.color; c.a = a; _titleTagline.color = c;
             }
-            // Start Game pulse removed — the button now reads as a faded
-            // stone tablet sitting on the stair, and a scaling tablet
-            // looks more like a flickering UI bug than a deliberate
-            // breathing effect against the static painted bg.
+            // Tap-to-Start gentle alpha pulse — breathes between 0.55 and
+            // 1.0 over a 2-second cycle. Subtle enough not to dominate the
+            // painted scene, but obvious enough to read as "this is the
+            // interactive bit." Alpha-only (no scale) since scaling text
+            // on a static painted background looks like a flicker bug;
+            // alpha breathing is the standard mobile "tap to start" cue.
+            if (_titleStartLabel != null)
+            {
+                float a = 0.775f + 0.225f * Mathf.Sin(_titleT * (Mathf.PI * 2f / 2.0f));
+                var col = _titleStartLabel.color;
+                col.a = a;
+                _titleStartLabel.color = col;
+            }
 
             // Crown halo breathing — slow ~3.4s cycle on the Kenney glow
             // sprite. Alpha rides between 0.28 and 0.42, scale rides ±2%,
