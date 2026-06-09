@@ -46,3 +46,7 @@ Thumbs.db
 
 # Temporary asset download staging
 /tmp_assets/
+
+# Mono/Unity crash dumps written to project root when the editor crashes.
+# 200KB+ each and have zero diagnostic value once the crash is past.
+mono_crash.*.json
