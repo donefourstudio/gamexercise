@@ -1809,11 +1809,30 @@ namespace Gamex.Game
                 dc.a = Mathf.Lerp(0f, 0.7f, _curseAnimT / CURSE_ANIM_DURATION);
                 _curseAnimDim.color = dc;
 
-                // sprite: hero (stage 5) before swap, cursed (stage 0 of chosen curse) after
-                ApplyAvatarLook(_curseAnimAvatar, safeGender,
-                                swapped ? (curse == Curse.Unset ? Curse.Weakness : curse) : Curse.Unset,
-                                Race.Unset,
-                                swapped ? 0 : 5);
+                // Pre-swap: render the dark horned knight composite directly
+                // as the pre-curse hero — same chibi the title-screen and
+                // shop card use, so the cinematic visually identifies the
+                // hero the player will earn back as they progress.
+                // Post-swap: hand off to ApplyAvatarLook which routes through
+                // the curse-stage sprites to land on weakness_stage1 (the
+                // skeleton form).
+                if (swapped)
+                {
+                    ApplyAvatarLook(_curseAnimAvatar, safeGender,
+                                    curse == Curse.Unset ? Curse.Weakness : curse,
+                                    Race.Unset, 0);
+                }
+                else
+                {
+                    var heroSprite = Make.SetPreview("champ_dark_knight");
+                    if (heroSprite != null) _curseAnimAvatar.portrait.sprite = heroSprite;
+                    SetOverlay(_curseAnimAvatar.sword,     null, 1f);
+                    SetOverlay(_curseAnimAvatar.armor,     null, 1f);
+                    SetOverlay(_curseAnimAvatar.helmet,    null, 1f);
+                    SetOverlay(_curseAnimAvatar.leggings,  null, 1f);
+                    SetOverlay(_curseAnimAvatar.gauntlets, null, 1f);
+                    SetOverlay(_curseAnimAvatar.boots,     null, 1f);
+                }
 
                 if (_curseAnimT >= CURSE_ANIM_DURATION) _onCurseAnimDone?.Invoke();
             }
