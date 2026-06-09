@@ -667,9 +667,12 @@ namespace Gamex.Game
             btn.transition = Selectable.Transition.None;
             btn.onClick.AddListener(() => _onTapAdvanceOpening?.Invoke());
 
+            // Show the legendary hero as the dark_knight composite (full color,
+            // not a silhouette) — sets up visual continuity with the CurseAnim
+            // pre-curse hero and the dark_knight set in the shop.
             MkSpriteIcon("HeroSilhouette", _openingHeroShownPanel.transform,
                 new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 640f),
-                "silhouette", Color.white);
+                Make.SetPreview("champ_dark_knight"), Color.white);
 
             MkText("Hint", _openingHeroShownPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
@@ -1809,11 +1812,39 @@ namespace Gamex.Game
                 dc.a = Mathf.Lerp(0f, 0.7f, _curseAnimT / CURSE_ANIM_DURATION);
                 _curseAnimDim.color = dc;
 
-                // sprite: hero (stage 5) before swap, cursed (stage 0 of chosen curse) after
-                ApplyAvatarLook(_curseAnimAvatar, safeGender,
-                                swapped ? (curse == Curse.Unset ? Curse.Weakness : curse) : Curse.Unset,
-                                Race.Unset,
-                                swapped ? 0 : 5);
+                // sprite: hero (dark_knight composite, full color) before swap,
+                // cursed (stage 0 of chosen curse) after. Pre-swap bypasses
+                // ApplyAvatarLook's race-form path because we want the
+                // legendary hero rendered as the dark_knight set — same image
+                // the OpeningHeroShown panel uses, so the curse "shatters" the
+                // exact same hero the player just saw.
+                if (swapped)
+                {
+                    ApplyAvatarLook(_curseAnimAvatar, safeGender,
+                                    curse == Curse.Unset ? Curse.Weakness : curse,
+                                    Race.Unset, 0);
+                }
+                else
+                {
+                    var heroSprite = Make.SetPreview("champ_dark_knight");
+                    if (heroSprite != null)
+                    {
+                        _curseAnimAvatar.portrait.sprite = heroSprite;
+                        float a = _curseAnimAvatar.portrait.color.a;
+                        _curseAnimAvatar.portrait.color = new Color(1f, 1f, 1f, a);
+                        SetOverlay(_curseAnimAvatar.sword,     null, a);
+                        SetOverlay(_curseAnimAvatar.armor,     null, a);
+                        SetOverlay(_curseAnimAvatar.helmet,    null, a);
+                        SetOverlay(_curseAnimAvatar.leggings,  null, a);
+                        SetOverlay(_curseAnimAvatar.gauntlets, null, a);
+                        SetOverlay(_curseAnimAvatar.boots,     null, a);
+                    }
+                    else
+                    {
+                        // Fallback if composite isn't baked yet.
+                        ApplyAvatarLook(_curseAnimAvatar, safeGender, Curse.Unset, Race.Unset, 5);
+                    }
+                }
 
                 if (_curseAnimT >= CURSE_ANIM_DURATION) _onCurseAnimDone?.Invoke();
             }

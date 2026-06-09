@@ -172,8 +172,8 @@ namespace Gamex.EditorTools
         {
             { "elf_paladin",            "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222346858.prefab" },     // elf_07
             // Phase 5b — 3 Elite ("最帅") sets
-            { "champ_dark_knight",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215640719.prefab" },  // devil_06
-            { "champ_skull_warrior",    "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639662.prefab" },  // human_16
+            { "champ_dark_knight",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639662.prefab" },  // human_16 — red-horned helm + cape + wooden shield
+            { "champ_skull_warrior",    "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215640719.prefab" },  // devil_06 — purple-skinned + grey X-pattern shield
             { "champ_crimson_warrior",  "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638389.prefab" },  // human_01
             // Phase 5b — 5 Veteran ("中等") sets
             { "champ_silver_hood",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638814.prefab" },  // human_06
