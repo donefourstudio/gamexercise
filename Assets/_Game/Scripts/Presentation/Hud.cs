@@ -898,12 +898,12 @@ namespace Gamex.Game
             MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
 
-            // Settings — small button at the top-right corner, below the coin
-            // counter. Intentionally low-key so it doesn't draw attention away
-            // from the mirror, but reachable for audio mute / HealthKit re-link
-            // / reset progress without burying it behind a long-press.
-            MkButton("SettingsBtn", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-160f, -180f),
-                new Vector2(280f, 70f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
+            // Settings — compact button directly below Shop. Sits in the
+            // strip of free space between Shop's bottom edge (y=70) and the
+            // screen safe area. Smaller footprint than Shop so the visual
+            // hierarchy still reads Quests > Shop > Settings.
+            MkButton("SettingsBtn", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 38f),
+                new Vector2(340f, 44f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
