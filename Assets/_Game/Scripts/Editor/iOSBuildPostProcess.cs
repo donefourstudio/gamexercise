@@ -7,18 +7,22 @@ using UnityEngine;
 
 namespace Gamex.EditorTools
 {
-    // Post-build patcher for the generated Xcode project. Four jobs:
+    // Post-build patcher for the generated Xcode project. Five jobs:
     //   1. Inject NSHealthShareUsageDescription into Info.plist so the
     //      HealthKit permission modal shows our copy (Apple rejects builds
     //      that prompt for HK without a non-empty description).
-    //   2. Wire the HealthKit capability + .entitlements file via the
+    //   2. Inject ITSAppUsesNonExemptEncryption=false into Info.plist so
+    //      App Store Connect doesn't prompt for an encryption declaration
+    //      on every TestFlight upload. We don't use any custom crypto;
+    //      only Apple-provided HTTPS/keychain which is exempt.
+    //   3. Wire the HealthKit capability + .entitlements file via the
     //      ProjectCapabilityManager — this also adds the HealthKit framework
     //      to the link step so the native plugin's symbols resolve.
-    //   3. Force PlayerSettings.iOS.applicationIdentifier to a known value
+    //   4. Force PlayerSettings.iOS.applicationIdentifier to a known value
     //      *before* Unity writes the project, so the Bundle ID in the Xcode
     //      project always matches what we expect (avoids accidental rebuilds
     //      under a stale com.DefaultCompany.gamexercise).
-    //   4. Copy PrivacyInfo.xcprivacy from Assets/Plugins/iOS/ to the Xcode
+    //   5. Copy PrivacyInfo.xcprivacy from Assets/Plugins/iOS/ to the Xcode
     //      project root and add it to the main target's Copy Bundle Resources
     //      phase so it ships inside the .app bundle (Apple requires this
     //      manifest to be at the top level of the bundle, alongside Info.plist).
@@ -54,6 +58,11 @@ namespace Gamex.EditorTools
             var plist = new PlistDocument();
             plist.ReadFromFile(plistPath);
             plist.root.SetString("NSHealthShareUsageDescription", HEALTHKIT_USAGE);
+            // Export compliance — false because we only use Apple's stock
+            // crypto (HTTPS, keychain) which the US export rules exempt.
+            // Without this key App Store Connect prompts a manual review
+            // questionnaire on every TestFlight upload.
+            plist.root.SetBoolean("ITSAppUsesNonExemptEncryption", false);
             plist.WriteToFile(plistPath);
 
             string projPath = PBXProject.GetPBXProjectPath(pathToBuiltProject);
