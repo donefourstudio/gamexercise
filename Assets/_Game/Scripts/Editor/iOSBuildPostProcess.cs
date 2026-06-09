@@ -23,13 +23,13 @@ namespace Gamex.EditorTools
     //      phase so it ships inside the .app bundle (Apple requires this
     //      manifest to be at the top level of the bundle, alongside Info.plist).
     //
-    // TODO(jackson): change BUNDLE_ID to your final reverse-DNS identifier
-    // BEFORE the first TestFlight upload. The current value is a placeholder
-    // and rejecting a build with the wrong bundle ID forces a fresh App Store
-    // Connect record — keep this in sync with whatever you register there.
+    // Bundle ID convention: com.donefourstudio.<app-name>. Done Four Studio
+    // is Jackson's app-publishing identity that all future App Store releases
+    // share. Apple ties App Store Connect records to the Bundle ID, so this
+    // value must be stable before the first TestFlight upload.
     public static class iOSBuildPostProcess
     {
-        const string BUNDLE_ID            = "com.jackson.gamexercise";
+        const string BUNDLE_ID            = "com.donefourstudio.gamexercise";
         const string HEALTHKIT_USAGE      = "Gamexercise tracks your daily steps to power your character's progression — gold earned, levels gained, and outfits unlocked all reflect your real-world activity.";
         const string ENTITLEMENTS_NAME    = "Unity-iPhone.entitlements";
         const string PRIVACY_MANIFEST_SRC = "Assets/Plugins/iOS/PrivacyInfo.xcprivacy";
