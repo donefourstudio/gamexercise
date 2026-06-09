@@ -119,6 +119,13 @@ namespace Gamex.Core
         public void GoInventory(){ phase = AppPhase.Inventory;  onSave?.Invoke(); }
         public void GoSetDetail(string setId) { activeSetId = setId; phase = AppPhase.SetDetail; onSave?.Invoke(); }
         public void GoSettings() => phase = AppPhase.Settings;
+
+        // HealthKit gate (M_appstore). On iOS the game blocks at this phase
+        // until the player authorizes HealthKit (or escapes via deep-link to
+        // iOS Settings). GameRunner drives entry by inspecting platform +
+        // HK status; this just owns the phase transition + save flush.
+        public void RequestHealthKitGate() { phase = AppPhase.HealthKitGate; onSave?.Invoke(); }
+        public void CompleteHealthKitGate() { if (phase == AppPhase.HealthKitGate) { phase = AppPhase.Home; onSave?.Invoke(); } }
         // Currently-open set on the SetDetail screen. Cleared whenever we
         // navigate back to plain Shop or anywhere else.
         public string activeSetId;

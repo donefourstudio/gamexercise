@@ -65,6 +65,13 @@ namespace Gamex.Game
         GameObject _inventoryPanel;
         GameObject _settingsPanel;
         Text _settingsSfxLabel, _settingsBgmLabel, _settingsHKLabel, _settingsResetLabel;
+        // HealthKit hard-gate panel — shown whenever a real iOS device is
+        // missing HK authorization. _hkGateBody describes the state to the
+        // player; _hkGateActionLabel switches between "Connect HealthKit"
+        // and "Open iOS Settings" depending on HK.CurrentStatus().
+        GameObject _hkGatePanel;
+        GameObject _hkGateActionBtn;
+        Text _hkGateBody, _hkGateActionLabel;
         // Two-tap confirm timer for Reset Progress. First tap arms the
         // button (label flips to "Tap again to confirm" + red tint) and
         // sets _resetArmedUntil; second tap within the window actually
@@ -312,6 +319,7 @@ namespace Gamex.Game
         readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet, _onSkinAction, _onApplyOutfit;
         readonly Action         _onGoSettings, _onToggleSfx, _onToggleBgm, _onResetProgress;
         readonly Action         _onLeaveTitle;
+        readonly Action         _onConnectHealthKit;
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -335,7 +343,8 @@ namespace Gamex.Game
             Action onToggleSfx,
             Action onToggleBgm,
             Action onResetProgress,
-            Action onLeaveTitle)
+            Action onLeaveTitle,
+            Action onConnectHealthKit)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -359,6 +368,7 @@ namespace Gamex.Game
             _onToggleBgm           = onToggleBgm;
             _onResetProgress       = onResetProgress;
             _onLeaveTitle          = onLeaveTitle;
+            _onConnectHealthKit    = onConnectHealthKit;
 
             if (EventSystem.current == null)
             {
@@ -394,6 +404,7 @@ namespace Gamex.Game
             BuildRaceSelect(root);
             BuildRaceTransformAnim(root);
             BuildSettings(root);
+            BuildHealthKitGate(root);
             BuildTutorialOverlay(root);
         }
 
@@ -1446,6 +1457,30 @@ namespace Gamex.Game
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
+        // HealthKit hard-gate panel. Sits behind a single CTA whose label
+        // depends on the current HK auth state:
+        //   NotDetermined -> "Connect HealthKit" (triggers iOS modal)
+        //   Denied        -> "Open iOS Settings" (deep-link to system Settings)
+        //   Not available -> button hidden; copy says device unsupported
+        // Refresh() updates the body + button label every tick so the panel
+        // reacts to state transitions (e.g. user accepts in iOS modal and
+        // immediately advances to Home, or denies and the button text flips).
+        void BuildHealthKitGate(Transform root)
+        {
+            _hkGatePanel = MkFullPanel("HealthKitGatePanel", root);
+
+            MkText("Title", _hkGatePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -180f),
+                new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Connect HealthKit";
+
+            _hkGateBody = MkText("Body", _hkGatePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 120f),
+                new Vector2(880f, 480f), FS_LABEL, TextAnchor.UpperCenter, TextDim);
+            _hkGateBody.text = "Gamexercise tracks your real-world steps via HealthKit. Your character only grows when you walk — without HealthKit there's nothing to power the game.";
+
+            _hkGateActionBtn = MkButton("ConnectBtn", _hkGatePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -200f),
+                new Vector2(640f, 140f), "Connect HealthKit", () => _onConnectHealthKit?.Invoke());
+            _hkGateActionLabel = _hkGateActionBtn.transform.Find("Label")?.GetComponent<Text>();
+        }
+
         // Privacy policy URL — published from docs/privacy-policy.html via
         // GitHub Pages (commit a6bf9f6 + deploy 2026-06-09). The same URL
         // is what gets entered into App Store Connect's App Privacy section
@@ -1800,6 +1835,8 @@ namespace Gamex.Game
             Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
             Set(_settingsPanel,           g.phase == AppPhase.Settings);
             if (g.phase == AppPhase.Settings) UpdateSettings(g);
+            Set(_hkGatePanel,             g.phase == AppPhase.HealthKitGate);
+            if (g.phase == AppPhase.HealthKitGate) UpdateHealthKitGate();
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {
@@ -2496,6 +2533,38 @@ namespace Gamex.Game
         // Settings panel refresh — repaints the 4 row labels every frame so
         // toggles + HK status + the reset-confirm countdown reflect live
         // state. Cheap (4 Text mutations) so running on every Refresh is fine.
+        // Drives the HealthKit gate UI per Refresh tick. Three states:
+        //   1. iOS device, HK not available — extremely rare device shape;
+        //      we hide the action button and the body explains the dead end.
+        //   2. iOS device, HK status Denied — modal won't re-trigger, so the
+        //      button switches to "Open iOS Settings" (deep-link).
+        //   3. iOS device, HK status NotDetermined — first-time prompt path.
+        // The Authorized case never appears here (gate would have closed).
+        void UpdateHealthKitGate()
+        {
+            if (_hkGateBody == null || _hkGateActionLabel == null || _hkGateActionBtn == null) return;
+
+            bool hkAvailable = HealthKitBridge.IsAvailable();
+            if (!hkAvailable)
+            {
+                _hkGateBody.text = "This device doesn't support HealthKit, which Gamexercise needs to track your steps. The game can't run on this device.";
+                _hkGateActionBtn.SetActive(false);
+                return;
+            }
+
+            _hkGateActionBtn.SetActive(true);
+            if (HealthKitBridge.CurrentStatus() == HealthKitBridge.AuthStatus.Denied)
+            {
+                _hkGateBody.text = "HealthKit access is currently denied. Open iOS Settings, enable Steps for Gamexercise, and return to continue.";
+                _hkGateActionLabel.text = "Open iOS Settings";
+            }
+            else
+            {
+                _hkGateBody.text = "Gamexercise tracks your real-world steps via HealthKit. Your character only grows when you walk — without HealthKit there's nothing to power the game.";
+                _hkGateActionLabel.text = "Connect HealthKit";
+            }
+        }
+
         void UpdateSettings(GamexGame g)
         {
             if (_settingsSfxLabel != null)

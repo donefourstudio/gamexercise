@@ -50,7 +50,15 @@ namespace Gamex.Game
                 onSelectCurse:        c => _game.SetCurse((Curse)c),
                 onSelectRaceAndGender:(r, g) => _game.SetRaceAndGender((Race)r, (Gender)g),
                 onRaceAnimDone:       () => _game.CompleteRaceAnim(),
-                onFinishFirstMirror:  () => { _game.DoRep(Exercise.Pushup); _game.FinishFirstMirror(); },
+                onFinishFirstMirror:  () =>
+                {
+                    _game.DoRep(Exercise.Pushup);
+                    _game.FinishFirstMirror();
+                    // First-time entry to the HK gate happens here: the
+                    // player has just been through the opening cinematic +
+                    // mirror reveal so they understand WHY we need steps.
+                    if (NeedsHealthKitGate()) _game.RequestHealthKitGate();
+                },
                 onGoQuests:           () => _game.GoQuests(),
                 onGoShop:             () => _game.GoShop(),
                 onGoHome:             () => _game.GoHome(),
@@ -113,7 +121,29 @@ namespace Gamex.Game
                     // total as one delta — same as a fresh-install flow.
                     Sfx.Play("milestone");   // gives the reset some weight
                 },
-                onLeaveTitle:    () => _game.phase = DetermineInitialPhase());
+                onLeaveTitle:    () => _game.phase = DetermineInitialPhase(),
+                onConnectHealthKit: () =>
+                {
+                    // Two-state button on the gate: NotDetermined -> trigger
+                    // OS modal; Denied -> deep-link to iOS Settings since
+                    // the OS won't show the modal a second time.
+                    if (HealthKitBridge.CurrentStatus() == HealthKitBridge.AuthStatus.Denied)
+                    {
+                        Application.OpenURL("app-settings:");
+                        return;
+                    }
+                    _game.state.healthKitAsked = true;
+                    _game.onSave?.Invoke();
+                    HealthKitBridge.RequestAuthorization(status =>
+                    {
+                        if (status == HealthKitBridge.AuthStatus.Authorized)
+                        {
+                            _game.CompleteHealthKitGate();
+                            SyncHealthKit();
+                        }
+                        // Denied / NotDetermined: stay on gate; UI auto-updates.
+                    });
+                });
 
             // Mirror persisted audio mutes into the Sfx/Bgm singletons so the
             // very first Refresh after Hud construction respects them. The
@@ -133,30 +163,44 @@ namespace Gamex.Game
 
         void OnApplicationFocus(bool focused)
         {
+            if (!focused) return;
             // Re-sync when the player returns from another app. iOS doesn't
             // give us a reliable "step update" push, so we lazily catch up
             // each time the game becomes interactive.
-            if (focused) SyncHealthKit();
+            SyncHealthKit();
+            // If the user revoked HealthKit while we were backgrounded (iOS
+            // Settings -> Privacy -> Health -> Gamexercise -> off), divert
+            // back to the gate so they can re-authorize before continuing.
+            // Conversely, if they granted access from the gate's deep-link
+            // and then refocused, exit the gate and resume play.
+            if (NeedsHealthKitGate() && IsGameplayPhase(_game.phase))
+                _game.RequestHealthKitGate();
+            else if (_game.phase == AppPhase.HealthKitGate && !NeedsHealthKitGate())
+                _game.CompleteHealthKitGate();
         }
+
+        // True when we're on a real iOS device that's missing HealthKit
+        // authorization. Editor + non-iOS builds always return false so the
+        // dev/test flow stays unblocked. iOS device without HK kit (rare —
+        // Apple TV / iPod-class hardware that lacks the framework) also
+        // returns true so we surface the device-not-supported gate UI.
+        bool NeedsHealthKitGate()
+        {
+            if (Application.platform != RuntimePlatform.IPhonePlayer) return false;
+            return HealthKitBridge.CurrentStatus() != HealthKitBridge.AuthStatus.Authorized;
+        }
+
+        static bool IsGameplayPhase(AppPhase p)
+            => p == AppPhase.Home || p == AppPhase.Quests || p == AppPhase.Shop
+            || p == AppPhase.Inventory || p == AppPhase.SetDetail || p == AppPhase.Settings;
 
         void Update()
         {
             _hud?.Refresh(_game);
 
-            // First-time HealthKit prompt — fires once, immediately after the
-            // tutorial walkthrough finishes. Timing on purpose: the player has
-            // already seen the mirror / quests / shop so they understand WHY
-            // we need step data, which lifts the permission acceptance rate
-            // versus a cold-boot prompt. iOS only shows the modal once; we
-            // gate at the C# layer via healthKitAsked so a denied user isn't
-            // re-asked every launch (the system would silently no-op anyway,
-            // but the intent is clearer this way).
-            if (_game.state.tutorialDone && !_game.state.healthKitAsked && HealthKitBridge.IsAvailable())
-            {
-                _game.state.healthKitAsked = true;
-                _game.onSave?.Invoke();
-                HealthKitBridge.RequestAuthorization(_ => SyncHealthKit());
-            }
+            // (Old post-tutorial soft prompt removed — HealthKit is now a
+            // hard gate driven by AppPhase.HealthKitGate. See onConnectHealthKit
+            // wiring above + NeedsHealthKitGate / IsGameplayPhase helpers.)
 
             // debug keys for fast iteration
             if (Input.GetKeyDown(KeyCode.E)) _game.EndDay();                  // advance one day
@@ -193,6 +237,10 @@ namespace Gamex.Game
         {
             if (_game.state.firstMirrorDone)
             {
+                // Hard HealthKit gate: returning iOS players hit this if
+                // they never authorized (or revoked since last launch).
+                // Editor + non-iOS skip via NeedsHealthKitGate() == false.
+                if (NeedsHealthKitGate()) return AppPhase.HealthKitGate;
                 if (_game.state.race == 0 && _game.state.level >= 20)
                     return AppPhase.RaceSelect;
                 return AppPhase.Home;

@@ -46,6 +46,12 @@ namespace Gamex.Core
         // Audio toggles + HealthKit re-link + reset-save. Reachable from a
         // small button at the top-right of Home; closes back to Home.
         Settings,
+        // Hard gate: appears whenever the player would otherwise enter
+        // gameplay (Home / Quests / Shop / etc.) but HealthKit isn't
+        // authorized. Player can only escape by granting HK; cinematic
+        // phases and Title bypass this gate. Append-only at end of enum so
+        // older saves (serialized as int) keep their phase values intact.
+        HealthKitGate,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
