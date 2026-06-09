@@ -188,10 +188,10 @@ namespace Gamex.Game
                                captionCenter = new Vector2(0f, -260f),
                                caption = "Tap your reflection\nto dress up." },
             new TutorialStep { targetCenter = new Vector2(0f, -520f), targetSize = new Vector2(840f, 200f),
-                               captionCenter = new Vector2(0f, -280f),
+                               captionCenter = new Vector2(0f, -200f),
                                caption = "Complete daily quests\nto earn coins." },
             new TutorialStep { targetCenter = new Vector2(0f, -710f), targetSize = new Vector2(480f, 140f),
-                               captionCenter = new Vector2(0f, -500f),
+                               captionCenter = new Vector2(0f, -400f),
                                caption = "Spend coins on\nnew outfits." },
         };
 
