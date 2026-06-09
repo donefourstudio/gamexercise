@@ -31,11 +31,9 @@ namespace Gamex.EditorTools
         {
             string outRoot = "/tmp/spum_previews";
             Directory.CreateDirectory(outRoot);
-            BakeFolder("Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf",     $"{outRoot}/elf",     keepEquip: true);
-            BakeFolder("Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil",   $"{outRoot}/devil",   keepEquip: true);
-            BakeFolder("Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human",   $"{outRoot}/human",   keepEquip: true);
-            BakeFolder("Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Skelton", $"{outRoot}/skelton", keepEquip: true);
-            BakeFolder("Assets/SPUM/Resources/Addons/Legacy/2_Prefab",            $"{outRoot}/legacy",  keepEquip: true);
+            BakeFolder("Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf",   $"{outRoot}/elf",   keepEquip: true);
+            BakeFolder("Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil", $"{outRoot}/devil", keepEquip: true);
+            BakeFolder("Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human", $"{outRoot}/human", keepEquip: true);
             Debug.Log($"[SPUMBaker] wrote previews to {outRoot}");
         }
 
@@ -174,7 +172,7 @@ namespace Gamex.EditorTools
         {
             { "elf_paladin",            "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Elf/SPUM_20240911222346858.prefab" },     // elf_07
             // Phase 5b — 3 Elite ("最帅") sets
-            { "champ_dark_knight",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Skelton/SPUM_20240911215640266.prefab" },  // skelton_06 — red horns + dark armor + red sword + wooden shield (matches the SPUM Bundle Pack Basic preview's "dark horned knight")
+            { "champ_dark_knight",      "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Devil/SPUM_20240911215640719.prefab" },  // devil_06
             { "champ_skull_warrior",    "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215639662.prefab" },  // human_16
             { "champ_crimson_warrior",  "Assets/SPUM/Resources/Addons/BasicPack/2_Prefab/Human/SPUM_20240911215638389.prefab" },  // human_01
             // Phase 5b — 5 Veteran ("中等") sets

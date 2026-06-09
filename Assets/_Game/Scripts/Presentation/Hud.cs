@@ -889,18 +889,18 @@ namespace Gamex.Game
                 new Vector2(0f, -360f), new Vector2(900f, 40f),
                 FS_BODY, TextAnchor.MiddleCenter, TextDim);
 
-            // Bottom buttons — Quests (primary), Shop (secondary), Settings
-            // (tertiary) stacked vertically just below the "Next form
-            // change at Lv N" hint so the eye flows mirror -> stats ->
-            // actions naturally. Bottom margin (~115px below Settings)
-            // keeps the lowest button from clinging to the screen edge.
-            // Sizes shrink down the stack to reinforce hierarchy.
-            MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 460f),
+            // bottom buttons — Quests opens the daily-task list, Shop is cosmetics
+            MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
                 new Vector2(800f, 160f), "Quests", () => _onGoQuests?.Invoke());
-            MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 290f),
+            MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
-            MkButton("SettingsBtn", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 160f),
-                new Vector2(360f, 90f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
+
+            // Settings — small button at the top-right corner, below the coin
+            // counter. Intentionally low-key so it doesn't draw attention away
+            // from the mirror, but reachable for audio mute / HealthKit re-link
+            // / reset progress without burying it behind a long-press.
+            MkButton("SettingsBtn", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-160f, -180f),
+                new Vector2(280f, 70f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
@@ -1809,30 +1809,11 @@ namespace Gamex.Game
                 dc.a = Mathf.Lerp(0f, 0.7f, _curseAnimT / CURSE_ANIM_DURATION);
                 _curseAnimDim.color = dc;
 
-                // Pre-swap: render the dark horned knight composite directly
-                // as the pre-curse hero — same chibi the title-screen and
-                // shop card use, so the cinematic visually identifies the
-                // hero the player will earn back as they progress.
-                // Post-swap: hand off to ApplyAvatarLook which routes through
-                // the curse-stage sprites to land on weakness_stage1 (the
-                // skeleton form).
-                if (swapped)
-                {
-                    ApplyAvatarLook(_curseAnimAvatar, safeGender,
-                                    curse == Curse.Unset ? Curse.Weakness : curse,
-                                    Race.Unset, 0);
-                }
-                else
-                {
-                    var heroSprite = Make.SetPreview("champ_dark_knight");
-                    if (heroSprite != null) _curseAnimAvatar.portrait.sprite = heroSprite;
-                    SetOverlay(_curseAnimAvatar.sword,     null, 1f);
-                    SetOverlay(_curseAnimAvatar.armor,     null, 1f);
-                    SetOverlay(_curseAnimAvatar.helmet,    null, 1f);
-                    SetOverlay(_curseAnimAvatar.leggings,  null, 1f);
-                    SetOverlay(_curseAnimAvatar.gauntlets, null, 1f);
-                    SetOverlay(_curseAnimAvatar.boots,     null, 1f);
-                }
+                // sprite: hero (stage 5) before swap, cursed (stage 0 of chosen curse) after
+                ApplyAvatarLook(_curseAnimAvatar, safeGender,
+                                swapped ? (curse == Curse.Unset ? Curse.Weakness : curse) : Curse.Unset,
+                                Race.Unset,
+                                swapped ? 0 : 5);
 
                 if (_curseAnimT >= CURSE_ANIM_DURATION) _onCurseAnimDone?.Invoke();
             }
