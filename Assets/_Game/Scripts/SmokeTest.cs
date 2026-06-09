@@ -670,16 +670,17 @@ namespace Gamex.Game
     // App Store Connect screenshot upload. Output: /tmp/appstore_*.png.
     public class AppStoreRunner : MonoBehaviour
     {
-        // Output resolution: Apple's required 6.5-inch portrait. Render
-        // resolution: 2x of the 1080×1920 canvas reference so CanvasScaler
-        // lands on an integer scale (every pixel-font glyph stroke = exact
-        // integer pixels in the source buffer), then nearest-neighbor downscale
-        // to W×H. This eliminates the bilinear "1.447x stretch" softness that
-        // direct W×H rendering produced — fonts and pixel art stay crisp at
-        // discrete pixel widths, never half-density grays.
+        // Direct render at Apple's required 6.5-inch portrait size. We
+        // briefly tried a 2x supersample-then-NN-downscale pipeline to dodge
+        // bilinear softness at the non-integer 1.447x canvas scale, but the
+        // supersample render aspect (9:16, matching canvas reference) didn't
+        // match the output aspect (9:19.5) — NN downscale across mismatched
+        // aspects vertically stretched every UI element by ~22%. Direct
+        // render preserves correct proportions and faithfully reproduces what
+        // a real iPhone Pro Max user sees: minor bilinear softness at pixel
+        // level, invisible at typical viewing distance + PPI.
         const int W = 1284, H = 2778;
-        const int W_RENDER = 2160, H_RENDER = 3840;
-        static void Shot(string name) => Snap.CaptureSupersampled($"/tmp/appstore_{name}.png", W_RENDER, H_RENDER, W, H);
+        static void Shot(string name) => Snap.Capture($"/tmp/appstore_{name}.png", W, H);
 
         IEnumerator Start()
         {
