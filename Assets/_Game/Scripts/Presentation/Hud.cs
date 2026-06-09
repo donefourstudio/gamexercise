@@ -178,8 +178,8 @@ namespace Gamex.Game
         }
         // Target centers / sizes match the actual Home rects:
         //   Mirror frame: anchor (0.5,0.5), pos (0,260), size (520,660) -> y[-70, 590]
-        //   Quests btn:   anchor (0.5,0),  pos (0,280), size (800,160) -> y[-680, -520], center y = -600
-        //   Shop btn:     anchor (0.5,0),  pos (0,120), size (420,100) -> y[-840, -740], center y = -790
+        //   Quests btn:   anchor (0.5,0),  pos (0,360), size (800,160) -> y[-600, -440], center y = -520
+        //   Shop btn:     anchor (0.5,0),  pos (0,200), size (420,100) -> y[-760, -660], center y = -710
         // Targets are padded ~20px each side so the spotlight reads as a
         // generous outline rather than hugging the element tightly.
         static readonly TutorialStep[] TUTORIAL_STEPS = new[]
@@ -187,10 +187,10 @@ namespace Gamex.Game
             new TutorialStep { targetCenter = new Vector2(0f,  260f), targetSize = new Vector2(560f, 700f),
                                captionCenter = new Vector2(0f, -260f),
                                caption = "Tap your reflection\nto dress up." },
-            new TutorialStep { targetCenter = new Vector2(0f, -600f), targetSize = new Vector2(840f, 200f),
+            new TutorialStep { targetCenter = new Vector2(0f, -520f), targetSize = new Vector2(840f, 200f),
                                captionCenter = new Vector2(0f, -280f),
                                caption = "Complete daily quests\nto earn coins." },
-            new TutorialStep { targetCenter = new Vector2(0f, -790f), targetSize = new Vector2(480f, 140f),
+            new TutorialStep { targetCenter = new Vector2(0f, -710f), targetSize = new Vector2(480f, 140f),
                                captionCenter = new Vector2(0f, -500f),
                                caption = "Spend coins on\nnew outfits." },
         };
@@ -892,18 +892,20 @@ namespace Gamex.Game
                 new Vector2(0f, -360f), new Vector2(900f, 40f),
                 FS_BODY, TextAnchor.MiddleCenter, TextDim);
 
-            // bottom buttons — Quests opens the daily-task list, Shop is cosmetics
-            MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
+            // bottom buttons — Quests opens the daily-task list, Shop is cosmetics.
+            // Whole group lifted ~80px above the prior baseline so Settings can sit
+            // beneath Shop at a comfortable size instead of being squashed. There's
+            // still ~140px of clearance between Quests' top edge (y=440) and the
+            // "Next form change" hint (text bottom at y=580 from screen bottom).
+            MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 360f),
                 new Vector2(800f, 160f), "Quests", () => _onGoQuests?.Invoke());
-            MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
+            MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 200f),
                 new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
 
-            // Settings — compact button directly below Shop. Sits in the
-            // strip of free space between Shop's bottom edge (y=70) and the
-            // screen safe area. Smaller footprint than Shop so the visual
-            // hierarchy still reads Quests > Shop > Settings.
-            MkButton("SettingsBtn", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 38f),
-                new Vector2(340f, 44f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
+            // Settings — sits below Shop with ~20px breathing. Visual hierarchy
+            // reads Quests > Shop > Settings via decreasing width (800 / 420 / 380).
+            MkButton("SettingsBtn", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 95f),
+                new Vector2(380f, 70f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
