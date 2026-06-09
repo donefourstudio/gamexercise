@@ -466,6 +466,16 @@ namespace Gamex.Game
     // through here so the canvas-temporary-reparenting logic stays in one place.
     // Width/height per call: smoke uses 720x1280 (fast iteration), App Store
     // uses 1284x2778 (Apple's required 6.5-inch portrait size).
+    //
+    // CanvasScaler override: CanvasScaler.ScaleWithScreenSize uses Screen.height
+    // (= GameView height, typically ~600px in headless batchmode) for layout,
+    // NOT the RT size. Without the override the UI gets laid out at GameView
+    // dimensions then bilinear-upscaled to the RT — all text turns to mush
+    // (most visible on the title subtitle: "Walk. Train. Reign." rendered as
+    // "(2x). 9xxx. 9x999" garbage). We temporarily switch every CanvasScaler
+    // to ConstantPixelSize with scaleFactor = RT.height / 1920 (the equivalent
+    // of the original matchHeight=1 scaling, but pinned to our render target),
+    // then restore on exit so this doesn't leak into the live editor session.
     internal static class Snap
     {
         public static void Capture(string path, int width, int height)
@@ -478,6 +488,8 @@ namespace Gamex.Game
             var savedMode = new System.Collections.Generic.Dictionary<Canvas, RenderMode>();
             var savedCam  = new System.Collections.Generic.Dictionary<Canvas, Camera>();
             var savedDist = new System.Collections.Generic.Dictionary<Canvas, float>();
+            var savedScalerMode   = new System.Collections.Generic.Dictionary<Canvas, UnityEngine.UI.CanvasScaler.ScaleMode>();
+            var savedScalerFactor = new System.Collections.Generic.Dictionary<Canvas, float>();
             foreach (var c in canvases)
             {
                 if (c.renderMode == RenderMode.ScreenSpaceOverlay)
@@ -489,7 +501,16 @@ namespace Gamex.Game
                     c.worldCamera = cam;
                     c.planeDistance = 1f;
                 }
+                var scaler = c.GetComponent<UnityEngine.UI.CanvasScaler>();
+                if (scaler != null)
+                {
+                    savedScalerMode[c]   = scaler.uiScaleMode;
+                    savedScalerFactor[c] = scaler.scaleFactor;
+                    scaler.uiScaleMode   = UnityEngine.UI.CanvasScaler.ScaleMode.ConstantPixelSize;
+                    scaler.scaleFactor   = height / 1920f;
+                }
             }
+            Canvas.ForceUpdateCanvases();
 
             var rt = new RenderTexture(width, height, 24);
             var prev = cam.targetTexture;
@@ -503,6 +524,16 @@ namespace Gamex.Game
                 kv.Key.worldCamera = savedCam[kv.Key];
                 kv.Key.planeDistance = savedDist[kv.Key];
             }
+            foreach (var kv in savedScalerMode)
+            {
+                var scaler = kv.Key.GetComponent<UnityEngine.UI.CanvasScaler>();
+                if (scaler != null)
+                {
+                    scaler.uiScaleMode = kv.Value;
+                    scaler.scaleFactor = savedScalerFactor[kv.Key];
+                }
+            }
+            Canvas.ForceUpdateCanvases();
 
             var prevActive = RenderTexture.active;
             RenderTexture.active = rt;
@@ -585,12 +616,16 @@ namespace Gamex.Game
                 yield return null; yield return new WaitForSecondsRealtime(0.15f);
             }
 
-            // Set up rich gameplay state: Lv 15 (post-race), 5000 coins,
-            // 7-day streak, dark_knight outfit fully equipped. Race=Elf so
-            // the avatar renders with race-form-aware overlays + outfit
+            // Set up rich gameplay state: Lv 15 (post-race), realistic coin
+            // balance, 7-day streak, dark_knight outfit fully equipped. Race=Elf
+            // so the avatar renders with race-form-aware overlays + outfit
             // composite from Sets/champ_dark_knight.png.
+            //
+            // Coin count is set to 850 (not 12000) so the screenshot reads as
+            // a believable mid-game state — the player has earned enough from
+            // dailies + streak bonuses to buy a Champion set, kept ~850 spare.
             runner.Game.AddActivity(70000, 0, 0);  // ~Lv 15
-            runner.Game.state.coins = 12000;
+            runner.Game.state.coins = 850;
             runner.Game.state.streakDays = 7;
             runner.Game.state.totalSteps = 70000;
             // Mark some daily quests as complete for the Quests shot.
@@ -622,7 +657,14 @@ namespace Gamex.Game
                     if (!runner.Game.state.owned.Contains(p.id)) runner.Game.state.owned.Add(p.id);
 
             runner.Game.GoHome();
-            yield return null; yield return new WaitForSecondsRealtime(0.5f);
+            // Coin-floater rises for 1.5s then fades; AddActivity above earned
+            // +9 from quest rewards which fires the floater, and assigning
+            // state.coins=850 fires another. Wait long enough for both to
+            // clear so the static counter reads "850" without "+841" sitting
+            // on top of it (the 0.5s wait was the source of the prior bug
+            // where Shop captured a still-rising floater overlapping the
+            // total — "12000" + "+12000" rendered as "412000").
+            yield return null; yield return new WaitForSecondsRealtime(2.5f);
 
             // 3. Home — the gameplay hero shot. Avatar in dark_knight set,
             //    coin counter, level, streak, XP bar all visible.
