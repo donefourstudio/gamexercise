@@ -174,6 +174,16 @@ namespace Gamex.Game
             EditorApplication.EnterPlaymode();
         }
 
+        // App Store screenshot entry point — captures a curated set of polished
+        // frames at iPhone 6.5" required resolution (1284x2778) for use in
+        // App Store Connect's screenshot upload. Distinct from RunSmoke()
+        // which captures every state at smoke-test resolution (720x1280).
+        public static void RunAppStoreShots()
+        {
+            SessionState.SetBool("GAMEX_APPSTORE", true);
+            EditorApplication.EnterPlaymode();
+        }
+
         // Run BEFORE GameRunner.Awake() so SaveSystem.Load() returns null and
         // the runner spins up a fresh GameState. Without this the smoke test
         // inherits whatever the developer's last manual Play Mode session
@@ -182,17 +192,25 @@ namespace Gamex.Game
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void WipeBeforeSmoke()
         {
-            if (!SessionState.GetBool("GAMEX_SMOKE", false)) return;
+            if (!SessionState.GetBool("GAMEX_SMOKE", false) &&
+                !SessionState.GetBool("GAMEX_APPSTORE", false)) return;
             SaveSystem.Wipe();
         }
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Hook()
         {
+            if (SessionState.GetBool("GAMEX_APPSTORE", false))
+            {
+                var go = new GameObject("Gamex_AppStore");
+                Object.DontDestroyOnLoad(go);
+                go.AddComponent<AppStoreRunner>();
+                return;
+            }
             if (!SessionState.GetBool("GAMEX_SMOKE", false)) return;
-            var go = new GameObject("Gamex_Smoke");
-            Object.DontDestroyOnLoad(go);
-            go.AddComponent<SmokeRunner>();
+            var smokeGo = new GameObject("Gamex_Smoke");
+            Object.DontDestroyOnLoad(smokeGo);
+            smokeGo.AddComponent<SmokeRunner>();
         }
     }
 
@@ -441,13 +459,22 @@ namespace Gamex.Game
             return null;
         }
 
-        static void Capture(string path)
+        static void Capture(string path) => Snap.Capture(path, 720, 1280);
+    }
+
+    // Shared screen-capture helper. Both SmokeRunner and AppStoreRunner route
+    // through here so the canvas-temporary-reparenting logic stays in one place.
+    // Width/height per call: smoke uses 720x1280 (fast iteration), App Store
+    // uses 1284x2778 (Apple's required 6.5-inch portrait size).
+    internal static class Snap
+    {
+        public static void Capture(string path, int width, int height)
         {
             var cam = Camera.main;
-            if (cam == null) cam = FindAnyObjectByType<Camera>();
-            if (cam == null) { Debug.LogWarning("[Smoke] no camera"); return; }
+            if (cam == null) cam = Object.FindAnyObjectByType<Camera>();
+            if (cam == null) { Debug.LogWarning("[Snap] no camera"); return; }
 
-            var canvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
+            var canvases = Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None);
             var savedMode = new System.Collections.Generic.Dictionary<Canvas, RenderMode>();
             var savedCam  = new System.Collections.Generic.Dictionary<Canvas, Camera>();
             var savedDist = new System.Collections.Generic.Dictionary<Canvas, float>();
@@ -464,8 +491,7 @@ namespace Gamex.Game
                 }
             }
 
-            const int W = 720, H = 1280;
-            var rt = new RenderTexture(W, H, 24);
+            var rt = new RenderTexture(width, height, 24);
             var prev = cam.targetTexture;
             cam.targetTexture = rt;
             cam.Render();
@@ -480,16 +506,159 @@ namespace Gamex.Game
 
             var prevActive = RenderTexture.active;
             RenderTexture.active = rt;
-            var tex = new Texture2D(W, H, TextureFormat.RGB24, false);
-            tex.ReadPixels(new Rect(0, 0, W, H), 0, 0);
+            var tex = new Texture2D(width, height, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, width, height), 0, 0);
             tex.Apply();
             RenderTexture.active = prevActive;
 
-            try { File.WriteAllBytes(path, tex.EncodeToPNG()); Debug.Log("[Smoke] wrote " + path); }
-            catch (System.Exception e) { Debug.LogWarning("[Smoke] write failed: " + e.Message); }
+            try { File.WriteAllBytes(path, tex.EncodeToPNG()); Debug.Log($"[Snap] wrote {width}x{height} {path}"); }
+            catch (System.Exception e) { Debug.LogWarning("[Snap] write failed: " + e.Message); }
 
             Object.DestroyImmediate(tex);
             Object.DestroyImmediate(rt);
+        }
+    }
+
+    // App Store screenshot orchestrator. Goes through the same opening flow
+    // SmokeRunner uses but skips the per-step transition shots — produces
+    // only 6 curated stills at 1284x2778 (iPhone 6.5") suitable for the
+    // App Store Connect screenshot upload. Output: /tmp/appstore_*.png.
+    public class AppStoreRunner : MonoBehaviour
+    {
+        const int W = 1284, H = 2778;
+        static void Shot(string name) => Snap.Capture($"/tmp/appstore_{name}.png", W, H);
+
+        IEnumerator Start()
+        {
+            // Wait for first Refresh + canvas layout to settle.
+            for (int i = 0; i < 30; i++) yield return null;
+            yield return new WaitForSecondsRealtime(0.6f);
+
+            var runner = FindFirstObjectByType<GameRunner>();
+            if (runner == null || runner.Game == null)
+            {
+                Debug.LogWarning("[AppStore] no runner");
+                EditorApplication.Exit(1);
+                yield break;
+            }
+
+            // 1. Title — the marquee shot. Wait for the wordmark fade-in
+            //    to complete so "Gamexercise" + tagline read clean.
+            yield return new WaitForSecondsRealtime(1.0f);
+            Shot("01_title");
+
+            // Skip through the opening cinematic to set up gameplay state.
+            // We won't capture the narrative beats — they're better as
+            // App Preview video frames, not still screenshots.
+            var startBtn = GameObject.Find("StartGame")?.GetComponent<UnityEngine.UI.Button>();
+            if (startBtn != null) startBtn.onClick.Invoke();
+            yield return new WaitForSecondsRealtime(0.6f);
+
+            // OpeningHeroShown — the dark_knight reveal. This IS a marquee
+            // shot: full-color knight, throne background, "tap to continue".
+            // Sets up the curse narrative without spoiling the cursed form.
+            runner.Game.TapAdvanceOpening();
+            yield return new WaitForSecondsRealtime(0.6f);
+            Shot("02_opening_hero");
+
+            // Burn through the rest of the opening + curse + amnesia + mirror
+            // without capturing. End state: phase=Home with Lv 1 skeleton.
+            runner.Game.TapAdvanceOpening();  // -> OpeningCurseLooms
+            yield return new WaitForSecondsRealtime(0.2f);
+            runner.Game.TapAdvanceOpening();  // -> CurseSelect
+            yield return new WaitForSecondsRealtime(0.2f);
+            runner.Game.SetCurse(Curse.Weakness);  // -> CurseAnim
+            yield return new WaitForSecondsRealtime(1.8f);  // curse anim completes
+            runner.Game.TapAdvanceOpening();  // OpeningAmnesia -> FirstMirror
+            yield return new WaitForSecondsRealtime(0.3f);
+            runner.Game.FinishFirstMirror();  // -> Home
+            yield return new WaitForSecondsRealtime(0.3f);
+
+            // Dismiss the first-run tutorial coach-marks (3 steps).
+            for (int i = 0; i < 4; i++)
+            {
+                var tutGO = GameObject.Find("TutorialOverlay");
+                if (tutGO == null || !tutGO.activeInHierarchy) break;
+                var btn = FindButton(tutGO, "Next");
+                if (btn == null) break;
+                btn.onClick.Invoke();
+                yield return null; yield return new WaitForSecondsRealtime(0.15f);
+            }
+
+            // Set up rich gameplay state: Lv 15 (post-race), 5000 coins,
+            // 7-day streak, dark_knight outfit fully equipped. Race=Elf so
+            // the avatar renders with race-form-aware overlays + outfit
+            // composite from Sets/champ_dark_knight.png.
+            runner.Game.AddActivity(70000, 0, 0);  // ~Lv 15
+            runner.Game.state.coins = 12000;
+            runner.Game.state.streakDays = 7;
+            runner.Game.state.totalSteps = 70000;
+            // Mark some daily quests as complete for the Quests shot.
+            runner.Game.state.questDone[0] = true;  // Walk 1k
+            runner.Game.state.questDone[1] = true;  // Walk 5k
+            // Race awakens at Lv 20 normally; we force it here for a clean
+            // outfit-composite render on the chibi race form. Set BEFORE
+            // bumping XP so the next AddActivity doesn't gate on race==0.
+            runner.Game.state.race = (int)Race.Elf;
+            runner.Game.state.gender = (int)Gender.Male;
+            // Equip dark_knight set.
+            var darkKnight = GamexGame.FindSet("champ_dark_knight");
+            if (darkKnight != null)
+            {
+                foreach (var p in darkKnight.pieces)
+                {
+                    if (!runner.Game.state.owned.Contains(p.id))    runner.Game.state.owned.Add(p.id);
+                    if (!runner.Game.state.equipped.Contains(p.id)) runner.Game.state.equipped.Add(p.id);
+                }
+            }
+            // Also own a couple of other sets so Shop + Inventory have variety.
+            var skullWarrior = GamexGame.FindSet("champ_skull_warrior");
+            if (skullWarrior != null)
+                foreach (var p in skullWarrior.pieces)
+                    if (!runner.Game.state.owned.Contains(p.id)) runner.Game.state.owned.Add(p.id);
+            var crimsonWarrior = GamexGame.FindSet("champ_crimson_warrior");
+            if (crimsonWarrior != null)
+                foreach (var p in crimsonWarrior.pieces)
+                    if (!runner.Game.state.owned.Contains(p.id)) runner.Game.state.owned.Add(p.id);
+
+            runner.Game.GoHome();
+            yield return null; yield return new WaitForSecondsRealtime(0.5f);
+
+            // 3. Home — the gameplay hero shot. Avatar in dark_knight set,
+            //    coin counter, level, streak, XP bar all visible.
+            Shot("03_home");
+
+            // 4. Shop — set cards grid with dark_knight + skull_warrior +
+            //    crimson_warrior owned (gold-glow tint) next to unowned.
+            runner.Game.GoShop();
+            yield return null; yield return new WaitForSecondsRealtime(0.5f);
+            Shot("04_shop");
+
+            // 5. Inventory — paper-doll with dark_knight equipped + the
+            //    three owned-outfit cells in the storage grid below.
+            runner.Game.GoInventory();
+            yield return null; yield return new WaitForSecondsRealtime(0.5f);
+            Shot("05_inventory");
+
+            // 6. Quests — daily quests list with first two complete + the
+            //    lifetime totals + knight chain progress widget.
+            runner.Game.state.knightChainProgress = 6;
+            runner.Game.GoQuests();
+            yield return null; yield return new WaitForSecondsRealtime(0.5f);
+            Shot("06_quests");
+
+            yield return new WaitForSecondsRealtime(0.3f);
+            Debug.Log("[AppStore] captured 6 shots to /tmp/appstore_*.png");
+            EditorApplication.Exit(0);
+        }
+
+        static UnityEngine.UI.Button FindButton(GameObject root, string childName)
+        {
+            if (root == null) return null;
+            foreach (var t in root.GetComponentsInChildren<Transform>(true))
+                if (t.name == childName)
+                    return t.GetComponent<UnityEngine.UI.Button>();
+            return null;
         }
     }
 }
