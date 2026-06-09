@@ -2660,8 +2660,13 @@ namespace Gamex.Game
             // player has a fully matching set on we render that one sprite and
             // skip the overlay routing entirely — same shape as the skin path.
             bool skinActive = !string.IsNullOrEmpty(activeSkin) && Make.Skin(activeSkin) != null;
-            var activeOutfit = (!skinActive && race != Race.Unset)
-                ? GamexGame.FindActiveOutfit(equipped) : null;
+            // Outfit/skin composite is allowed in ALL phases (incl. curse stages):
+            // if the player owns a full Set they can wear it over the cursed
+            // body. The race-form-only gate used to live here; it's gone so
+            // skeleton/flesh stages can render the outfit composite directly.
+            // Partial equipment (1-2 pieces) still falls through to the
+            // race-form path below, which gates overlays on race awakening.
+            var activeOutfit = !skinActive ? GamexGame.FindActiveOutfit(equipped) : null;
             Sprite outfitSprite = activeOutfit != null ? Make.SetPreview(activeOutfit.id) : null;
 
             if (skinActive || outfitSprite != null)
