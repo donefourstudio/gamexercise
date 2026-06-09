@@ -30,12 +30,57 @@
     <array/>
 
     <!--
-        No data types collected. HealthKit step count stays on-device. Game
-        Center scores (future) are sent to Apple, not us, so they don't go
-        in this list per Apple's "data not received by your app" rule.
+        Sentry crash + error reporting is the one data path that leaves
+        the device. When the app crashes or throws an unhandled exception,
+        Sentry receives a report with the stack trace, exception message,
+        device model, OS version, and app-internal breadcrumbs. No
+        identifier links the report to the user; IP is stripped via
+        SendDefaultPii=false in SentryConfig.cs.
+
+        HealthKit step count stays on-device (read in-process, never
+        transmitted). Game Center scores (future) flow to Apple's servers,
+        not ours, so they don't go in this list per Apple's "data not
+        received by your app" rule.
     -->
     <key>NSPrivacyCollectedDataTypes</key>
-    <array/>
+    <array>
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeCrashData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypePerformanceData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+    </array>
 
     <!--
         Required-reason API declarations. Each entry covers one Apple-flagged

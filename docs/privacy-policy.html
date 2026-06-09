@@ -69,12 +69,12 @@
 <body>
 
 <h1>Privacy Policy</h1>
-<p class="effective">Effective date: 2026-06-09</p>
+<p class="effective">Effective date: 2026-06-09 (revised same day to disclose Sentry crash reporting)</p>
 
 <p>This Privacy Policy describes how <strong>Gamexercise</strong> ("the app", "we", "us") handles your information. We built Gamexercise to be a privacy-respecting fitness RPG: <strong>your data stays on your device</strong>. We do not run servers that store your information, and we do not share your data with third parties.</p>
 
 <div class="key-point">
-  <strong>Plain-English summary:</strong> Your step count and game progress are stored only on your iPhone. Nothing is uploaded anywhere. We do not run analytics, we do not show ads, and we do not use third-party tracking SDKs.
+  <strong>Plain-English summary:</strong> Your step count and game progress are stored only on your iPhone. We do not run analytics, we do not show ads, and we do not use third-party tracking SDKs. The single exception is <strong>Sentry</strong>, a crash-reporting service that receives technical diagnostic data (the error message + stack trace + your device model + OS version) ONLY when the app crashes or hits an unhandled exception. Sentry receives no step data, no game save contents, and no identifier that we could use to find you.
 </div>
 
 <h2>1. Information we access</h2>
@@ -86,15 +86,31 @@
 <h3>Local game state</h3>
 <p>Game state — your character, gold, level, owned outfits, quest progress, settings — is written to a single save file in the app's private storage on your device (<code>Application.persistentDataPath</code>). It is not synced to iCloud, not backed up to our servers (we have none), and is not accessible to other apps.</p>
 
+<h3>Crash + error diagnostics (Sentry)</h3>
+<p>When the app crashes or hits an unhandled exception, Gamexercise sends a diagnostic report to <a href="https://sentry.io/security/" target="_blank">Sentry</a>, a third-party error-monitoring service. The report contains:</p>
+<ul>
+  <li>The exception message and call stack (which code line failed).</li>
+  <li>Device model, OS version, and app version.</li>
+  <li>The user's preferred language / locale code.</li>
+  <li>A short trail ("breadcrumbs") of the last ~100 log entries leading up to the crash, used only to reproduce the bug.</li>
+</ul>
+<p>The report does <strong>not</strong> contain:</p>
+<ul>
+  <li>HealthKit step data or any health metric.</li>
+  <li>Your game save (character / gold / quests / outfits).</li>
+  <li>Your name, email, IDFA, or any identifier that could link the crash to you. We don't have accounts.</li>
+  <li>Your IP address — Sentry's <code>SendDefaultPii</code> setting is explicitly disabled, so IPs are stripped server-side before storage.</li>
+</ul>
+<p>We use this data solely to fix bugs. Sentry retains crash reports for 90 days then deletes them. Their privacy policy is available at <a href="https://sentry.io/privacy/" target="_blank">sentry.io/privacy</a>.</p>
+
 <h2>2. Information we do not collect</h2>
 <ul>
   <li><strong>No personal information.</strong> We do not ask for your name, email, phone number, address, or any account credentials.</li>
   <li><strong>No location data.</strong> We do not request location permissions.</li>
-  <li><strong>No device identifiers.</strong> We do not collect your IDFA, IDFV, or any advertising / tracking identifier.</li>
+  <li><strong>No device identifiers used for tracking.</strong> We do not collect your IDFA, IDFV, or any advertising / tracking identifier. (Sentry's crash report includes the device model but not a per-device unique ID.)</li>
   <li><strong>No analytics.</strong> The app does not include any analytics SDK (no Firebase, Mixpanel, Amplitude, etc.).</li>
-  <li><strong>No crash reporting (yet).</strong> If we add a crash-reporting SDK in a future version, this policy will be updated to disclose what it collects.</li>
   <li><strong>No ads.</strong> Gamexercise contains no advertising.</li>
-  <li><strong>No third-party tracking.</strong> The app does not contact any tracking domains.</li>
+  <li><strong>No third-party tracking.</strong> The app does not contact any tracking domains. (Sentry collects crash diagnostics only when something breaks; this is not tracking under Apple's ATT framework.)</li>
 </ul>
 
 <h2>3. How we use the information we access</h2>
@@ -106,8 +122,9 @@
 </ul>
 
 <h2>4. Data sharing</h2>
-<p><strong>We do not share, sell, rent, license, or otherwise transfer your data to any third party.</strong> Because no data leaves your device, there is nothing to share.</p>
-<p>If we add features in a future version that involve transmitting data — for example, Apple Game Center leaderboards (where leaderboard scores are sent to Apple's Game Center servers, not ours) — this policy will be updated before that feature ships, and the relevant data flows will be disclosed here and in the App Store privacy nutrition card.</p>
+<p>We do not share, sell, rent, license, or otherwise transfer your data to any third party for marketing or commercial purposes.</p>
+<p>The single processor we use is <strong>Sentry</strong>, who acts on our behalf strictly to store the crash diagnostics described in Section 1. Sentry does not use the data for their own marketing, does not share it with third parties, and is bound by their own published privacy policy.</p>
+<p>If we add features in a future version that involve transmitting other data — for example, Apple Game Center leaderboards (where leaderboard scores are sent to Apple's Game Center servers, not ours) — this policy will be updated before that feature ships, and the relevant data flows will be disclosed here and in the App Store privacy nutrition card.</p>
 
 <h2>5. Your choices</h2>
 <ul>
