@@ -1407,8 +1407,28 @@ namespace Gamex.Game
                 new Vector2(0.5f, 1f), new Vector2(0f, -910f), new Vector2(880f, 90f),
                 "Reset progress", HandleResetTap);
 
+            // Section: Legal — privacy policy URL is mandated by Apple for
+            // any app reading HealthKit data and must be reachable both
+            // from the App Store listing and from within the app itself.
+            MkText("LegalHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -1040f),
+                new Vector2(800f, 50f), FS_BODY, TextAnchor.UpperCenter, AccentGold).text = "Legal";
+
+            MkButtonWithLabel("PrivacyPolicyRow", _settingsPanel.transform,
+                new Vector2(0.5f, 1f), new Vector2(0f, -1140f), new Vector2(880f, 90f),
+                "Privacy Policy", OpenPrivacyPolicy);
+
             MkButton("Back", _settingsPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
+        }
+
+        // Privacy policy URL — replace with the deployed GitHub Pages URL
+        // (or other public host) once docs/privacy-policy.html is live.
+        // The same URL is also entered in App Store Connect's App Privacy
+        // section. TODO(jackson): swap PRIVACY_POLICY_URL once deployed.
+        const string PRIVACY_POLICY_URL = "https://github.com/jacksonhlz/gamexercise"; // placeholder, see docs/README.md
+        static void OpenPrivacyPolicy()
+        {
+            Application.OpenURL(PRIVACY_POLICY_URL);
         }
 
         // Helper — clickable text row styled as a grey button. Returns the
