@@ -539,6 +539,26 @@ namespace Gamex.Game
             // conflict (fade-in alpha * exit alpha).
             _titleCanvasGroup = _titlePanel.AddComponent<CanvasGroup>();
 
+            // Tap-anywhere-to-start: the full-screen panel itself is a
+            // Button. The visible "Tap to Start" label below is purely a
+            // prompt + still tappable as its own button (in front of this
+            // one in z-order so it gets clicks within its 560x130 area;
+            // taps anywhere else on the panel land here).
+            var panelImg = _titlePanel.GetComponent<Image>();
+            panelImg.raycastTarget = true;
+            var panelBtn = _titlePanel.AddComponent<Button>();
+            panelBtn.targetGraphic = panelImg;
+            panelBtn.transition = Selectable.Transition.None;
+            panelBtn.onClick.AddListener(() =>
+            {
+                if (_titleExiting) return;
+                Sfx.Play("tap");
+                _titleExiting = true;
+                _titleExitT = 0f;
+                if (_titleStartButton != null) _titleStartButton.interactable = false;
+                panelBtn.interactable = false;
+            });
+
             // Background scene — Midjourney-generated pixel-art throne hall
             // (816x1456 native 9:16). Fills the full screen since its
             // aspect ratio matches the 1080x1920 design canvas exactly.
