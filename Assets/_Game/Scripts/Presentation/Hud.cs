@@ -1406,7 +1406,7 @@ namespace Gamex.Game
 
             // Section: Audio
             MkText("AudioHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -240f),
-                new Vector2(800f, 50f), FS_BODY, TextAnchor.UpperCenter, AccentGold).text = "Audio";
+                new Vector2(800f, 60f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "Audio";
 
             _settingsSfxLabel = MkButtonWithLabel("SfxRow", _settingsPanel.transform,
                 new Vector2(0.5f, 1f), new Vector2(0f, -340f), new Vector2(880f, 90f),
@@ -1418,7 +1418,7 @@ namespace Gamex.Game
 
             // Section: HealthKit (iOS surfaces status; non-iOS shows "Unavailable" + non-clickable)
             MkText("HKHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -580f),
-                new Vector2(800f, 50f), FS_BODY, TextAnchor.UpperCenter, AccentGold).text = "HealthKit";
+                new Vector2(800f, 60f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "HealthKit";
 
             _settingsHKLabel = MkButtonWithLabel("HKRow", _settingsPanel.transform,
                 new Vector2(0.5f, 1f), new Vector2(0f, -680f), new Vector2(880f, 90f),
@@ -1426,7 +1426,7 @@ namespace Gamex.Game
 
             // Section: Data
             MkText("DataHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -810f),
-                new Vector2(800f, 50f), FS_BODY, TextAnchor.UpperCenter, AccentGold).text = "Data";
+                new Vector2(800f, 60f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "Data";
 
             _settingsResetLabel = MkButtonWithLabel("ResetRow", _settingsPanel.transform,
                 new Vector2(0.5f, 1f), new Vector2(0f, -910f), new Vector2(880f, 90f),
@@ -1436,7 +1436,7 @@ namespace Gamex.Game
             // any app reading HealthKit data and must be reachable both
             // from the App Store listing and from within the app itself.
             MkText("LegalHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -1040f),
-                new Vector2(800f, 50f), FS_BODY, TextAnchor.UpperCenter, AccentGold).text = "Legal";
+                new Vector2(800f, 60f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "Legal";
 
             MkButtonWithLabel("PrivacyPolicyRow", _settingsPanel.transform,
                 new Vector2(0.5f, 1f), new Vector2(0f, -1140f), new Vector2(880f, 90f),
@@ -1702,14 +1702,18 @@ namespace Gamex.Game
             }
 
             // Background music — calm drone on every screen the player lingers on.
-            // Idempotent: PlayLoop no-ops if the same track is already playing,
-            // so calling it every Refresh is cheap. Cinematics (CurseAnim,
-            // RaceTransformAnim) stay quiet so the SFX hits land hard.
-            bool bgmOn = g.phase == AppPhase.Home
+            // Title + Settings included so the loop covers the first impression
+            // and audio-toggle screen. Cinematics (Opening*, CurseAnim,
+            // RaceSelect, RaceTransformAnim, FirstMirror) stay quiet so the
+            // SFX hits and narrative beats land hard. PlayLoop is idempotent
+            // (same-clip re-call is a no-op) so calling every Refresh is cheap.
+            bool bgmOn = g.phase == AppPhase.Title
+                      || g.phase == AppPhase.Home
                       || g.phase == AppPhase.Quests
                       || g.phase == AppPhase.Shop
                       || g.phase == AppPhase.SetDetail
-                      || g.phase == AppPhase.Inventory;
+                      || g.phase == AppPhase.Inventory
+                      || g.phase == AppPhase.Settings;
             if (bgmOn) Bgm.PlayLoop("bgm_home");
             else       Bgm.Stop();
 
@@ -2497,7 +2501,7 @@ namespace Gamex.Game
             if (_settingsSfxLabel != null)
                 _settingsSfxLabel.text = "Sound effects: " + (g.state.sfxMuted ? "OFF" : "ON");
             if (_settingsBgmLabel != null)
-                _settingsBgmLabel.text = "Music: " + (g.state.bgmMuted ? "OFF (clip pending)" : "ON (clip pending)");
+                _settingsBgmLabel.text = "Music: " + (g.state.bgmMuted ? "OFF" : "ON");
 
             if (_settingsHKLabel != null)
             {
