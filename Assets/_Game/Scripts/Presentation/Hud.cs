@@ -889,18 +889,18 @@ namespace Gamex.Game
                 new Vector2(0f, -360f), new Vector2(900f, 40f),
                 FS_BODY, TextAnchor.MiddleCenter, TextDim);
 
-            // bottom buttons — Quests opens the daily-task list, Shop is cosmetics
-            MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 280f),
+            // Bottom buttons — Quests (primary), Shop (secondary), Settings
+            // (tertiary) stacked vertically just below the "Next form
+            // change at Lv N" hint so the eye flows mirror -> stats ->
+            // actions naturally. Bottom margin (~115px below Settings)
+            // keeps the lowest button from clinging to the screen edge.
+            // Sizes shrink down the stack to reinforce hierarchy.
+            MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 460f),
                 new Vector2(800f, 160f), "Quests", () => _onGoQuests?.Invoke());
-            MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
+            MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 290f),
                 new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
-
-            // Settings — small button at the top-right corner, below the coin
-            // counter. Intentionally low-key so it doesn't draw attention away
-            // from the mirror, but reachable for audio mute / HealthKit re-link
-            // / reset progress without burying it behind a long-press.
-            MkButton("SettingsBtn", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-160f, -180f),
-                new Vector2(280f, 70f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
+            MkButton("SettingsBtn", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 160f),
+                new Vector2(360f, 90f), "Settings", () => _onGoSettings?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
@@ -989,7 +989,7 @@ namespace Gamex.Game
             _questsStreak     = null;   // dropped; Home shows it
 
             MkButton("Back", _trainPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // ============================================================
@@ -1151,7 +1151,7 @@ namespace Gamex.Game
             contentRT.sizeDelta = new Vector2(0f, -y + 40f);
 
             MkButton("Back", _shopPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
-                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // Build a vertical ScrollRect anchored to fill the parent except for
@@ -1260,7 +1260,7 @@ namespace Gamex.Game
 
             MkButton("Back", _setDetailPanel.transform, new Vector2(0.5f, 0f),
                 new Vector2(0f, 90f), new Vector2(420f, 100f),
-                "Back to Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
+                "Back to Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // Tracks which set's rows are currently visible inside _setDetailPanel.
@@ -1365,7 +1365,7 @@ namespace Gamex.Game
             contentRT.sizeDelta = new Vector2(1000f, -bottomY);
 
             MkButton("Back", _inventoryPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
-                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // Settings panel — audio mute toggles, HealthKit status + open-iOS-
@@ -1418,7 +1418,7 @@ namespace Gamex.Game
                 "Privacy Policy", OpenPrivacyPolicy);
 
             MkButton("Back", _settingsPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
-                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
+                new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
         }
 
         // Privacy policy URL — published from docs/privacy-policy.html via
