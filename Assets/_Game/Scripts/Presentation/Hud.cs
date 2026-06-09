@@ -1421,11 +1421,11 @@ namespace Gamex.Game
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down", sfx: "back");
         }
 
-        // Privacy policy URL — replace with the deployed GitHub Pages URL
-        // (or other public host) once docs/privacy-policy.html is live.
-        // The same URL is also entered in App Store Connect's App Privacy
-        // section. TODO(jackson): swap PRIVACY_POLICY_URL once deployed.
-        const string PRIVACY_POLICY_URL = "https://github.com/jacksonhlz/gamexercise"; // placeholder, see docs/README.md
+        // Privacy policy URL — published from docs/privacy-policy.html via
+        // GitHub Pages (commit a6bf9f6 + deploy 2026-06-09). The same URL
+        // is what gets entered into App Store Connect's App Privacy section
+        // at submission time.
+        const string PRIVACY_POLICY_URL = "https://donefourstudio.github.io/gamexercise/privacy-policy.html";
         static void OpenPrivacyPolicy()
         {
             Application.OpenURL(PRIVACY_POLICY_URL);
