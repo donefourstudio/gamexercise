@@ -526,7 +526,7 @@ namespace Gamex.Game
             body.text = text;
             body.horizontalOverflow = HorizontalWrapMode.Wrap;
             MkText("Hint", go.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
+                new Vector2(800f, 60f), FS_LABEL, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
             return go;
         }
 
@@ -622,12 +622,16 @@ namespace Gamex.Game
             wordmarkOutlineB.effectColor    = new Color(0f, 0f, 0f, 0.9f);
             wordmarkOutlineB.effectDistance = new Vector2(-4f, 4f);
 
-            // Tagline gets a more muted warm-stone tone (matches the dim
-            // ambient amber on the side walls of the bg) and a slightly
-            // smaller body font, pushed below the now-larger wordmark.
-            var taglineStone = new Color(0.78f, 0.70f, 0.55f, 1f);
+            // Tagline gets a warm-stone tone (matches the ambient amber on the
+            // side walls of the bg) and FS_LABEL (33pt). FS_BODY (22pt) was
+            // legible on-device but illegible against the throne_bg's busy
+            // pixel architecture in App Store screenshots — the glyphs got
+            // lost in the background noise. Brighter stone color (0.92 instead
+            // of 0.78) plus the larger size + existing 2px outline keeps it
+            // readable on both 60-inch monitors and 6-inch phones.
+            var taglineStone = new Color(0.92f, 0.84f, 0.62f, 1f);
             _titleTagline = MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -320f), new Vector2(1000f, 60f), FS_BODY, TextAnchor.MiddleCenter, taglineStone);
+                new Vector2(0f, -330f), new Vector2(1000f, 80f), FS_LABEL, TextAnchor.MiddleCenter, taglineStone);
             _titleTagline.text = "Walk. Train. Reign.";
             var taglineOutline = _titleTagline.gameObject.AddComponent<Outline>();
             taglineOutline.effectColor    = new Color(0f, 0f, 0f, 0.85f);
@@ -706,7 +710,7 @@ namespace Gamex.Game
                 Make.SetPreview("champ_dark_knight"), Color.white);
 
             MkText("Hint", _openingHeroShownPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
-                new Vector2(800f, 50f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
+                new Vector2(800f, 60f), FS_LABEL, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
         }
 
         void BuildOpeningCurseLooms(Transform root)
@@ -920,8 +924,8 @@ namespace Gamex.Game
             // having to discover it. Stops players quitting before the
             // skeleton -> flesh visual landmark at Lv 10.
             _homeNextHint = MkText("NextHint", _homePanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -360f), new Vector2(900f, 40f),
-                FS_BODY, TextAnchor.MiddleCenter, TextDim);
+                new Vector2(0f, -365f), new Vector2(900f, 56f),
+                FS_LABEL, TextAnchor.MiddleCenter, TextDim);
 
             // bottom buttons — Quests opens the daily-task list, Shop is cosmetics.
             // Whole group lifted ~80px above the prior baseline so Settings can sit
@@ -1137,8 +1141,8 @@ namespace Gamex.Game
                     priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
 
                     MkText("Sub", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(195f, -65f), new Vector2(665f, 40f),
-                        FS_BODY, TextAnchor.MiddleLeft, new Color(0.35f, 0.22f, 0.10f))
+                        new Vector2(195f, -70f), new Vector2(665f, 56f),
+                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.35f, 0.22f, 0.10f))
                         .text = $"tap to view {set.pieces.Length} pieces";
 
                     _shopSetCards.Add((set.id, card, priceLabel, cardBtn));
@@ -1369,8 +1373,8 @@ namespace Gamex.Game
                     new Vector2(CELL - 24f, CELL - 24f), (Sprite)null, Color.white)
                     .GetComponent<Image>();
                 var badge = MkText("Active", cell.transform, new Vector2(0.5f, 0f),
-                    new Vector2(0f, 6f), new Vector2(CELL, 30f),
-                    FS_BODY, TextAnchor.LowerCenter, AccentGold);
+                    new Vector2(0f, 6f), new Vector2(CELL, 44f),
+                    FS_LABEL, TextAnchor.LowerCenter, AccentGold);
                 badge.text = "Active";
                 badge.gameObject.SetActive(false);
 
