@@ -216,6 +216,9 @@ namespace Gamex.Game
         // gold number's left edge so "0" and "9500" both sit flush against
         // the digits with the same gap.
         Image _homeCoinIcon, _shopCoinIcon, _setDetailCoinIcon;
+        // Green pixel-art ✓ next to home progress when daily 5k step goal is met.
+        // Cubic 11 has no U+2713, so a runtime-generated sprite replaces the glyph.
+        Image _homeProgressCheck;
         Image _xpBar;
         // XP bar animation — _xpDisplayPct lags the actual XP fraction and
         // eases toward it; on level-up, the bar fills the rest of the way to
@@ -918,6 +921,19 @@ namespace Gamex.Game
                 new Vector2(0f, -180f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
             _homeProgress = MkText("Progress", _homePanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -240f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+            // Green ✓ sits just right of the text when the 5k daily goal is met.
+            // Position recalculated each Refresh from preferredWidth so it tracks
+            // strings of different lengths (e.g. "Today 5000 steps" vs "Today 12500 steps").
+            var checkGO = new GameObject("ProgressCheck", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            checkGO.transform.SetParent(_homePanel.transform, false);
+            _homeProgressCheck = checkGO.GetComponent<Image>();
+            _homeProgressCheck.sprite = GetCheckmarkSprite();
+            _homeProgressCheck.raycastTarget = false;
+            var checkRT = _homeProgressCheck.rectTransform;
+            checkRT.anchorMin = checkRT.anchorMax = new Vector2(0.5f, 0.5f);
+            checkRT.sizeDelta = new Vector2(42f, 42f);
+            checkRT.anchoredPosition = new Vector2(0f, -240f);
+            _homeProgressCheck.enabled = false;
 
             // XP bar — solid-color rects, fill anchored to parent's left edge.
             // (9-slice sprites stretched to 36px tall produced compression artifacts.)
@@ -1111,11 +1127,15 @@ namespace Gamex.Game
                 if (sectionSets.Count == 0 && sectionSkins.Count == 0) continue;
 
                 string headerText = SectionDisplayNames.TryGetValue(source, out var h) ? h : source;
+                // Cubic 11's em-dash glyph sits at x-height, not text-centre,
+                // so "— Champions —" rendered with the dashes detached above
+                // the word. Strip the dashes and bump to FS_TITLE so the
+                // header carries the same weight as the card names below it.
                 var hdr = MkText("SectionHeader_" + source, contentRT, new Vector2(0.5f, 1f),
-                    new Vector2(0f, y), new Vector2(800f, 50f),
-                    FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
-                hdr.text = $"— {headerText} —";
-                y -= HEADER_GAP;
+                    new Vector2(0f, y), new Vector2(800f, 80f),
+                    FS_TITLE, TextAnchor.MiddleCenter, AccentGold);
+                hdr.text = headerText;
+                y -= HEADER_GAP + 30f;
 
                 // Set cards inside this section (multi-piece purchasable bundles).
                 foreach (var set in sectionSets)
@@ -1949,6 +1969,19 @@ namespace Gamex.Game
                 bool dailyGoalMet = g.state.todaySteps >= 5000;
                 _homeProgress.text  = $"Today {g.state.todaySteps} steps";
                 _homeProgress.color = dailyGoalMet ? AccentGold : TextDim;
+                if (_homeProgressCheck != null)
+                {
+                    _homeProgressCheck.enabled = dailyGoalMet;
+                    if (dailyGoalMet)
+                    {
+                        // preferredWidth needs a layout pass to be accurate; ForceMeshUpdate
+                        // gives us the rendered width of the current string at FS_LABEL.
+                        _homeProgress.ForceMeshUpdate();
+                        float textHalfW = _homeProgress.preferredWidth * 0.5f;
+                        _homeProgressCheck.rectTransform.anchoredPosition =
+                            new Vector2(textHalfW + 32f, -240f);
+                    }
+                }
                 float xpTarget = (float)g.XpInCurrentLevel / Mathf.Max(1, g.XpToNextLevel);
                 if (_xpDisplayPct < 0f)
                 {
@@ -2944,6 +2977,36 @@ namespace Gamex.Game
                 enableMultiAtlasSupport: true);
             _cubicSDFCached.name = "Cubic_11_SDF_Runtime";
             return _cubicSDFCached;
+        }
+
+        // Pixel-art green ✓ generated at startup. Cubic 11 doesn't ship a
+        // U+2713 glyph and the SDF atlas can only bake what's in the font,
+        // so we paint a 14x14 mark directly into a Texture2D and wrap it
+        // as a Sprite for UI Image use.
+        static Sprite _checkmarkSpriteCached;
+        static Sprite GetCheckmarkSprite()
+        {
+            if (_checkmarkSpriteCached != null) return _checkmarkSpriteCached;
+            const int W = 14, H = 14;
+            var tex = new Texture2D(W, H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+            var px = new Color32[W * H];
+            var c = new Color32(123, 202, 63, 255); // pixel-tasteful spring green
+            // ✓ traced as two diagonals: short up-right from (2,5)->(5,2), long up-right from (5,2)->(12,9)
+            (int x, int y)[] mark = {
+                (2,5),(3,5),(2,4),(3,4),
+                (3,4),(4,3),(3,3),(4,2),
+                (4,2),(5,1),(5,2),
+                (6,3),(7,4),(8,5),(9,6),(10,7),(11,8),(12,9),
+                (6,2),(7,3),(8,4),(9,5),(10,6),(11,7),
+            };
+            for (int i = 0; i < W * H; i++) px[i] = new Color32(0,0,0,0);
+            foreach (var (x, y) in mark)
+                if ((uint)x < W && (uint)y < H) px[y * W + x] = c;
+            tex.SetPixels32(px);
+            tex.Apply(false, false);
+            _checkmarkSpriteCached = Sprite.Create(tex, new Rect(0, 0, W, H), new Vector2(0.5f, 0.5f), pixelsPerUnit: 1f);
+            _checkmarkSpriteCached.name = "CheckmarkRuntime";
+            return _checkmarkSpriteCached;
         }
 
         // TMP's underlay (drop-shadow) shader feature. Off by default — to
