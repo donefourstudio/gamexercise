@@ -257,6 +257,12 @@ namespace Gamex.Game
         string _animLastSkin;
         int    _animFrame;
         float  _animTimer;
+        // Independent frame state for the skin-detail preview — the player
+        // may be viewing a different skin in the detail page than the one
+        // currently applied to their avatar.
+        string _skinDetailAnimLast;
+        int    _skinDetailAnimFrame;
+        float  _skinDetailAnimTimer;
 
         // ---- pet rendering (polish round 3) ----
         // Pet sits at the bottom-right of the mirror / paper-doll, hidden
@@ -1371,22 +1377,26 @@ namespace Gamex.Game
                 new Vector2(-40f, -90f), new Vector2(200f, 60f),
                 FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
-            // Big preview frame, same dimensions as SetDetail's so the two
-            // detail pages feel like the same screen with different content.
+            // Big preview frame — Skin detail has fewer UI elements than
+            // SetDetail (no per-piece grid), so the room goes to the preview.
+            // Frame is 820x820, sprite 760x760 — nearly fills the panel
+            // width (1080) with side padding, so the legend art reads at
+            // glance. Center is offset +320 above canvas mid to leave room
+            // for state label + action below.
             var previewFrame = MkSpritePanel("PreviewFrame", _skinDetailPanel.transform,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 540f), new Vector2(420f, 420f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 320f), new Vector2(820f, 820f),
                 "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
             previewFrame.GetComponent<Image>().raycastTarget = false;
             _skinDetailPreview = MkSpriteIcon("Preview", previewFrame.transform,
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380f, 380f),
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 760f),
                 (Sprite)null, Color.white).GetComponent<Image>();
 
             _skinDetailStateLabel = MkText("StateLabel", _skinDetailPanel.transform,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), new Vector2(900f, 60f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -240f), new Vector2(900f, 60f),
                 FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
 
             var actionGO = MkButton("Action", _skinDetailPanel.transform,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), new Vector2(640f, 130f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -370f), new Vector2(640f, 130f),
                 "Buy", () =>
                 {
                     if (!string.IsNullOrEmpty(_currentSkinId)) _onSkinAction?.Invoke(_currentSkinId);
@@ -2343,6 +2353,7 @@ namespace Gamex.Game
             // Phase 5e3 — animate the active skin. Runs every Refresh; cheap
             // when no animated skin is applied (early return on frameCount<=1).
             TickActiveSkinAnimation(g);
+            TickSkinDetailAnimation(g);
             TickActivePet(g);
         }
 
@@ -2422,6 +2433,34 @@ namespace Gamex.Game
             if (active == null || active.portrait == null) return;
             var spr = Resources.Load<Sprite>($"Skins/{activeSkin}_{_animFrame:D2}");
             if (spr != null) active.portrait.sprite = spr;
+        }
+
+        // Cycles the skin-detail preview through Skins/<id>_NN.png frames
+        // so the legend art breathes inside the detail page instead of
+        // sitting as a flat sprite. Static skins (frameCount <= 1) just
+        // show the base sprite and return.
+        void TickSkinDetailAnimation(GamexGame g)
+        {
+            if (g.phase != AppPhase.SkinDetail || _skinDetailPreview == null) return;
+            string id = g.activeSkinId;
+            var skin = GamexGame.FindSkin(id);
+            if (skin == null) return;
+            if (id != _skinDetailAnimLast)
+            {
+                _skinDetailAnimLast  = id;
+                _skinDetailAnimFrame = 0;
+                _skinDetailAnimTimer = 0f;
+            }
+            if (skin.frameCount <= 1) return;
+            _skinDetailAnimTimer += Time.unscaledDeltaTime;
+            float perFrame = skin.frameSeconds > 0f ? skin.frameSeconds : 0.12f;
+            while (_skinDetailAnimTimer >= perFrame)
+            {
+                _skinDetailAnimTimer -= perFrame;
+                _skinDetailAnimFrame  = (_skinDetailAnimFrame + 1) % skin.frameCount;
+            }
+            var spr = Resources.Load<Sprite>($"Skins/{id}_{_skinDetailAnimFrame:D2}");
+            if (spr != null) _skinDetailPreview.sprite = spr;
         }
 
         // ============================================================
