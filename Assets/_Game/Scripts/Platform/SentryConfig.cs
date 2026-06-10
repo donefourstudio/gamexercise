@@ -1,5 +1,6 @@
 using UnityEngine;
 #if !UNITY_EDITOR
+using Sentry;
 using Sentry.Unity;
 #endif
 
@@ -34,7 +35,11 @@ namespace Gamex.Platform
         public static void Init()
         {
 #if !UNITY_EDITOR
-            SentryUnity.Init(options =>
+            // Sentry Unity 4.x renamed the init helper from SentryUnity.Init
+            // to SentrySdk.Init (with a SentryUnityOptions builder). The
+            // configure-lambda shape is the same. See SentryInitialization.cs
+            // in the io.sentry.unity package for the canonical 4.x pattern.
+            SentrySdk.Init(options =>
             {
                 options.Dsn = DSN;
 
