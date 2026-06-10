@@ -62,16 +62,16 @@ namespace Gamex.Game
             var g4 = new GamexGame();
             g4.AddActivity(999, 0, 0);
             Check(g4.state.coins == 0, "no quest done at 999 steps, got " + g4.state.coins);
-            g4.AddActivity(1, 0, 0);                    // total 1000        -> Walk1000 (+1)
-            Check(g4.state.coins == 1, "walk 1000 -> +1, got " + g4.state.coins);
-            g4.AddActivity(4000, 0, 0);                 // total 5000        -> Walk5000 (+3) = 4
-            Check(g4.state.coins == 4, "walk 5000 -> +3, got " + g4.state.coins);
-            g4.AddActivity(5000, 0, 0);                 // total 10000       -> Walk10000 (+5) = 9
-            Check(g4.state.coins == 9, "walk 10000 -> +5, got " + g4.state.coins);
-            g4.AddActivity(0, 0, 15 * 60);              // run 15 min        -> Run15 (+3) = 12
-            Check(g4.state.coins == 12, "run 15 -> +3, got " + g4.state.coins);
-            g4.AddActivity(0, 0, 15 * 60);              // total 30 min run  -> Run30 (+5) + all-bonus (+10) = 27
-            Check(g4.state.coins == 27, "run 30 -> +5 +10 all-bonus, got " + g4.state.coins);
+            g4.AddActivity(1, 0, 0);                    // total 1000        -> Walk1000 (+2)
+            Check(g4.state.coins == 2, "walk 1000 -> +2, got " + g4.state.coins);
+            g4.AddActivity(4000, 0, 0);                 // total 5000        -> Walk5000 (+4) = 6
+            Check(g4.state.coins == 6, "walk 5000 -> +4, got " + g4.state.coins);
+            g4.AddActivity(5000, 0, 0);                 // total 10000       -> Walk10000 (+6) = 12
+            Check(g4.state.coins == 12, "walk 10000 -> +6, got " + g4.state.coins);
+            g4.AddActivity(0, 0, 15 * 60);              // run 15 min        -> Run15 (+4) = 16
+            Check(g4.state.coins == 16, "run 15 -> +4, got " + g4.state.coins);
+            g4.AddActivity(0, 0, 15 * 60);              // total 30 min run  -> Run30 (+6) + all-bonus (+8) = 30
+            Check(g4.state.coins == 30, "run 30 -> +6 +8 all-bonus, got " + g4.state.coins);
 
             // EndDay resets daily counters, advances streak, weekly bonus
             var g5 = new GamexGame();
