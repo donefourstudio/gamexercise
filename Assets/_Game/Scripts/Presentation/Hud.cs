@@ -1947,9 +1947,7 @@ namespace Gamex.Game
                 LayoutCoinNextToText(_homeCoinIcon, _homeCoins, marginRight: 40f, coinYOffset: -54f);
                 _homeStreak.text  = $"{g.state.streakDays}-day streak";
                 bool dailyGoalMet = g.state.todaySteps >= 5000;
-                _homeProgress.text  = dailyGoalMet
-                    ? $"Today {g.state.todaySteps} steps  ✓"
-                    : $"Today {g.state.todaySteps} steps";
+                _homeProgress.text  = $"Today {g.state.todaySteps} steps";
                 _homeProgress.color = dailyGoalMet ? AccentGold : TextDim;
                 float xpTarget = (float)g.XpInCurrentLevel / Mathf.Max(1, g.XpToNextLevel);
                 if (_xpDisplayPct < 0f)
@@ -2210,7 +2208,7 @@ namespace Gamex.Game
                     foreach (var p in set.pieces)
                         if (!g.IsOwned(p.id)) { fullyOwned = false; break; }
                     if (fullyOwned)
-                        card.priceLabel.text = "✓ Complete set owned";
+                        card.priceLabel.text = "Complete set owned";
                     else
                         card.priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
                     var img = card.root.GetComponent<Image>();
@@ -2653,7 +2651,7 @@ namespace Gamex.Game
                 if (_questRowLabels[i] != null)
                 {
                     string status = done
-                        ? "✓ done"
+                        ? "done"
                         : (spec.runMinutes
                             ? $"{progress} / {spec.goal} min"
                             : $"{progress} / {spec.goal} steps");
@@ -2701,7 +2699,7 @@ namespace Gamex.Game
                     bool earned = g.state.knightChainStage >= GamexGame.KnightSet.Length;
                     if (earned)
                     {
-                        _questsKnight.text = "Knight Set earned ✓";
+                        _questsKnight.text = "Knight Set earned!";
                     }
                     else
                     {
