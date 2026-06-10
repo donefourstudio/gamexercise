@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using TMPro;
+using UnityEngine.TextCore.LowLevel;
 using Gamex.Core;
 using Gamex.Platform;
 
@@ -39,9 +41,15 @@ namespace Gamex.Game
         // the fade does the actual phase change fire). _titleT counts up
         // from 0 on every Title entry. Stored Image / Transform / Button
         // refs avoid GameObject.Find in Refresh.
-        Text _titleWordmark, _titleTagline;
+        // _titleWordmark + _titleTagline are TMP_Text (signed distance field
+        // rendering) so they stay sharp at the 1.447x non-integer canvas scale
+        // iPhone Pro Max forces — bitmap UI.Text would land glyph strokes on
+        // sub-pixel boundaries and get bilinear-averaged into soft grays.
+        // Color tween code below works for both because Graphic.color is the
+        // shared base property.
+        TMP_Text _titleWordmark, _titleTagline;
         Image _titleCrown;
-        Text  _titleStartLabel;     // "Tap to Start" label — alpha breathes via UpdateTitle
+        TMP_Text _titleStartLabel; // "Tap to Start" label — alpha breathes via UpdateTitle
         Image _titleCrownHalo;   // Kenney particle-pack glow_round behind the crown; breathes via UpdateTitle
         Image _titleDivider;     // Kenney fantasy-ui-borders divider_ornate under the tagline
         Image[] _titleCandles = new Image[4];
@@ -64,14 +72,14 @@ namespace Gamex.Game
         GameObject _cursePanel, _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
         GameObject _inventoryPanel;
         GameObject _settingsPanel;
-        Text _settingsSfxLabel, _settingsBgmLabel, _settingsHKLabel, _settingsResetLabel;
+        TMP_Text _settingsSfxLabel, _settingsBgmLabel, _settingsHKLabel, _settingsResetLabel;
         // HealthKit hard-gate panel — shown whenever a real iOS device is
         // missing HK authorization. _hkGateBody describes the state to the
         // player; _hkGateActionLabel switches between "Connect HealthKit"
         // and "Open iOS Settings" depending on HK.CurrentStatus().
         GameObject _hkGatePanel;
         GameObject _hkGateActionBtn;
-        Text _hkGateBody, _hkGateActionLabel;
+        TMP_Text _hkGateBody, _hkGateActionLabel;
         // Two-tap confirm timer for Reset Progress. First tap arms the
         // button (label flips to "Tap again to confirm" + red tint) and
         // sets _resetArmedUntil; second tap within the window actually
@@ -88,7 +96,7 @@ namespace Gamex.Game
         AvatarSprite _curseMaleA, _curseFemaleA, _curseMaleB, _curseFemaleB;
         Image _raceAnimSilhouette;       // shown for the first half of the cinematic
         AvatarSprite _raceAnimAvatar;    // race form, shown for the second half
-        Text _raceAnimText;
+        TMP_Text _raceAnimText;
         float _raceAnimT;
         const float RACE_ANIM_SWAP_AT = 0.7f;
 
@@ -115,8 +123,8 @@ namespace Gamex.Game
 
         // ---- mirror polish (breathing + stage-up flash + milestone dialogue) ----
         Image _stageUpFlash;          // white overlay inside the mirror, lerps up + back
-        Text  _milestoneText;         // 4s line below the mirror after a stage transition
-        Text  _levelUpToast;          // "LEVEL UP!" pop on regular level-ups (non-stage)
+        TMP_Text _milestoneText;     // 4s line below the mirror after a stage transition
+        TMP_Text _levelUpToast;      // "LEVEL UP!" pop on regular level-ups (non-stage)
         int   _prevStage  = -1;       // -1 = uninitialised, set on first Home Refresh
         int   _prevLevel  = 1;
         // Sound triggers — uninit sentinel = -1 so the first Refresh after a
@@ -138,7 +146,7 @@ namespace Gamex.Game
         const float LEVELUP_PULSE_AMP = 0.22f;
 
         // ---- coin earn floater (Home + Shop + SetDetail) ----
-        Text  _homeCoinFloater, _shopCoinFloater, _setDetailCoinFloater;
+        TMP_Text _homeCoinFloater, _shopCoinFloater, _setDetailCoinFloater;
         float _coinFloatT;
         long  _coinFloatAmount;   // accumulated +N during an ongoing burst
         const float COIN_FLOAT_DURATION = 1.5f;
@@ -171,8 +179,8 @@ namespace Gamex.Game
         GameObject _tutorialOverlay;
         Image _tutorialDimTop, _tutorialDimBottom, _tutorialDimLeft, _tutorialDimRight;
         Image _tutorialCaptionBg;          // solid panel under caption + Next so it occludes dim Home text
-        Text  _tutorialCaption;
-        Text  _tutorialNextLabel;
+        TMP_Text _tutorialCaption;
+        TMP_Text _tutorialNextLabel;
         int   _tutorialStep = -1;          // -1 = not active; 0..N-1 = current step
         // Each step: target rect (canvas-center coords) + caption position + caption text.
         // Last step's button reads "Got it" instead of "Next".
@@ -203,7 +211,7 @@ namespace Gamex.Game
         };
 
         // ---- home refs ----
-        Text _homeLevel, _homeCoins, _homeProgress, _homeStreak, _homeNextHint;
+        TMP_Text _homeLevel, _homeCoins, _homeProgress, _homeStreak, _homeNextHint;
         // Coin sprite references — repositioned every Refresh to track the
         // gold number's left edge so "0" and "9500" both sit flush against
         // the digits with the same gap.
@@ -224,11 +232,11 @@ namespace Gamex.Game
         const float XP_LEVELUP_DROP_DUR  = 0.20f;
 
         // ---- quests refs (M5b/d) ----
-        Text _questsStreak, _questsTotalSteps, _questsTotalRun, _questsKnight;
+        TMP_Text _questsStreak, _questsTotalSteps, _questsTotalRun, _questsKnight;
         GameObject _questsKnightRow, _questsKnightBarBg;
         Image _questsKnightBarFill;
         readonly Image[] _questCheckmarks = new Image[(int)Quest.Count];
-        readonly Text[]  _questRowLabels  = new Text[(int)Quest.Count];
+        readonly TMP_Text[] _questRowLabels = new TMP_Text[(int)Quest.Count];
         readonly float[] _questPopT       = new float[(int)Quest.Count]; // > 0 -> trophy scale-pop
         const float TROPHY_POP_DURATION  = 0.45f;
         const float TROPHY_POP_AMP       = 0.45f;   // peak overshoot above 1.0x
@@ -237,7 +245,7 @@ namespace Gamex.Game
         readonly GameObject[] _questChipRoots = new GameObject[(int)Quest.Count];
 
         // ---- first mirror refs ----
-        Text _firstMirrorLine;
+        TMP_Text _firstMirrorLine;
 
         // ---- skin animation (Phase 5e3) ----
         // Tracks the currently-applied skin so frame state resets when the
@@ -257,19 +265,19 @@ namespace Gamex.Game
         float  _petAnimTimer;
 
         // ---- shop refs ----
-        Text _shopCoins;
+        TMP_Text _shopCoins;
         // Per-set card refs — `priceLabel` flips to "Owned" once every piece
         // is in state.owned, `bundleBtn` disables atomically with affordability.
-        readonly List<(string setId, GameObject root, Text priceLabel, Button cardBtn)> _shopSetCards = new();
+        readonly List<(string setId, GameObject root, TMP_Text priceLabel, Button cardBtn)> _shopSetCards = new();
         // Per-skin card refs (Phase 4b) — `actionLabel`/`actionBtn` flip between
         // Buy / Apply / Remove based on owned + active state.
-        readonly List<(string skinId, GameObject root, Text stateLabel, Text actionLabel, Button actionBtn)> _shopSkinCards = new();
+        readonly List<(string skinId, GameObject root, TMP_Text stateLabel, TMP_Text actionLabel, Button actionBtn)> _shopSkinCards = new();
         readonly HashSet<string> _ownedSnapshot = new();
 
         // ---- set detail (Phase 3c) refs ----
         GameObject _setDetailPanel;
         Image _setDetailPreview;
-        Text  _setDetailTitle, _setDetailCoins, _setDetailBundleLabel;
+        TMP_Text _setDetailTitle, _setDetailCoins, _setDetailBundleLabel;
         Button _setDetailBundleBtn;
         // Per-piece row: each row shows icon + name + per-piece price + buy/owned.
         // Built lazily on first entry into a set's detail page; cached so re-entry
@@ -294,7 +302,7 @@ namespace Gamex.Game
         readonly Image[]      _invGridIcons  = new Image[INV_GRID_CAPACITY];
         readonly GameObject[] _invGridBadges = new GameObject[INV_GRID_CAPACITY];
         readonly string[]     _invGridIds    = new string[INV_GRID_CAPACITY];
-        Text _invInventoryHeader;
+        TMP_Text _invInventoryHeader;
         // Phase 5 polish 6 — owned skin / pet rows below the storage grid.
         // Cells are pre-built (capacity SK_ROW_CAPACITY each) and re-populated
         // from state.ownedSkins / state.ownedPets in UpdateInventory.
@@ -524,7 +532,9 @@ namespace Gamex.Game
             var body = MkText("Body", go.transform, new Vector2(0.5f, 0.5f), Vector2.zero,
                 new Vector2(960f, 400f), FS_BTN, align, AccentGold);
             body.text = text;
-            body.horizontalOverflow = HorizontalWrapMode.Wrap;
+            // TMP wraps on by default — flip word-wrap on (MkTextTMP defaults
+            // wrap off because most labels in this Hud are single-line).
+            body.enableWordWrapping = true;
             MkText("Hint", go.transform, new Vector2(0.5f, 0f), new Vector2(0f, 120f),
                 new Vector2(800f, 60f), FS_LABEL, TextAnchor.LowerCenter, TextDim).text = "(tap to continue)";
             return go;
@@ -608,34 +618,36 @@ namespace Gamex.Game
             // are how pixel-art games typically fake weight). Weathered
             // amber tint matches the god-ray + dust-mote palette so the
             // title reads as paint not sticker.
+            // Wordmark + tagline use TMP SDF rendering for pixel-crisp text
+            // at non-integer canvas scale. To recover the "thick stamped
+            // game-logo" look the bitmap-path dual-UI.Outline produced, we
+            // layer THREE shader effects on top of the SDF glyph:
+            //   1. fontStyle=Bold — thickens the glyph silhouette
+            //   2. outlineWidth=0.4 — black ring around each letter
+            //   3. UNDERLAY_ON keyword + offset/dilate — drop-shadow underneath
+            // Outline gives the symmetric thick-edge look, underlay gives
+            // the asymmetric depth that made the original feel like a
+            // metal-stamped logo rather than flat decal text.
             var wordmarkAmber = new Color(0.92f, 0.74f, 0.42f, 1f);
-            _titleWordmark = MkText("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -220f), new Vector2(1000f, 140f), FS_BIG, TextAnchor.MiddleCenter, wordmarkAmber);
+            _titleWordmark = MkTextTMP("AppTitle", _titlePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -220f), new Vector2(1000f, 140f), FS_BIG, TextAlignmentOptions.Center, wordmarkAmber);
             _titleWordmark.text = "Gamexercise";
-            // Outline #1 — wider bottom-right offset for primary stroke
-            var wordmarkOutlineA = _titleWordmark.gameObject.AddComponent<Outline>();
-            wordmarkOutlineA.effectColor    = new Color(0f, 0f, 0f, 0.95f);
-            wordmarkOutlineA.effectDistance = new Vector2(4f, -4f);
-            // Outline #2 — top-left offset; two combined make the letter
-            // shape ~2px thicker in every direction, reading as bold.
-            var wordmarkOutlineB = _titleWordmark.gameObject.AddComponent<Outline>();
-            wordmarkOutlineB.effectColor    = new Color(0f, 0f, 0f, 0.9f);
-            wordmarkOutlineB.effectDistance = new Vector2(-4f, 4f);
+            _titleWordmark.fontStyle = FontStyles.Bold;
+            _titleWordmark.outlineColor = new Color(0f, 0f, 0f, 1f);
+            _titleWordmark.outlineWidth = 0.4f;
+            ApplyUnderlay(_titleWordmark, dilate: 1.0f, offsetX: 0.35f, offsetY: -0.35f);
 
-            // Tagline gets a warm-stone tone (matches the ambient amber on the
-            // side walls of the bg) and FS_LABEL (33pt). FS_BODY (22pt) was
-            // legible on-device but illegible against the throne_bg's busy
-            // pixel architecture in App Store screenshots — the glyphs got
-            // lost in the background noise. Brighter stone color (0.92 instead
-            // of 0.78) plus the larger size + existing 2px outline keeps it
-            // readable on both 60-inch monitors and 6-inch phones.
+            // Tagline — warm-stone tone matching the throne_bg's amber walls.
+            // Lighter underlay (offset/dilate halved) so the depth effect
+            // tracks the smaller glyph size and doesn't overwhelm the label.
             var taglineStone = new Color(0.92f, 0.84f, 0.62f, 1f);
-            _titleTagline = MkText("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f),
-                new Vector2(0f, -330f), new Vector2(1000f, 80f), FS_LABEL, TextAnchor.MiddleCenter, taglineStone);
+            _titleTagline = MkTextTMP("Tagline", _titlePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -330f), new Vector2(1000f, 80f), FS_LABEL, TextAlignmentOptions.Center, taglineStone);
             _titleTagline.text = "Walk. Train. Reign.";
-            var taglineOutline = _titleTagline.gameObject.AddComponent<Outline>();
-            taglineOutline.effectColor    = new Color(0f, 0f, 0f, 0.85f);
-            taglineOutline.effectDistance = new Vector2(2f, -2f);
+            _titleTagline.fontStyle = FontStyles.Bold;
+            _titleTagline.outlineColor = new Color(0f, 0f, 0f, 1f);
+            _titleTagline.outlineWidth = 0.3f;
+            ApplyUnderlay(_titleTagline, dilate: 0.6f, offsetX: 0.2f, offsetY: -0.2f);
 
             // Decorative divider — Kenney fantasy-ui-borders divider_ornate
             // is asymmetric (key-shape on one end, fade on the other), so
@@ -668,7 +680,7 @@ namespace Gamex.Game
             _titleStartButton = startBtn.GetComponent<Button>();
             var startBtnImg = startBtn.GetComponent<Image>();
             if (startBtnImg != null) startBtnImg.color = new Color(1f, 1f, 1f, 0f);   // invisible plate; click still works via raycastTarget
-            _titleStartLabel = startBtn.transform.Find("Label")?.GetComponent<Text>();
+            _titleStartLabel = startBtn.transform.Find("Label")?.GetComponent<TMP_Text>();
             if (_titleStartLabel != null)
             {
                 // Lighter warm-grey so the prompt actually reads on dark
@@ -1179,7 +1191,7 @@ namespace Gamex.Game
                     var skinBounce = card.AddComponent<PressBounce>();
                     actionGO.GetComponent<Button>().onClick.AddListener(() => skinBounce.Trigger());
                     _shopSkinCards.Add((skin.id, card, stateLabel,
-                        actionGO.GetComponentInChildren<Text>(),
+                        actionGO.GetComponentInChildren<TMP_Text>(),
                         actionGO.GetComponent<Button>()));
                     y -= CARD_H_SKIN + CARD_GAP;
                 }
@@ -1482,7 +1494,7 @@ namespace Gamex.Game
 
             _hkGateActionBtn = MkButton("ConnectBtn", _hkGatePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -200f),
                 new Vector2(640f, 140f), "Connect HealthKit", () => _onConnectHealthKit?.Invoke());
-            _hkGateActionLabel = _hkGateActionBtn.transform.Find("Label")?.GetComponent<Text>();
+            _hkGateActionLabel = _hkGateActionBtn.transform.Find("Label")?.GetComponent<TMP_Text>();
         }
 
         // Privacy policy URL — published from docs/privacy-policy.html via
@@ -1498,13 +1510,14 @@ namespace Gamex.Game
         // Helper — clickable text row styled as a grey button. Returns the
         // Text component so the caller can update the label later (e.g.
         // "Sound effects: ON" -> "Sound effects: OFF" after a toggle).
-        Text MkButtonWithLabel(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
-                               string label, Action onClick)
+        TMP_Text MkButtonWithLabel(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
+                                   string label, Action onClick)
         {
             var go = MkButton(name, parent, anchor, pos, size, label, onClick, "btn_grey", "btn_grey_down");
-            // The label Text is added as a child by MkButton; fetch it back so
-            // UpdateSettings can mutate the text without re-creating the button.
-            var labelT = go.transform.Find("Label")?.GetComponent<Text>();
+            // The label is added as a child by MkButton (now TMP_Text under the
+            // SDF migration); fetch it back so UpdateSettings can mutate the
+            // string without re-creating the button.
+            var labelT = go.transform.Find("Label")?.GetComponent<TMP_Text>();
             return labelT;
         }
 
@@ -1574,7 +1587,7 @@ namespace Gamex.Game
             // "Got it" inside UpdateTutorial.
             var btnGO = MkButton("Next", _tutorialOverlay.transform, new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(280f, 110f), "Next", AdvanceTutorial);
-            _tutorialNextLabel = btnGO.GetComponentInChildren<Text>();
+            _tutorialNextLabel = btnGO.GetComponentInChildren<TMP_Text>();
 
             _tutorialOverlay.SetActive(false);
         }
@@ -1657,7 +1670,7 @@ namespace Gamex.Game
         // Per-frame position + alpha update for one coin floater Text. Driven
         // from the shared _coinFloatT timer so Home / Shop / SetDetail floaters
         // all rise + fade in lockstep — only the active panel's actually shows.
-        static void TickCoinFloater(Text floater, float t01, float alpha, float startY, float endY)
+        static void TickCoinFloater(TMP_Text floater, float t01, float alpha, float startY, float endY)
         {
             if (floater == null) return;
             float y = Mathf.Lerp(startY, endY, t01);
@@ -2616,7 +2629,7 @@ namespace Gamex.Game
         //    marginRight + textVisualWidth + gap
         // away from the panel right.
         const float COIN_GAP = 10f;
-        static void LayoutCoinNextToText(Image coin, Text text, float marginRight, float coinYOffset)
+        static void LayoutCoinNextToText(Image coin, TMP_Text text, float marginRight, float coinYOffset)
         {
             if (coin == null || text == null) return;
             float textW = text.preferredWidth;
@@ -2879,18 +2892,96 @@ namespace Gamex.Game
         // ============================================================
         // UI factories
         // ============================================================
-        static Text MkText(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
-                           int fontSize, TextAnchor align, Color color)
+        // MkText now produces TMP_Text (SDF) instead of UI.Text (bitmap). Every
+        // caller that types its receiver as TMP_Text (or var) auto-inherits
+        // pixel-crisp rendering at non-integer canvas scale. The signature
+        // keeps TextAnchor for backwards compatibility so 57+ callsites don't
+        // need touching — we translate to TMP's TextAlignmentOptions internally.
+        static TMP_Text MkText(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
+                               int fontSize, TextAnchor align, Color color)
+            => MkTextTMP(name, parent, anchor, pos, size, fontSize, ToTMPAlign(align), color);
+
+        static TextAlignmentOptions ToTMPAlign(TextAnchor a)
+        {
+            switch (a)
+            {
+                case TextAnchor.UpperLeft:    return TextAlignmentOptions.TopLeft;
+                case TextAnchor.UpperCenter:  return TextAlignmentOptions.Top;
+                case TextAnchor.UpperRight:   return TextAlignmentOptions.TopRight;
+                case TextAnchor.MiddleLeft:   return TextAlignmentOptions.Left;
+                case TextAnchor.MiddleCenter: return TextAlignmentOptions.Center;
+                case TextAnchor.MiddleRight:  return TextAlignmentOptions.Right;
+                case TextAnchor.LowerLeft:    return TextAlignmentOptions.BottomLeft;
+                case TextAnchor.LowerCenter:  return TextAlignmentOptions.Bottom;
+                case TextAnchor.LowerRight:   return TextAlignmentOptions.BottomRight;
+                default:                      return TextAlignmentOptions.Center;
+            }
+        }
+
+        // Runtime-generated SDF font asset from Cubic_11. Rasterised at
+        // 8x the native 11px design size into a 1024x1024 SDFAA atlas, then
+        // re-used across every TMP text in the session. SDFAA means the GPU
+        // shader samples a signed-distance field instead of the raw glyph
+        // bitmap, so the same font asset renders pixel-crisp at any output
+        // scale — the dodge for "App Store screenshot at 1.447x canvas
+        // scale shows bilinear gray edges" without redesigning the canvas.
+        static TMP_FontAsset _cubicSDFCached;
+        static TMP_FontAsset GetCubicSDF()
+        {
+            if (_cubicSDFCached != null) return _cubicSDFCached;
+            var ttf = Resources.Load<Font>("Fonts/Cubic_11");
+            if (ttf == null)
+            {
+                Debug.LogWarning("[Hud] Cubic_11.ttf missing from Resources/Fonts — falling back to TMP default");
+                return null;
+            }
+            _cubicSDFCached = TMP_FontAsset.CreateFontAsset(
+                ttf,
+                samplingPointSize: 88,
+                atlasPadding: 9,
+                renderMode: GlyphRenderMode.SDFAA,
+                atlasWidth: 1024,
+                atlasHeight: 1024,
+                atlasPopulationMode: AtlasPopulationMode.Dynamic,
+                enableMultiAtlasSupport: true);
+            _cubicSDFCached.name = "Cubic_11_SDF_Runtime";
+            return _cubicSDFCached;
+        }
+
+        // TMP's underlay (drop-shadow) shader feature. Off by default — to
+        // enable we have to (a) flip the UNDERLAY_ON keyword on the font
+        // material instance and (b) push the offset/dilate/softness props.
+        // Hard 0 softness keeps the shadow pixel-edged so it doesn't clash
+        // with the rest of the pixel-art aesthetic. Accessing fontMaterial
+        // implicitly instances a per-component material, so each text gets
+        // its own underlay without polluting the shared SDF asset's mat.
+        static void ApplyUnderlay(TMP_Text text, float dilate, float offsetX, float offsetY)
+        {
+            var mat = text.fontMaterial;
+            mat.EnableKeyword("UNDERLAY_ON");
+            mat.SetColor(ShaderUtilities.ID_UnderlayColor, new Color(0f, 0f, 0f, 1f));
+            mat.SetFloat(ShaderUtilities.ID_UnderlayOffsetX, offsetX);
+            mat.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, offsetY);
+            mat.SetFloat(ShaderUtilities.ID_UnderlayDilate, dilate);
+            mat.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0f);
+        }
+
+        // TMP analog of MkText. Same anchor/size/fontSize contract, but the
+        // returned component is a TextMeshProUGUI and the alignment enum is
+        // TMP's own (not TextAnchor). Only used on the Title screen so far —
+        // first piece of the bitmap-font-to-SDF migration.
+        static TMP_Text MkTextTMP(string name, Transform parent, Vector2 anchor, Vector2 pos, Vector2 size,
+                                  int fontSize, TextAlignmentOptions align, Color color)
         {
             var go = new GameObject(name);
             go.transform.SetParent(parent, false);
-            var t = go.AddComponent<Text>();
-            t.font = Make.Font();
+            var t = go.AddComponent<TextMeshProUGUI>();
+            var sdf = GetCubicSDF();
+            if (sdf != null) t.font = sdf;
             t.fontSize = fontSize;
             t.alignment = align;
             t.color = color;
-            t.horizontalOverflow = HorizontalWrapMode.Overflow;
-            t.verticalOverflow   = VerticalWrapMode.Overflow;
+            t.enableWordWrapping = false;
             var rt = t.rectTransform;
             rt.anchorMin = rt.anchorMax = anchor;
             rt.pivot = anchor;
