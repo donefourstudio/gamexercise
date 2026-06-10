@@ -24,11 +24,15 @@ namespace Gamex.Platform
         [DllImport("__Internal")] static extern int  _HealthKitGetAuthResult();
         [DllImport("__Internal")] static extern void _HealthKitQueryTodaySteps();
         [DllImport("__Internal")] static extern int  _HealthKitGetStepsResult();
+        [DllImport("__Internal")] static extern void _HealthKitQueryTodayRunSeconds();
+        [DllImport("__Internal")] static extern int  _HealthKitGetRunSecondsResult();
+        [DllImport("__Internal")] static extern void _HealthKitSetFilterManualEntries(int filter);
 #endif
 
         static GameObject _ticker;
         static Action<AuthStatus> _pendingAuth;
         static Action<int>        _pendingSteps;
+        static Action<int>        _pendingRunSeconds;
 
         public static bool IsAvailable()
         {
@@ -78,6 +82,32 @@ namespace Gamex.Platform
 #endif
         }
 
+        // Queries today's running-workout total duration in seconds. Sums
+        // HKWorkout samples with workoutActivityType == .running, optionally
+        // filtered by HKMetadataKeyWasUserEntered (see SetFilterManualEntries).
+        // Editor / non-iOS: returns 0 so Editor debug paths keep working.
+        public static void QueryTodayRunSeconds(Action<int> callback)
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            EnsureTicker();
+            _pendingRunSeconds = callback;
+            _HealthKitQueryTodayRunSeconds();
+#else
+            callback?.Invoke(0);
+#endif
+        }
+
+        // Flips the manual-entry filter for workout queries. Mirrored to the
+        // native plugin's atomic flag; the next QueryTodayRunSeconds picks up
+        // the new value. Called by RemoteConfig once the GitHub-Pages JSON is
+        // fetched (or the cached PlayerPrefs value is read on cold launch).
+        public static void SetFilterManualEntries(bool filter)
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            _HealthKitSetFilterManualEntries(filter ? 1 : 0);
+#endif
+        }
+
         static void EnsureTicker()
         {
             if (_ticker != null) return;
@@ -107,6 +137,16 @@ namespace Gamex.Platform
                 {
                     var cb = _pendingSteps;
                     _pendingSteps = null;
+                    cb?.Invoke(r);
+                }
+            }
+            if (_pendingRunSeconds != null)
+            {
+                int r = _HealthKitGetRunSecondsResult();
+                if (r >= 0)
+                {
+                    var cb = _pendingRunSeconds;
+                    _pendingRunSeconds = null;
                     cb?.Invoke(r);
                 }
             }

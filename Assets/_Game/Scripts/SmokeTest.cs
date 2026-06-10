@@ -86,7 +86,7 @@ namespace Gamex.Game
             g5.EndDay();
             Check(g5.state.streakDays == 7, "7-day streak, got " + g5.state.streakDays);
             // EndDay should also have credited +5 streak bonus
-            int dailyQuestCoinsAdded = 1;               // just walk-1000 today
+            int dailyQuestCoinsAdded = 2;               // just walk-1000 today (new reward 2)
             Check(g5.state.coins == coinsBefore + dailyQuestCoinsAdded + 5,
                   "weekly streak bonus credited, got " + g5.state.coins);
 
@@ -116,13 +116,15 @@ namespace Gamex.Game
             g7.ToggleEquip("elfpaladin_sword");
             Check(!g7.IsEquipped("elfpaladin_sword"), "unequipped");
 
-            // Bundle buy — 700g total -> 560 with discount, all 4 pieces granted.
+            // Bundle buy — Paladin set is a direct 900-coin bundle, all 4 pieces
+            // granted. (Discount math was dropped — sets are atomic, bundlePrice
+            // is set explicitly on each SetDef.)
             var g8 = new GamexGame();
             g8.state.coins = 100000;
-            Check(paladin.BundlePrice == 560, "paladin bundle = 560, got " + paladin.BundlePrice);
+            Check(paladin.BundlePrice == 900, "paladin bundle = 900, got " + paladin.BundlePrice);
             Check(g8.TryBuySet(paladin), "buy paladin set");
             Check(g8.state.owned.Count == 4, "owned 4 after bundle, got " + g8.state.owned.Count);
-            Check(g8.state.coins == 100000 - 560, "coins after bundle");
+            Check(g8.state.coins == 100000 - 900, "coins after bundle");
 
             // Knight Set chain — 10 consecutive 5k days unlock each piece.
             // Pre-load lifetime steps so AddActivity's level recompute lands at Lv 20+.

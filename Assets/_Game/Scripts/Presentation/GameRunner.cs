@@ -156,6 +156,12 @@ namespace Gamex.Game
 
         void Start()
         {
+            // Kick off the remote-config fetch first. It applies the cached
+            // filter value synchronously in its Awake; the live fetch then
+            // updates if the GitHub-Pages JSON differs. This runs before
+            // the first SyncHealthKit so the workout query already uses the
+            // right filter mode.
+            RemoteConfig.EnsureStarted();
             // Pull whatever steps HealthKit already has for today (e.g. user
             // walked around before opening the game). No-op on non-iOS and
             // when the user hasn't granted HK permission yet.
@@ -250,13 +256,19 @@ namespace Gamex.Game
             return AppPhase.OpeningIntro;
         }
 
-        // Pulls today's cumulative step total from HealthKit and feeds the
-        // delta since the last sync into the normal AddActivity pipeline.
-        // That keeps quest progress / gold drops / level-ups all firing
+        // Pulls today's cumulative step total + running-workout seconds from
+        // HealthKit and feeds the delta since the last sync into the normal
+        // AddActivity pipeline. Same "delta vs last known total" pattern for
+        // both metrics so quest progress / gold drops / level-ups all fire
         // through the same code path the debug step key already exercises,
-        // so HK steps and Editor manual steps are interchangeable. EndDay
-        // resets todayHealthKitSteps to 0 so the first sync of a new day
-        // writes the full new-day total as one big delta.
+        // and HK data and Editor manual injections are interchangeable.
+        // EndDay resets both baselines to 0 so the first sync of a new day
+        // writes the full new-day totals as one big delta each.
+        //
+        // Two independent queries — step (HKStatisticsQuery, cumulative sum)
+        // and run-workout (HKSampleQuery, summed HKWorkout.duration). They
+        // run in parallel; whichever completes first credits its delta and
+        // the other follows.
         void SyncHealthKit()
         {
             if (HealthKitBridge.CurrentStatus() != HealthKitBridge.AuthStatus.Authorized) return;
@@ -266,6 +278,14 @@ namespace Gamex.Game
                 int delta = steps - _game.state.todayHealthKitSteps;
                 if (delta > 0) _game.AddActivity(delta, 0, 0);
                 _game.state.todayHealthKitSteps = steps;
+                _game.onSave?.Invoke();
+            });
+            HealthKitBridge.QueryTodayRunSeconds(runSec =>
+            {
+                if (runSec < 0 || _game == null) return;
+                int delta = runSec - _game.state.todayHealthKitRunSeconds;
+                if (delta > 0) _game.AddActivity(0, 0, delta);
+                _game.state.todayHealthKitRunSeconds = runSec;
                 _game.onSave?.Invoke();
             });
         }

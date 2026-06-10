@@ -210,12 +210,17 @@ namespace Gamex.Core
         //   GameRunner's sync routine computes delta = newSteps - this, calls
         //   AddActivity(delta, 0, 0), then writes the new total back. Reset
         //   to 0 in EndDay so a fresh day starts at zero baseline.
+        //   todayHealthKitRunSeconds = same pattern for HKWorkoutActivityType
+        //   .running total duration today. Delta vs last sync is fed into
+        //   AddActivity(0, 0, delta) so the existing Run15/Run30 quest gates
+        //   fire through the same path the editor debug shortcuts already use.
         //   healthKitAsked = true once the OS permission modal has been shown
         //   (regardless of the user's answer). Prevents the post-tutorial
         //   trigger from re-prompting on every app launch — iOS itself only
         //   shows the modal the first time anyway, but we gate at the C#
         //   layer too so the flow stays clean.
         public int  todayHealthKitSteps;
+        public int  todayHealthKitRunSeconds;
         public bool healthKitAsked;
 
         // Audio mutes (inverted so the default-false JsonUtility deserialization
