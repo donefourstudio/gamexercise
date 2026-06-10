@@ -9,9 +9,13 @@ using UnityEngine;
 namespace Gamex.EditorTools
 {
     // Post-build patcher for the generated Xcode project. Five jobs:
-    //   1. Inject NSHealthShareUsageDescription into Info.plist so the
-    //      HealthKit permission modal shows our copy (Apple rejects builds
-    //      that prompt for HK without a non-empty description).
+    //   1. Inject NSHealthShareUsageDescription + NSHealthUpdateUsageDescription
+    //      into Info.plist. NSHealthShareUsageDescription drives the read-side
+    //      prompt copy. NSHealthUpdateUsageDescription is required by Apple's
+    //      static analysis whenever the HealthKit framework is linked — even
+    //      though our code never writes back, the framework's binary surface
+    //      includes write APIs, and the upload validator (error code 90683)
+    //      rejects builds missing the update key.
     //   2. Inject ITSAppUsesNonExemptEncryption=false into Info.plist so
     //      App Store Connect doesn't prompt for an encryption declaration
     //      on every TestFlight upload. We don't use any custom crypto;
@@ -36,6 +40,7 @@ namespace Gamex.EditorTools
     {
         const string BUNDLE_ID            = "com.donefourstudio.gamexercise";
         const string HEALTHKIT_USAGE      = "Gamexercise tracks your daily steps to power your character's progression — gold earned, levels gained, and outfits unlocked all reflect your real-world activity.";
+        const string HEALTHKIT_UPDATE_USAGE = "Gamexercise does not write any data back to Health. This entry is required by Apple's review process because the HealthKit framework's binary surface includes write APIs.";
         const string ENTITLEMENTS_NAME    = "Unity-iPhone.entitlements";
         const string PRIVACY_MANIFEST_SRC = "Assets/Plugins/iOS/PrivacyInfo.xcprivacy";
         const string PRIVACY_MANIFEST_DST = "PrivacyInfo.xcprivacy";
@@ -59,6 +64,7 @@ namespace Gamex.EditorTools
             var plist = new PlistDocument();
             plist.ReadFromFile(plistPath);
             plist.root.SetString("NSHealthShareUsageDescription", HEALTHKIT_USAGE);
+            plist.root.SetString("NSHealthUpdateUsageDescription", HEALTHKIT_UPDATE_USAGE);
             // Export compliance — false because we only use Apple's stock
             // crypto (HTTPS, keychain) which the US export rules exempt.
             // Without this key App Store Connect prompts a manual review
