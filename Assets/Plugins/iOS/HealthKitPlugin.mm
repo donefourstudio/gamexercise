@@ -22,6 +22,16 @@
 #import <HealthKit/HealthKit.h>
 #include <atomic>
 
+// Persisted-auth user-defaults key. Apple's authorizationStatusForType API
+// returns sharingDenied for any READ-ONLY HealthKit request even after the
+// user granted access — this is a deliberate privacy feature so apps can't
+// probe what users authorized. Without persisting our own resolution state,
+// our HealthKit gate stays "denied" forever after the user approves the
+// modal. We write the post-modal outcome here (2 = Authorized after the
+// user responded YES to the modal, 1 = Denied if we got an error or the
+// device doesn't support HealthKit), and trust this on subsequent launches.
+static NSString *const kHKAuthResolvedKey = @"GamexerciseHKAuthResolved";
+
 static HKHealthStore *_healthStore = nil;
 static std::atomic<int> _authResult{-1};
 static std::atomic<int> _stepsResult{-1};
@@ -43,16 +53,17 @@ int _HealthKitIsAvailable() {
     return [HKHealthStore isHealthDataAvailable] ? 1 : 0;
 }
 
-// Apple only exposes write-side authorization status — read-side is opaque
-// by design (so apps can't fingerprint users by probing which HK types are
-// authorized). The status returned here is "did the user respond to our
-// prompt" not "can we actually read steps". The query call below will just
-// return 0 if read access was declined.
+// Apple only exposes write-side authorization status — for read-only
+// requests, authorizationStatusForType always returns sharingDenied
+// (privacy feature, prevents apps from probing user-granted permissions).
+// Our workaround: persist the post-modal user response in NSUserDefaults
+// and trust THAT on subsequent calls instead of asking Apple. Before the
+// first auth prompt, we return NotDetermined (0) so the gate fires.
 int _HealthKitAuthStatus() {
     if (![HKHealthStore isHealthDataAvailable]) return 1;  // Denied
-    HKQuantityType *stepType = [HKQuantityType quantityTypeForIdentifier:HKQuantityTypeIdentifierStepCount];
-    HKAuthorizationStatus status = [HK() authorizationStatusForType:stepType];
-    return (int)status;
+    NSNumber *resolved = [[NSUserDefaults standardUserDefaults] objectForKey:kHKAuthResolvedKey];
+    if (resolved != nil) return [resolved intValue];
+    return 0;  // NotDetermined — never asked
 }
 
 void _HealthKitRequestAuth() {
@@ -70,11 +81,16 @@ void _HealthKitRequestAuth() {
     [HK() requestAuthorizationToShareTypes:nil
                                   readTypes:readSet
                                  completion:^(BOOL success, NSError * _Nullable error) {
-        // success == YES means "user responded" (either Allow or Deny). Map to
-        // our 3-state status; on error fall through to Denied so the game UX
-        // doesn't hang waiting for a positive result that'll never come.
-        HKAuthorizationStatus status = [HK() authorizationStatusForType:stepType];
-        _authResult.store(success ? (int)status : 1);
+        // success == YES means "user responded" (Allow or Deny). For read-
+        // only auth, authorizationStatusForType is unreliable (always returns
+        // sharingDenied — see comment above _HealthKitAuthStatus). We trust
+        // the modal completion: if user responded, assume Authorized and let
+        // the query path silently return 0 if they actually denied. The
+        // player can always re-grant via iOS Settings → Privacy → Health.
+        int finalStatus = success ? 2 : 1;  // 2 = Authorized, 1 = Denied
+        [[NSUserDefaults standardUserDefaults] setObject:@(finalStatus) forKey:kHKAuthResolvedKey];
+        [[NSUserDefaults standardUserDefaults] synchronize];
+        _authResult.store(finalStatus);
     }];
 }
 
