@@ -52,6 +52,10 @@ namespace Gamex.Core
         // phases and Title bypass this gate. Append-only at end of enum so
         // older saves (serialized as int) keep their phase values intact.
         HealthKitGate,
+        // Tapping a Legend or Cyberpunk card in the shop opens the skin
+        // detail page — big preview + price + Buy/Apply/Remove CTA. Mirrors
+        // SetDetail for sets. Appended last for save-compat.
+        SkinDetail,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }

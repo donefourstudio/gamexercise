@@ -274,7 +274,7 @@ namespace Gamex.Game
         readonly List<(string setId, GameObject root, TMP_Text priceLabel, Button cardBtn)> _shopSetCards = new();
         // Per-skin card refs (Phase 4b) — `actionLabel`/`actionBtn` flip between
         // Buy / Apply / Remove based on owned + active state.
-        readonly List<(string skinId, GameObject root, TMP_Text stateLabel, TMP_Text actionLabel, Button actionBtn)> _shopSkinCards = new();
+        readonly List<(string skinId, GameObject root, TMP_Text stateLabel)> _shopSkinCards = new();
         readonly HashSet<string> _ownedSnapshot = new();
 
         // ---- set detail (Phase 3c) refs ----
@@ -282,6 +282,11 @@ namespace Gamex.Game
         Image _setDetailPreview;
         TMP_Text _setDetailTitle, _setDetailCoins, _setDetailBundleLabel;
         Button _setDetailBundleBtn;
+        // ---- skin detail refs (mirror of set detail for Legend / Cyberpunk) ----
+        GameObject _skinDetailPanel;
+        Image _skinDetailPreview;
+        TMP_Text _skinDetailTitle, _skinDetailCoins, _skinDetailStateLabel, _skinDetailActionLabel;
+        Button _skinDetailActionBtn;
         // Per-piece row: each row shows icon + name + per-piece price + buy/owned.
         // Built lazily on first entry into a set's detail page; cached so re-entry
         // doesn't rebuild.
@@ -327,7 +332,7 @@ namespace Gamex.Game
         readonly Action         _onRaceAnimDone;
         readonly Action         _onFinishFirstMirror;
         readonly Action         _onGoQuests, _onGoShop, _onGoHome, _onGoInventory, _onFakeRep;
-        readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet, _onSkinAction, _onApplyOutfit;
+        readonly Action<string> _onBuy, _onToggleEquip, _onGoSetDetail, _onBuySet, _onSkinAction, _onApplyOutfit, _onGoSkinDetail;
         readonly Action         _onGoSettings, _onToggleSfx, _onToggleBgm, _onResetProgress;
         readonly Action         _onLeaveTitle;
         readonly Action         _onConnectHealthKit;
@@ -349,6 +354,7 @@ namespace Gamex.Game
             Action<string> onGoSetDetail,
             Action<string> onBuySet,
             Action<string> onSkinAction,
+            Action<string> onGoSkinDetail,
             Action<string> onApplyOutfit,
             Action onGoSettings,
             Action onToggleSfx,
@@ -373,6 +379,7 @@ namespace Gamex.Game
             _onGoSetDetail         = onGoSetDetail;
             _onBuySet              = onBuySet;
             _onSkinAction          = onSkinAction;
+            _onGoSkinDetail        = onGoSkinDetail;
             _onApplyOutfit         = onApplyOutfit;
             _onGoSettings          = onGoSettings;
             _onToggleSfx           = onToggleSfx;
@@ -411,6 +418,7 @@ namespace Gamex.Game
             BuildQuests(root);
             BuildShop(root);
             BuildSetDetail(root);
+            BuildSkinDetail(root);
             BuildInventory(root);
             BuildRaceSelect(root);
             BuildRaceTransformAnim(root);
@@ -1101,18 +1109,22 @@ namespace Gamex.Game
             var contentRT = MkScrollView("ShopScroll", _shopPanel.transform,
                 topInset: 200f, bottomInset: 250f);
 
-            float y = -30f;   // cursor in content-space (top is y=0, growing negative downward)
-            // Phase 5 polish 4 — skin cards bumped to the same 280px height
-            // as set cards so Legends + Cyberpunk + Pets render at the same
-            // visual weight as Champions. Internal layout mirrors set cards:
-            // 140 preview on the left, big name + state/price on the right.
+            // Layout convention: `y` is the TOP edge of the next element to
+            // place (anchor + pivot = (0.5, 1) for both header and cards, so
+            // pos.y maps directly to top edge). First section starts at y=-30
+            // for a small breath under the Shop title.
+            //
+            // Spacing was inverted before this rewrite — the "Legends" header
+            // sat 14px below the last Champions card and 125px above its own
+            // first card, so headers visually grouped with the wrong section.
+            // Now header→first card is tight (35px) and previous section→
+            // next header is roomy (140px), so each header reads as the
+            // intro to the section beneath it.
+            float y = -30f;
             const float CARD_W = 880f, CARD_H_SET = 280f, CARD_H_SKIN = 280f, CARD_GAP = 24f;
-            // Jackson's read: "Champions" header sat too far above its first
-            // card, "Legends" header sat too close under the last Champion
-            // card. Tightened header->card and widened section->section to
-            // emphasise the boundary at section ends.
-            const float SECTION_GAP = 130f, HEADER_GAP = 35f;
+            const float HEADER_H = 80f, HEADER_TO_CARD_GAP = 35f, SECTION_TOP_GAP = 140f;
 
+            bool firstSection = true;
             foreach (var source in SectionOrder)
             {
                 // Launch gating (polish round 7) — items with availableAtUnix
@@ -1126,22 +1138,25 @@ namespace Gamex.Game
                     if (s.source == source && Catalogs.IsLive(s.availableAtUnix)) sectionSkins.Add(s);
                 if (sectionSets.Count == 0 && sectionSkins.Count == 0) continue;
 
+                if (!firstSection) y -= SECTION_TOP_GAP;
+                firstSection = false;
+
                 string headerText = SectionDisplayNames.TryGetValue(source, out var h) ? h : source;
                 // Cubic 11's em-dash glyph sits at x-height, not text-centre,
                 // so "— Champions —" rendered with the dashes detached above
                 // the word. Strip the dashes and bump to FS_TITLE so the
                 // header carries the same weight as the card names below it.
                 var hdr = MkText("SectionHeader_" + source, contentRT, new Vector2(0.5f, 1f),
-                    new Vector2(0f, y), new Vector2(800f, 80f),
+                    new Vector2(0f, y), new Vector2(800f, HEADER_H),
                     FS_TITLE, TextAnchor.MiddleCenter, AccentGold);
                 hdr.text = headerText;
-                y -= HEADER_GAP + 30f;
+                y -= HEADER_H + HEADER_TO_CARD_GAP;
 
                 // Set cards inside this section (multi-piece purchasable bundles).
                 foreach (var set in sectionSets)
                 {
                     var card = MkSpritePanel("SetCard_" + set.id, contentRT,
-                        new Vector2(0.5f, 1f), new Vector2(0f, y - CARD_H_SET / 2f),
+                        new Vector2(0.5f, 1f), new Vector2(0f, y),
                         new Vector2(CARD_W, CARD_H_SET),
                         "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
                     var cardBtn = card.AddComponent<Button>();
@@ -1152,12 +1167,6 @@ namespace Gamex.Game
                     var setBounce = card.AddComponent<PressBounce>();
                     cardBtn.onClick.AddListener(() => { Sfx.Play("tap"); setBounce.Trigger(); _onGoSetDetail?.Invoke(capSetId); });
 
-                    // anchor (0, 0.5) -> pivot (0, 0.5) means pos.x is the rect's
-                    // LEFT edge, not its centre. Earlier layouts had preview at
-                    // pos (95, ...) size (180, ...) which placed the right edge
-                    // at x=275 — overrunning the text column at x=195. With
-                    // pos.x=20 size 140, the preview's right edge sits at x=160
-                    // and the text column starts at 195 — 35 px clear gap.
                     MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
                         new Vector2(20f, 0f), new Vector2(140f, 140f),
                         Make.SetPreview(set.id), Color.white);
@@ -1172,51 +1181,55 @@ namespace Gamex.Game
                         FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
                     priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
 
+                    // Sets are atomic — no per-piece purchase — so the sub
+                    // line no longer references piece count. Just hints at
+                    // the tap-to-view interaction.
                     MkText("Sub", card.transform, new Vector2(0f, 0.5f),
                         new Vector2(195f, -70f), new Vector2(665f, 56f),
                         FS_LABEL, TextAnchor.MiddleLeft, new Color(0.35f, 0.22f, 0.10f))
-                        .text = $"tap to view {set.pieces.Length} pieces";
+                        .text = "tap to view";
 
                     _shopSetCards.Add((set.id, card, priceLabel, cardBtn));
                     y -= CARD_H_SET + CARD_GAP;
                 }
 
-                // Skin cards (full-body, single sprite, Buy/Apply/Remove toggle).
-                // Same overall shape as set cards now — preview on the left,
-                // name + state stacked in the middle, action button on the right.
+                // Skin cards mirror set cards now: preview + name + state +
+                // "tap to view" sub, whole card opens the SkinDetail page.
+                // Inline Buy/Apply/Remove button moved to that detail page.
                 foreach (var skin in sectionSkins)
                 {
                     var card = MkSpritePanel("SkinCard_" + skin.id, contentRT,
-                        new Vector2(0.5f, 1f), new Vector2(0f, y - CARD_H_SKIN / 2f),
+                        new Vector2(0.5f, 1f), new Vector2(0f, y),
                         new Vector2(CARD_W, CARD_H_SKIN),
                         "panel", new Color(0.92f, 0.84f, 0.62f, 1f));
-                    card.GetComponent<Image>().raycastTarget = false;
+                    var cardBtn = card.AddComponent<Button>();
+                    cardBtn.targetGraphic = card.GetComponent<Image>();
+                    cardBtn.transition = Selectable.Transition.ColorTint;
+                    var cb = cardBtn.colors; cb.highlightedColor = new Color(1f, 0.95f, 0.78f, 1f); cardBtn.colors = cb;
+                    string capSkinId = skin.id;
+                    var skinBounce = card.AddComponent<PressBounce>();
+                    cardBtn.onClick.AddListener(() => { Sfx.Play("tap"); skinBounce.Trigger(); _onGoSkinDetail?.Invoke(capSkinId); });
 
                     MkSpriteIcon("Preview", card.transform, new Vector2(0f, 0.5f),
                         new Vector2(20f, 0f), new Vector2(140f, 140f),
                         Make.Skin(skin.id), Color.white);
 
                     MkText("Name", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(195f, 55f), new Vector2(490f, 70f),
+                        new Vector2(195f, 55f), new Vector2(665f, 70f),
                         FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
                         .text = skin.displayName;
                     var stateLabel = MkText("State", card.transform, new Vector2(0f, 0.5f),
-                        new Vector2(195f, -10f), new Vector2(490f, 50f),
+                        new Vector2(195f, -10f), new Vector2(665f, 50f),
                         FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
 
-                    string capSkinId = skin.id;
-                    var actionGO = MkButton("Action_" + skin.id, card.transform,
-                        new Vector2(1f, 0.5f), new Vector2(-50f, 0f), new Vector2(220f, 110f),
-                        "Buy", () => _onSkinAction?.Invoke(capSkinId), "btn_grey", "btn_grey_down");
-                    var skinBounce = card.AddComponent<PressBounce>();
-                    actionGO.GetComponent<Button>().onClick.AddListener(() => skinBounce.Trigger());
-                    _shopSkinCards.Add((skin.id, card, stateLabel,
-                        actionGO.GetComponentInChildren<TMP_Text>(),
-                        actionGO.GetComponent<Button>()));
+                    MkText("Sub", card.transform, new Vector2(0f, 0.5f),
+                        new Vector2(195f, -70f), new Vector2(665f, 56f),
+                        FS_LABEL, TextAnchor.MiddleLeft, new Color(0.35f, 0.22f, 0.10f))
+                        .text = "tap to view";
+
+                    _shopSkinCards.Add((skin.id, card, stateLabel));
                     y -= CARD_H_SKIN + CARD_GAP;
                 }
-
-                y -= SECTION_GAP;
             }
 
             // Final content height = how far we scrolled down + bottom padding.
@@ -1338,6 +1351,56 @@ namespace Gamex.Game
         // Tracks which set's rows are currently visible inside _setDetailPanel.
         // Refresh sets this from g.activeSetId at SetDetail entry.
         string _currentSetId;
+
+        // ============================================================
+        // Skin detail — preview + name + price/state + Buy/Apply/Remove.
+        // Single shared panel for every Legend / Cyberpunk skin; the
+        // active skin id is read from g.activeSkinId in UpdateSkinDetail.
+        // ============================================================
+        void BuildSkinDetail(Transform root)
+        {
+            _skinDetailPanel = MkFullPanel("SkinDetailPanel", root);
+
+            _skinDetailTitle = MkText("Title", _skinDetailPanel.transform, new Vector2(0f, 1f),
+                new Vector2(40f, -80f), new Vector2(620f, 80f),
+                FS_TITLE, TextAnchor.UpperLeft, AccentGold);
+            MkSpriteIcon("CoinIcon", _skinDetailPanel.transform, new Vector2(1f, 1f),
+                new Vector2(-250f, -84f), new Vector2(80f, 80f),
+                "coin", Color.white);
+            _skinDetailCoins = MkText("Coins", _skinDetailPanel.transform, new Vector2(1f, 1f),
+                new Vector2(-40f, -90f), new Vector2(200f, 60f),
+                FS_BIG, TextAnchor.MiddleRight, AccentGold);
+
+            // Big preview frame, same dimensions as SetDetail's so the two
+            // detail pages feel like the same screen with different content.
+            var previewFrame = MkSpritePanel("PreviewFrame", _skinDetailPanel.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 540f), new Vector2(420f, 420f),
+                "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
+            previewFrame.GetComponent<Image>().raycastTarget = false;
+            _skinDetailPreview = MkSpriteIcon("Preview", previewFrame.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380f, 380f),
+                (Sprite)null, Color.white).GetComponent<Image>();
+
+            _skinDetailStateLabel = MkText("StateLabel", _skinDetailPanel.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), new Vector2(900f, 60f),
+                FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+
+            var actionGO = MkButton("Action", _skinDetailPanel.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), new Vector2(640f, 130f),
+                "Buy", () =>
+                {
+                    if (!string.IsNullOrEmpty(_currentSkinId)) _onSkinAction?.Invoke(_currentSkinId);
+                });
+            _skinDetailActionBtn = actionGO.GetComponent<Button>();
+            _skinDetailActionLabel = actionGO.GetComponentInChildren<TMP_Text>();
+
+            MkButton("Back", _skinDetailPanel.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 90f), new Vector2(420f, 100f),
+                "Back to Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
+        }
+
+        // Tracks which skin's detail page is currently being viewed.
+        string _currentSkinId;
 
         // ============================================================
         // Inventory (M5f) — paper-doll on top, storage grid on bottom.
@@ -1784,6 +1847,7 @@ namespace Gamex.Game
                       || g.phase == AppPhase.Quests
                       || g.phase == AppPhase.Shop
                       || g.phase == AppPhase.SetDetail
+                      || g.phase == AppPhase.SkinDetail
                       || g.phase == AppPhase.Inventory
                       || g.phase == AppPhase.Settings;
             if (bgmOn) Bgm.PlayLoop("bgm_home");
@@ -1867,6 +1931,7 @@ namespace Gamex.Game
             Set(_trainPanel,              g.phase == AppPhase.Quests);
             Set(_shopPanel,               g.phase == AppPhase.Shop);
             Set(_setDetailPanel,          g.phase == AppPhase.SetDetail);
+            Set(_skinDetailPanel,         g.phase == AppPhase.SkinDetail);
             Set(_inventoryPanel,          g.phase == AppPhase.Inventory);
             Set(_raceSelectPanel,         g.phase == AppPhase.RaceSelect);
             Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
@@ -2260,24 +2325,9 @@ namespace Gamex.Game
                     if (skin == null) continue;
                     bool owned = g.IsSkinOwned(skin.id);
                     bool active = g.IsSkinActive(skin.id);
-                    if (!owned)
-                    {
-                        card.stateLabel.text = $"{skin.price} gold";
-                        card.actionLabel.text = "Buy";
-                        card.actionBtn.interactable = g.state.coins >= skin.price;
-                    }
-                    else if (!active)
-                    {
-                        card.stateLabel.text = "Owned";
-                        card.actionLabel.text = "Apply";
-                        card.actionBtn.interactable = true;
-                    }
-                    else
-                    {
-                        card.stateLabel.text = "Active";
-                        card.actionLabel.text = "Remove";
-                        card.actionBtn.interactable = true;
-                    }
+                    if      (!owned)  card.stateLabel.text = $"{skin.price} gold";
+                    else if (!active) card.stateLabel.text = "Owned";
+                    else              card.stateLabel.text = "Active";
                     var img = card.root.GetComponent<Image>();
                     if (img != null)
                         img.color = active ? skinActiveTint
@@ -2287,6 +2337,7 @@ namespace Gamex.Game
             }
 
             if (g.phase == AppPhase.SetDetail) UpdateSetDetail(g);
+            if (g.phase == AppPhase.SkinDetail) UpdateSkinDetail(g);
             if (g.phase == AppPhase.Inventory) UpdateInventory(g);
 
             // Phase 5e3 — animate the active skin. Runs every Refresh; cheap
@@ -2308,7 +2359,7 @@ namespace Gamex.Game
                 _petAnimTimer  = 0f;
             }
             Image petImg = null;
-            if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop || g.phase == AppPhase.SetDetail)
+            if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop || g.phase == AppPhase.SetDetail || g.phase == AppPhase.SkinDetail)
                 petImg = _homePet;
             else if (g.phase == AppPhase.Inventory)
                 petImg = _inventoryPet;
@@ -2364,7 +2415,7 @@ namespace Gamex.Game
             }
             // Pick whichever avatar is on screen this phase.
             AvatarSprite active = null;
-            if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop || g.phase == AppPhase.SetDetail)
+            if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop || g.phase == AppPhase.SetDetail || g.phase == AppPhase.SkinDetail)
                 active = _mirrorSelf;
             else if (g.phase == AppPhase.Inventory)
                 active = _inventoryAvatar;
@@ -2413,6 +2464,42 @@ namespace Gamex.Game
                 _setDetailBundleLabel.text = $"Buy whole set: {price} gold (20% off)";
                 _setDetailBundleBtn.interactable = true;
                 _setDetailBundleBtn.GetComponentInChildren<Text>().text = $"Buy Set ({price}g)";
+            }
+        }
+
+        // Skin detail refresh — mirror of UpdateSetDetail, simpler because
+        // skins are atomic (one preview, one price, one CTA whose label
+        // depends on owned/active state).
+        void UpdateSkinDetail(GamexGame g)
+        {
+            _currentSkinId = g.activeSkinId;
+            _skinDetailCoins.text = $"{g.state.coins}";
+
+            var skin = GamexGame.FindSkin(_currentSkinId);
+            if (skin == null) return;
+
+            _skinDetailTitle.text  = skin.displayName;
+            _skinDetailPreview.sprite = Make.Skin(skin.id);
+
+            bool owned  = g.IsSkinOwned(skin.id);
+            bool active = g.IsSkinActive(skin.id);
+            if (!owned)
+            {
+                _skinDetailStateLabel.text  = $"{skin.price} gold";
+                _skinDetailActionLabel.text = "Buy";
+                _skinDetailActionBtn.interactable = g.state.coins >= skin.price;
+            }
+            else if (!active)
+            {
+                _skinDetailStateLabel.text  = "Owned";
+                _skinDetailActionLabel.text = "Apply";
+                _skinDetailActionBtn.interactable = true;
+            }
+            else
+            {
+                _skinDetailStateLabel.text  = "Active";
+                _skinDetailActionLabel.text = "Remove";
+                _skinDetailActionBtn.interactable = true;
             }
         }
 

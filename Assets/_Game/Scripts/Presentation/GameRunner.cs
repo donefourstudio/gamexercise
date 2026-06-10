@@ -89,6 +89,7 @@ namespace Gamex.Game
                     else if (skin.source == "pet")    { _game.RemoveActivePet(); Sfx.Play("apply_outfit"); }
                     else                              { _game.RemoveActiveSkin(); Sfx.Play("apply_outfit"); }
                 },
+                onGoSkinDetail:       id => _game.GoSkinDetail(id),
                 onApplyOutfit:       id =>
                 {
                     // Inventory taps. Owned-set + already-active set -> race

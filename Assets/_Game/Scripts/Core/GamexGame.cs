@@ -115,9 +115,10 @@ namespace Gamex.Core
 
         public void GoHome()     => phase = AppPhase.Home;
         public void GoQuests()   => phase = AppPhase.Quests;
-        public void GoShop()     { phase = AppPhase.Shop;       activeSetId = null; onSave?.Invoke(); }
+        public void GoShop()     { phase = AppPhase.Shop;       activeSetId = null; activeSkinId = null; onSave?.Invoke(); }
         public void GoInventory(){ phase = AppPhase.Inventory;  onSave?.Invoke(); }
         public void GoSetDetail(string setId) { activeSetId = setId; phase = AppPhase.SetDetail; onSave?.Invoke(); }
+        public void GoSkinDetail(string skinId) { activeSkinId = skinId; phase = AppPhase.SkinDetail; onSave?.Invoke(); }
         public void GoSettings() => phase = AppPhase.Settings;
 
         // HealthKit gate (M_appstore). On iOS the game blocks at this phase
@@ -129,6 +130,8 @@ namespace Gamex.Core
         // Currently-open set on the SetDetail screen. Cleared whenever we
         // navigate back to plain Shop or anywhere else.
         public string activeSetId;
+        // Same as above for the SkinDetail screen (Legend / Cyberpunk).
+        public string activeSkinId;
 
         // ---- step ingestion (M5a) ----
 
