@@ -1185,7 +1185,7 @@ namespace Gamex.Game
                     var priceLabel = MkText("Price", card.transform, new Vector2(0f, 0.5f),
                         new Vector2(195f, -10f), new Vector2(665f, 50f),
                         FS_LABEL, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
-                    priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
+                    priceLabel.text = $"{set.BundlePrice} gold";
 
                     // Sets are atomic — no per-piece purchase — so the sub
                     // line no longer references piece count. Just hints at
@@ -1324,13 +1324,16 @@ namespace Gamex.Game
                 FS_TITLE, TextAnchor.MiddleRight, AccentGold);
             _setDetailCoinFloater.color = new Color(1f, 0.84f, 0.42f, 0f);
 
-            // Header preview frame — big square showing the full-gear bake.
+            // Header preview frame — matched to SkinDetail's 820x820 / 760x760
+            // sprite so the two detail pages feel like the same screen with
+            // different content. Champions get the same room their Legend
+            // counterparts do; player can see the full-gear bake at scale.
             var previewFrame = MkSpritePanel("PreviewFrame", _setDetailPanel.transform,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, 540f), new Vector2(420f, 420f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, 320f), new Vector2(820f, 820f),
                 "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
             previewFrame.GetComponent<Image>().raycastTarget = false;
             _setDetailPreview = MkSpriteIcon("Preview", previewFrame.transform,
-                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380f, 380f),
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 760f),
                 (Sprite)null, Color.white).GetComponent<Image>();
 
             // Champions are now atomic outfits — one Buy Set CTA, no per-piece
@@ -1338,11 +1341,11 @@ namespace Gamex.Game
             // "Champions 还是成套成套卖吧，这样子太乱了". Set detail page
             // therefore just shows preview + bundle price + Buy Set / Owned.
             _setDetailBundleLabel = MkText("BundleLabel", _setDetailPanel.transform,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -100f), new Vector2(900f, 60f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -240f), new Vector2(900f, 60f),
                 FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
 
             var bundleGO = MkButton("BundleBuy", _setDetailPanel.transform,
-                new Vector2(0.5f, 0.5f), new Vector2(0f, -210f), new Vector2(640f, 130f),
+                new Vector2(0.5f, 0.5f), new Vector2(0f, -370f), new Vector2(640f, 130f),
                 "Buy Set", () =>
                 {
                     if (_currentSetId != null) _onBuySet?.Invoke(_currentSetId);
@@ -2318,7 +2321,7 @@ namespace Gamex.Game
                     if (fullyOwned)
                         card.priceLabel.text = "Complete set owned";
                     else
-                        card.priceLabel.text = $"{set.BundlePrice} gold (set, 20% off)";
+                        card.priceLabel.text = $"{set.BundlePrice} gold";
                     var img = card.root.GetComponent<Image>();
                     if (img != null) img.color = fullyOwned ? setOwnedTint : setDefaultTint;
                 }
@@ -2494,13 +2497,13 @@ namespace Gamex.Game
             }
             else if (g.state.coins < price)
             {
-                _setDetailBundleLabel.text = $"Buy whole set: {price} gold (20% off — you need more gold)";
+                _setDetailBundleLabel.text = $"Buy whole set: {price} gold (you need more gold)";
                 _setDetailBundleBtn.interactable = false;
                 _setDetailBundleBtn.GetComponentInChildren<Text>().text = $"Buy Set ({price}g)";
             }
             else
             {
-                _setDetailBundleLabel.text = $"Buy whole set: {price} gold (20% off)";
+                _setDetailBundleLabel.text = $"Buy whole set: {price} gold";
                 _setDetailBundleBtn.interactable = true;
                 _setDetailBundleBtn.GetComponentInChildren<Text>().text = $"Buy Set ({price}g)";
             }

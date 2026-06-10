@@ -128,16 +128,12 @@ namespace Gamex.Core
         public EquipmentDef[] pieces;
         // Live-ops launch gate (same convention as SkinDef.availableAtUnix).
         public long   availableAtUnix;
-        public const float BUNDLE_DISCOUNT = 0.8f;   // 20% off the sum of piece prices
-        public int BundlePrice
-        {
-            get
-            {
-                int sum = 0;
-                if (pieces != null) foreach (var p in pieces) sum += p.price;
-                return UnityEngine.Mathf.RoundToInt(sum * BUNDLE_DISCOUNT);
-            }
-        }
+        // Sets are sold atomically now (no per-piece purchase), so the
+        // bundle price is a direct catalog value rather than sum(pieces)*0.8.
+        // EquipmentDef.price still exists for inventory bookkeeping (each
+        // piece is granted on Buy Set) but is no longer summed for display.
+        public int bundlePrice;
+        public int BundlePrice => bundlePrice;
     }
 
     // Live-ops vocabulary shared by SetDef + SkinDef. FUTURE = "TBD, hidden
