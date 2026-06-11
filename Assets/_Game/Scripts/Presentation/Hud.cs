@@ -83,6 +83,13 @@ namespace Gamex.Game
         GameObject _inventoryPanel;
         GameObject _settingsPanel;
         TMP_Text _settingsSfxLabel, _settingsBgmLabel, _settingsHKLabel, _settingsResetLabel;
+        // In-app modal shown by the Settings "Reconnect HealthKit" button.
+        // Apple restricted the deep link to "iOS Settings → Privacy &
+        // Security → Health → <app>" in iOS 17+, so we display step-by-
+        // step nav instructions instead. The Continue button clears the
+        // cached HK auth resolution and dismisses the modal; user then
+        // navigates iOS Settings manually. Cancel just dismisses.
+        GameObject _hkReconnectModal;
         // HealthKit hard-gate panel — shown whenever a real iOS device is
         // missing HK authorization. _hkGateBody describes the state to the
         // player; _hkGateActionLabel switches between "Connect HealthKit"
@@ -1563,7 +1570,7 @@ namespace Gamex.Game
 
             _settingsHKLabel = MkButtonWithLabel("HKRow", _settingsPanel.transform,
                 new Vector2(0.5f, 1f), new Vector2(0f, -680f), new Vector2(880f, 90f),
-                "Reconnect HealthKit", ReconnectHealthKit);
+                "Reconnect HealthKit", () => _hkReconnectModal.SetActive(true));
 
             // Section: Data
             MkText("DataHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -810f),
@@ -1585,6 +1592,72 @@ namespace Gamex.Game
 
             MkButton("Back", _settingsPanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 90f),
                 new Vector2(420f, 100f), "Back", () => _onGoHome?.Invoke(), "btn_grey", "btn_grey_down");
+
+            BuildHKReconnectModal(_settingsPanel.transform);
+        }
+
+        // Sits on top of the Settings panel (last child = highest sort
+        // order), hidden by default, shown by the Reconnect HealthKit
+        // row's click handler. Apple removed the deep link path to
+        // "Settings → Privacy & Security → Health → <app>" in iOS 17+,
+        // so we explain the manual nav steps in-app and let the user
+        // navigate themselves. Continue clears the cached auth so the
+        // gate re-shows when they return; Cancel just dismisses.
+        void BuildHKReconnectModal(Transform parent)
+        {
+            _hkReconnectModal = new GameObject("HKReconnectModal");
+            _hkReconnectModal.transform.SetParent(parent, false);
+            var rt = _hkReconnectModal.AddComponent<RectTransform>();
+            rt.anchorMin = Vector2.zero;
+            rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero;
+            rt.offsetMax = Vector2.zero;
+            // Dim backdrop covers the whole panel so the Settings UI
+            // behind reads as inactive while the modal is up.
+            var backdrop = _hkReconnectModal.AddComponent<Image>();
+            backdrop.color = new Color(0f, 0f, 0f, 0.78f);
+            backdrop.raycastTarget = true;   // swallows taps so backdrop clicks don't leak through
+
+            // Centred content panel.
+            var content = MkSpritePanel("Content", _hkReconnectModal.transform,
+                new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(880f, 1080f),
+                "panel", new Color(0.95f, 0.86f, 0.66f, 1f));
+
+            MkText("Title", content.transform, new Vector2(0.5f, 1f), new Vector2(0f, -60f),
+                new Vector2(760f, 80f), FS_TITLE, TextAnchor.UpperCenter,
+                new Color(0.18f, 0.10f, 0.05f)).text = "Reconnect HealthKit";
+
+            // Step-by-step body. enableWordWrapping is required because the
+            // string is long and the rect is narrow — same trap MkText fell
+            // into for the HK gate body earlier.
+            var body = MkText("Body", content.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -180f), new Vector2(760f, 640f),
+                FS_LABEL, TextAnchor.UpperLeft, new Color(0.18f, 0.10f, 0.05f));
+            body.enableWordWrapping = true;
+            body.text =
+                "Apple doesn't let apps jump straight to the HealthKit toggle, so please navigate manually:\n\n" +
+                "1. Open the iPhone Settings app\n" +
+                "2. Tap Privacy & Security\n" +
+                "3. Tap Health\n" +
+                "4. Tap Gamexercise\n" +
+                "5. Turn on Step Count and Workouts\n" +
+                "6. Return to this app\n\n" +
+                "Tap Continue and we'll reset the in-app HealthKit status so the connect screen re-appears when you come back.";
+
+            MkButton("Continue", content.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 240f), new Vector2(640f, 130f),
+                "Continue", () =>
+                {
+                    HealthKitBridge.ResetAuthCache();
+                    _hkReconnectModal.SetActive(false);
+                });
+
+            MkButton("Cancel", content.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 90f), new Vector2(420f, 100f),
+                "Cancel", () => _hkReconnectModal.SetActive(false),
+                "btn_grey", "btn_grey_down");
+
+            _hkReconnectModal.SetActive(false);
         }
 
         // HealthKit hard-gate panel. Sits behind a single CTA whose label
@@ -1651,57 +1724,20 @@ namespace Gamex.Game
             else                          _resetArmedUntil = now + RESET_CONFIRM_WINDOW;
         }
 
-        // iOS apps can't re-trigger the HealthKit permission modal — once the
-        // user has answered (or denied), the OS remembers and silently no-ops
-        // subsequent requestAuthorization calls. The supported recovery
-        // pattern is to deep-link the user to where they can toggle the
-        // permission, then let OnApplicationFocus re-evaluate when they
-        // return.
-        //
-        // Apple does NOT publish a deep link to "iOS Settings → Privacy &
-        // Security → Health → <app-name>" — that's the page we actually
-        // want, but it's two screens deep and not reachable via any
-        // documented URL scheme. The undocumented `App-Prefs:` schemes
-        // that used to work in iOS 14-16 were broken/restricted starting
-        // with iOS 17 (tester confirmed the URL was landing on the App
-        // alphabetical list instead).
-        //
-        // `app-settings:` (UIApplication.openSettingsURLString) opens the
-        // app's own settings page, which does NOT show Health toggles
-        // (those live under Privacy & Security, not under the app's row).
-        //
-        // Try the undocumented App-Prefs URL first — sometimes lands on
-        // iOS Settings → Privacy → Health → Apps and Services (the page
-        // testers actually want), sometimes lands on a generic Settings
-        // page in iOS 17+ where Apple restricted the scheme. If iOS
-        // ignores the URL entirely, no fallback fires from C# (Unity's
-        // Application.OpenURL is fire-and-forget), but the worst case
-        // is the user lands on iOS Settings home which is still closer
-        // than the Health app to where they need to go.
+        // Fallback iOS Settings deep link — used by the HealthKit gate's
+        // Denied-state retry path (rarely hit in practice; our cached
+        // auth resolution means the gate normally sees only NotDetermined
+        // or Authorized). Lands on Gamexercise's iOS Settings page; user
+        // would need to navigate Settings root → Privacy & Security →
+        // Health → Gamexercise from there, but at least the entry point
+        // is consistent. The Settings panel's "Reconnect HealthKit"
+        // button no longer uses this — it shows an in-app instruction
+        // modal instead (see BuildHKReconnectModal).
         public static void OpenHealthKitSettings()
         {
 #if UNITY_IOS && !UNITY_EDITOR
-            Application.OpenURL("App-Prefs:root=Privacy&path=HEALTH");
+            Application.OpenURL("app-settings:");
 #endif
-        }
-
-        // Reconnect HealthKit — Settings panel's recovery escape hatch. Wipes
-        // our cached post-modal auth resolution, opens iOS Privacy → Health
-        // so the user can verify / re-toggle their permission, and lets
-        // OnApplicationFocus re-evaluate the gate when they return. Covers
-        // three legitimate cases:
-        //   1. User tapped "Don't Allow" on the original modal and now wants
-        //      to grant access.
-        //   2. User granted, then revoked via iOS Settings; the app's cache
-        //      is stale, and queries are silently returning 0 with no signal.
-        //   3. Tester wants to re-run the gate flow without uninstalling.
-        // For all three, clearing the cache + bouncing through Settings is
-        // the same recovery path. No-op on non-iOS so the button doesn't
-        // break in the Editor.
-        public static void ReconnectHealthKit()
-        {
-            HealthKitBridge.ResetAuthCache();
-            OpenHealthKitSettings();
         }
 
         // ============================================================
@@ -2012,6 +2048,12 @@ namespace Gamex.Game
             Set(_raceSelectPanel,         g.phase == AppPhase.RaceSelect);
             Set(_raceAnimPanel,           g.phase == AppPhase.RaceTransformAnim);
             Set(_settingsPanel,           g.phase == AppPhase.Settings);
+            // Modal is a child of _settingsPanel — when the player leaves
+            // Settings the whole hierarchy goes inactive, but the modal's
+            // own activeSelf stays true so it'd re-show on re-entry.
+            // Force-close it on every transition out of Settings.
+            if (g.phase != AppPhase.Settings && _hkReconnectModal != null)
+                _hkReconnectModal.SetActive(false);
             if (g.phase == AppPhase.Settings) UpdateSettings(g);
             Set(_hkGatePanel,             g.phase == AppPhase.HealthKitGate);
             if (g.phase == AppPhase.HealthKitGate) UpdateHealthKitGate();
