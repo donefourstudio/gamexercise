@@ -126,11 +126,11 @@ namespace Gamex.Game
                 onConnectHealthKit: () =>
                 {
                     // Two-state button on the gate: NotDetermined -> trigger
-                    // OS modal; Denied -> deep-link to iOS Settings since
-                    // the OS won't show the modal a second time.
+                    // OS modal; Denied -> deep-link to Privacy → Health →
+                    // Gamexercise (iOS won't show the modal a second time).
                     if (HealthKitBridge.CurrentStatus() == HealthKitBridge.AuthStatus.Denied)
                     {
-                        Application.OpenURL("app-settings:");
+                        Hud.OpenHealthKitSettings();
                         return;
                     }
                     _game.state.healthKitAsked = true;

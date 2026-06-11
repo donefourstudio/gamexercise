@@ -1630,14 +1630,23 @@ namespace Gamex.Game
         // iOS apps can't re-trigger the HealthKit permission modal — once the
         // user has answered (or denied), the OS remembers and silently no-ops
         // subsequent requestAuthorization calls. The supported pattern is to
-        // deep-link to the app's own iOS Settings page where Health toggles
-        // live under "Health" subpage. UIApplication.openSettingsURLString
-        // resolves to "app-settings:" which Application.OpenURL can fire on
-        // iOS. No-op on other platforms (Settings panel is iOS-meaningful only).
-        static void OpenHealthKitSettings()
+        // deep-link to iOS Settings.
+        //
+        // Apple's officially-blessed `app-settings:` (== UIApplication.
+        // openSettingsURLString) opens the Gamexercise row under iOS Settings
+        // → Apps → Gamexercise, which has Notifications + Microphone etc. but
+        // NOT HealthKit (HK lives under Privacy & Security → Health → Apps
+        // and Services). Tester correctly flagged this is the wrong page.
+        //
+        // The undocumented `App-Prefs:root=Privacy&path=HEALTH/<bundle-id>`
+        // scheme jumps straight to the app's Health permission page. It's
+        // worked across iOS 14-17 in practice and Apple's review has been
+        // tolerant. Worst case if a future iOS removes it: user lands at
+        // Settings root, which is no worse than the previous behavior.
+        public static void OpenHealthKitSettings()
         {
 #if UNITY_IOS && !UNITY_EDITOR
-            Application.OpenURL("app-settings:");
+            Application.OpenURL("App-Prefs:root=Privacy&path=HEALTH/com.donefourstudio.gamexercise");
 #endif
         }
 
