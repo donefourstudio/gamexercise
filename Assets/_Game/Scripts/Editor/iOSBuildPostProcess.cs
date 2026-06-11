@@ -39,6 +39,12 @@ namespace Gamex.EditorTools
     public static class iOSBuildPostProcess
     {
         const string BUNDLE_ID            = "com.donefourstudio.gamexercise";
+        // iPhone home-screen label. Unity's PlayerSettings.productName is
+        // lowercase "gamexercise" (matches the in-engine Application.productName
+        // and asset folder structure), but we want the user-facing label to
+        // show capitalized. CFBundleDisplayName overrides what iOS uses for
+        // the home-screen icon caption + Settings app row label.
+        const string APP_DISPLAY_NAME     = "Gamexercise";
         const string HEALTHKIT_USAGE      = "Gamexercise tracks your daily steps to power your character's progression — gold earned, levels gained, and outfits unlocked all reflect your real-world activity.";
         const string HEALTHKIT_UPDATE_USAGE = "Gamexercise does not write any data back to Health. This entry is required by Apple's review process because the HealthKit framework's binary surface includes write APIs.";
         const string ENTITLEMENTS_NAME    = "Unity-iPhone.entitlements";
@@ -63,6 +69,7 @@ namespace Gamex.EditorTools
             string plistPath = Path.Combine(pathToBuiltProject, "Info.plist");
             var plist = new PlistDocument();
             plist.ReadFromFile(plistPath);
+            plist.root.SetString("CFBundleDisplayName", APP_DISPLAY_NAME);
             plist.root.SetString("NSHealthShareUsageDescription", HEALTHKIT_USAGE);
             plist.root.SetString("NSHealthUpdateUsageDescription", HEALTHKIT_UPDATE_USAGE);
             // Export compliance — false because we only use Apple's stock
