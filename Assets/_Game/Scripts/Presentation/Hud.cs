@@ -1021,13 +1021,14 @@ namespace Gamex.Game
             // 180) + FS_TITLE label (vs original FS_LABEL 33 / first-pass
             // FS_BIG 77). Trophy icon for completion stays.
             //
-            // Width 880 (was 950) — on tall narrow phones like the iPhone 17
-            // Pro Max (aspect 0.462 vs our 0.5625 reference), the visible
-            // canvas width in design units shrinks to ~885 even though our
-            // reference is 1080. The previous 950 overflowed both edges by
-            // ~30 design units on these screens; 880 matches the Shop card
-            // width and stays inside the safe range.
-            const float rowH = 150f, rowGap = 18f, rowW = 880f;
+            // Width 820 (was 950 then 880) — on tall narrow phones like the
+            // iPhone 17 Pro Max (aspect 0.462 vs our 0.5625 reference),
+            // the visible canvas width in design units shrinks to ~885.
+            // 950 overflowed badly; 880 was right at the edge AND the
+            // wooden panel's 9-slice tile pattern adds a few px of visual
+            // overhang past the declared rect, so 880 still showed bleed.
+            // 820 gives a real ~32 design-unit margin on each side.
+            const float rowH = 150f, rowGap = 18f, rowW = 820f;
             float startY = 620f;
             for (int i = 0; i < QUEST_SPEC.Length; i++)
             {
@@ -1669,16 +1670,18 @@ namespace Gamex.Game
         // app's own settings page, which does NOT show Health toggles
         // (those live under Privacy & Security, not under the app's row).
         //
-        // `x-apple-health://` opens the Health app. From there the user
-        // can reach: Profile (top-right avatar) → Privacy → Apps →
-        // Gamexercise → toggle the Step Count + Workouts switches. Two
-        // extra taps vs the ideal direct link, but it lands in the right
-        // Apple app at least, and the path is consistent across iOS
-        // versions.
+        // Try the undocumented App-Prefs URL first — sometimes lands on
+        // iOS Settings → Privacy → Health → Apps and Services (the page
+        // testers actually want), sometimes lands on a generic Settings
+        // page in iOS 17+ where Apple restricted the scheme. If iOS
+        // ignores the URL entirely, no fallback fires from C# (Unity's
+        // Application.OpenURL is fire-and-forget), but the worst case
+        // is the user lands on iOS Settings home which is still closer
+        // than the Health app to where they need to go.
         public static void OpenHealthKitSettings()
         {
 #if UNITY_IOS && !UNITY_EDITOR
-            Application.OpenURL("x-apple-health://");
+            Application.OpenURL("App-Prefs:root=Privacy&path=HEALTH");
 #endif
         }
 
