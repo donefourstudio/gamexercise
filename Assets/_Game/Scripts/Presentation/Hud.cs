@@ -1586,6 +1586,12 @@ namespace Gamex.Game
 
             _hkGateBody = MkText("Body", _hkGatePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 120f),
                 new Vector2(880f, 480f), FS_LABEL, TextAnchor.UpperCenter, TextDim);
+            // MkTextTMP defaults enableWordWrapping=false (suits single-line
+            // labels like quest names + counters). Long narrative bodies like
+            // this one need wrapping or they overflow horizontally — tester
+            // hit exactly this issue, screenshot showed the body running off
+            // the right edge of the screen.
+            _hkGateBody.enableWordWrapping = true;
             _hkGateBody.text = "Gamexercise tracks your real-world steps via HealthKit. Your character only grows when you walk — without HealthKit there's nothing to power the game.";
 
             _hkGateActionBtn = MkButton("ConnectBtn", _hkGatePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -200f),
