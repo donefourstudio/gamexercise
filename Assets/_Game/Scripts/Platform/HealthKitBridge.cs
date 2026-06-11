@@ -27,6 +27,7 @@ namespace Gamex.Platform
         [DllImport("__Internal")] static extern void _HealthKitQueryTodayRunSeconds();
         [DllImport("__Internal")] static extern int  _HealthKitGetRunSecondsResult();
         [DllImport("__Internal")] static extern void _HealthKitSetFilterManualEntries(int filter);
+        [DllImport("__Internal")] static extern void _HealthKitResetAuthCache();
 #endif
 
         static GameObject _ticker;
@@ -105,6 +106,18 @@ namespace Gamex.Platform
         {
 #if UNITY_IOS && !UNITY_EDITOR
             _HealthKitSetFilterManualEntries(filter ? 1 : 0);
+#endif
+        }
+
+        // Wipes the native-side cached post-modal auth resolution. After this
+        // call, CurrentStatus() returns NotDetermined and the gate re-triggers.
+        // Used by Settings → Reconnect HealthKit so users who originally tapped
+        // "Don't Allow" or who later revoked permission in iOS Settings have a
+        // way back to the modal flow.
+        public static void ResetAuthCache()
+        {
+#if UNITY_IOS && !UNITY_EDITOR
+            _HealthKitResetAuthCache();
 #endif
         }
 

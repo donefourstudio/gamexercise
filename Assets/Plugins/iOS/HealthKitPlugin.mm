@@ -207,4 +207,18 @@ void _HealthKitSetFilterManualEntries(int filter) {
     _filterManualEntries.store(filter != 0);
 }
 
+// Manual recovery escape hatch — wipes our persisted post-modal auth
+// resolution so the next _HealthKitAuthStatus call returns NotDetermined,
+// which re-triggers the HealthKit gate. Driven by the Settings panel's
+// "Reconnect HealthKit" button: clear the cache, deep-link to iOS
+// Privacy → Health, let OnApplicationFocus re-evaluate the gate on
+// return. iOS's own modal-already-shown state is independent and not
+// reset by this (we can't touch it), but the request still resolves
+// success=YES on the next attempt, so the gate flow completes either
+// way.
+void _HealthKitResetAuthCache() {
+    [[NSUserDefaults standardUserDefaults] removeObjectForKey:kHKAuthResolvedKey];
+    [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
 }  // extern "C"

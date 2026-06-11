@@ -1555,7 +1555,7 @@ namespace Gamex.Game
 
             _settingsHKLabel = MkButtonWithLabel("HKRow", _settingsPanel.transform,
                 new Vector2(0.5f, 1f), new Vector2(0f, -680f), new Vector2(880f, 90f),
-                "HealthKit: Not connected (tap to open Settings)", OpenHealthKitSettings);
+                "Reconnect HealthKit", ReconnectHealthKit);
 
             // Section: Data
             MkText("DataHdr", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -810f),
@@ -1664,6 +1664,25 @@ namespace Gamex.Game
 #if UNITY_IOS && !UNITY_EDITOR
             Application.OpenURL("App-Prefs:root=Privacy&path=HEALTH/com.donefourstudio.gamexercise");
 #endif
+        }
+
+        // Reconnect HealthKit — Settings panel's recovery escape hatch. Wipes
+        // our cached post-modal auth resolution, opens iOS Privacy → Health
+        // so the user can verify / re-toggle their permission, and lets
+        // OnApplicationFocus re-evaluate the gate when they return. Covers
+        // three legitimate cases:
+        //   1. User tapped "Don't Allow" on the original modal and now wants
+        //      to grant access.
+        //   2. User granted, then revoked via iOS Settings; the app's cache
+        //      is stale, and queries are silently returning 0 with no signal.
+        //   3. Tester wants to re-run the gate flow without uninstalling.
+        // For all three, clearing the cache + bouncing through Settings is
+        // the same recovery path. No-op on non-iOS so the button doesn't
+        // break in the Editor.
+        public static void ReconnectHealthKit()
+        {
+            HealthKitBridge.ResetAuthCache();
+            OpenHealthKitSettings();
         }
 
         // ============================================================
@@ -2776,15 +2795,16 @@ namespace Gamex.Game
 
             if (_settingsHKLabel != null)
             {
-                string hk;
-                if (!HealthKitBridge.IsAvailable()) hk = "Not available on this device";
-                else switch (HealthKitBridge.CurrentStatus())
-                {
-                    case HealthKitBridge.AuthStatus.Authorized: hk = "Connected (tap to open iOS Settings)"; break;
-                    case HealthKitBridge.AuthStatus.Denied:     hk = "Denied (tap to open iOS Settings)"; break;
-                    default:                                    hk = "Not yet asked"; break;
-                }
-                _settingsHKLabel.text = hk;
+                // Static "Reconnect HealthKit" label regardless of cached
+                // status — Apple's read-only auth API is unreliable enough
+                // (always returns sharingDenied for read requests) that
+                // the previous Connected/Denied state labels were often
+                // misleading. The single Reconnect action handles every
+                // recovery case (originally-denied, later-revoked, just
+                // want to retry).
+                _settingsHKLabel.text = HealthKitBridge.IsAvailable()
+                    ? "Reconnect HealthKit"
+                    : "Not available on this device";
             }
 
             if (_settingsResetLabel != null)
