@@ -28,18 +28,20 @@ namespace Gamex.EditorTools
     public static class TMPShaderVariants
     {
         const string COLLECTION_PATH = "Assets/_Game/Resources/Shaders/TMP_SDF_Variants.shadervariants";
-        const string SHADER_NAME     = "TextMeshPro/Distance Field";
+        // Both shader variants TMP can pick at runtime depending on render
+        // path. Default desktop / fallback is "TextMeshPro/Distance Field";
+        // mobile platforms (iOS, Android) often resolve to the Mobile
+        // variant which is a separate shader file. We pin BOTH so whichever
+        // ends up referenced by the runtime font asset has the keyword
+        // permutations available.
+        static readonly string[] SHADER_NAMES = {
+            "TextMeshPro/Distance Field",
+            "TextMeshPro/Mobile/Distance Field",
+        };
 
         [MenuItem("Tools/Gamex/Rebuild TMP Shader Variant Collection")]
         public static void Rebuild()
         {
-            var shader = Shader.Find(SHADER_NAME);
-            if (shader == null)
-            {
-                Debug.LogError("[TMPShaderVariants] TMP_SDF shader not found (looked for '" + SHADER_NAME + "'). Is the TMP Essential Resources package imported?");
-                return;
-            }
-
             System.IO.Directory.CreateDirectory("Assets/_Game/Resources/Shaders");
 
             // Fresh collection — easier to keep deterministic than reading
@@ -47,24 +49,41 @@ namespace Gamex.EditorTools
             var svc = new ShaderVariantCollection();
             svc.name = "TMP_SDF_Variants";
 
-            void AddVariant(string[] keywords)
+            int variantsAdded = 0;
+            foreach (var name in SHADER_NAMES)
             {
-                var v = new ShaderVariantCollection.ShaderVariant
+                var shader = Shader.Find(name);
+                if (shader == null)
                 {
-                    shader     = shader,
-                    passType   = UnityEngine.Rendering.PassType.Normal,
-                    keywords   = keywords,
-                };
-                svc.Add(v);
-            }
+                    Debug.LogWarning("[TMPShaderVariants] Shader not found: " + name + " — skipping.");
+                    continue;
+                }
 
-            // Baseline + each keyword we actually flip at runtime, plus the
-            // combined variant used by the Title screen (both outline +
-            // underlay enabled at once on the wordmark + tagline).
-            AddVariant(new string[0]);
-            AddVariant(new[] { "OUTLINE_ON" });
-            AddVariant(new[] { "UNDERLAY_ON" });
-            AddVariant(new[] { "OUTLINE_ON", "UNDERLAY_ON" });
+                void AddVariant(string[] keywords)
+                {
+                    var v = new ShaderVariantCollection.ShaderVariant
+                    {
+                        shader     = shader,
+                        passType   = UnityEngine.Rendering.PassType.Normal,
+                        keywords   = keywords,
+                    };
+                    svc.Add(v);
+                    variantsAdded++;
+                }
+
+                // Baseline + each keyword we actually flip at runtime, plus
+                // the combined variant used by the Title screen (both
+                // outline + underlay enabled at once on the wordmark + tagline).
+                AddVariant(new string[0]);
+                AddVariant(new[] { "OUTLINE_ON" });
+                AddVariant(new[] { "UNDERLAY_ON" });
+                AddVariant(new[] { "OUTLINE_ON", "UNDERLAY_ON" });
+            }
+            if (variantsAdded == 0)
+            {
+                Debug.LogError("[TMPShaderVariants] No TMP shaders found at all. Is the TMP Essential Resources package imported?");
+                return;
+            }
 
             AssetDatabase.CreateAsset(svc, COLLECTION_PATH);
             AssetDatabase.SaveAssets();

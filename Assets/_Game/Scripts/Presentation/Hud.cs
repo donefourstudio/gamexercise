@@ -1020,7 +1020,14 @@ namespace Gamex.Game
             // In-between sizing: rows 150 tall (vs original 130 / first-pass
             // 180) + FS_TITLE label (vs original FS_LABEL 33 / first-pass
             // FS_BIG 77). Trophy icon for completion stays.
-            const float rowH = 150f, rowGap = 18f, rowW = 950f;
+            //
+            // Width 880 (was 950) — on tall narrow phones like the iPhone 17
+            // Pro Max (aspect 0.462 vs our 0.5625 reference), the visible
+            // canvas width in design units shrinks to ~885 even though our
+            // reference is 1080. The previous 950 overflowed both edges by
+            // ~30 design units on these screens; 880 matches the Shop card
+            // width and stays inside the safe range.
+            const float rowH = 150f, rowGap = 18f, rowW = 880f;
             float startY = 620f;
             for (int i = 0; i < QUEST_SPEC.Length; i++)
             {
@@ -1645,24 +1652,33 @@ namespace Gamex.Game
 
         // iOS apps can't re-trigger the HealthKit permission modal — once the
         // user has answered (or denied), the OS remembers and silently no-ops
-        // subsequent requestAuthorization calls. The supported pattern is to
-        // deep-link to iOS Settings.
+        // subsequent requestAuthorization calls. The supported recovery
+        // pattern is to deep-link the user to where they can toggle the
+        // permission, then let OnApplicationFocus re-evaluate when they
+        // return.
         //
-        // Apple's officially-blessed `app-settings:` (== UIApplication.
-        // openSettingsURLString) opens the Gamexercise row under iOS Settings
-        // → Apps → Gamexercise, which has Notifications + Microphone etc. but
-        // NOT HealthKit (HK lives under Privacy & Security → Health → Apps
-        // and Services). Tester correctly flagged this is the wrong page.
+        // Apple does NOT publish a deep link to "iOS Settings → Privacy &
+        // Security → Health → <app-name>" — that's the page we actually
+        // want, but it's two screens deep and not reachable via any
+        // documented URL scheme. The undocumented `App-Prefs:` schemes
+        // that used to work in iOS 14-16 were broken/restricted starting
+        // with iOS 17 (tester confirmed the URL was landing on the App
+        // alphabetical list instead).
         //
-        // The undocumented `App-Prefs:root=Privacy&path=HEALTH/<bundle-id>`
-        // scheme jumps straight to the app's Health permission page. It's
-        // worked across iOS 14-17 in practice and Apple's review has been
-        // tolerant. Worst case if a future iOS removes it: user lands at
-        // Settings root, which is no worse than the previous behavior.
+        // `app-settings:` (UIApplication.openSettingsURLString) opens the
+        // app's own settings page, which does NOT show Health toggles
+        // (those live under Privacy & Security, not under the app's row).
+        //
+        // `x-apple-health://` opens the Health app. From there the user
+        // can reach: Profile (top-right avatar) → Privacy → Apps →
+        // Gamexercise → toggle the Step Count + Workouts switches. Two
+        // extra taps vs the ideal direct link, but it lands in the right
+        // Apple app at least, and the path is consistent across iOS
+        // versions.
         public static void OpenHealthKitSettings()
         {
 #if UNITY_IOS && !UNITY_EDITOR
-            Application.OpenURL("App-Prefs:root=Privacy&path=HEALTH/com.donefourstudio.gamexercise");
+            Application.OpenURL("x-apple-health://");
 #endif
         }
 
@@ -2086,7 +2102,7 @@ namespace Gamex.Game
             {
                 _homeLevel.text   = $"Lv {g.state.level}";
                 _homeCoins.text   = $"{g.state.coins}";
-                LayoutCoinNextToText(_homeCoinIcon, _homeCoins, marginRight: 40f, coinYOffset: -54f);
+                LayoutCoinNextToText(_homeCoinIcon, _homeCoins, marginRight: 40f, coinYOffset: -54f - SAFE_AREA_TOP_INSET);
                 _homeStreak.text  = $"{g.state.streakDays}-day streak";
                 bool dailyGoalMet = g.state.todaySteps >= 5000;
                 _homeProgress.text  = $"Today {g.state.todaySteps} steps";
@@ -2346,7 +2362,7 @@ namespace Gamex.Game
             if (g.phase == AppPhase.Shop)
             {
                 _shopCoins.text = $"{g.state.coins}";
-                LayoutCoinNextToText(_shopCoinIcon, _shopCoins, marginRight: 40f, coinYOffset: -84f);
+                LayoutCoinNextToText(_shopCoinIcon, _shopCoins, marginRight: 40f, coinYOffset: -84f - SAFE_AREA_TOP_INSET);
                 _ownedSnapshot.Clear();
                 foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
 
@@ -2520,7 +2536,7 @@ namespace Gamex.Game
             _ownedSnapshot.Clear();
             foreach (var id in g.state.owned) _ownedSnapshot.Add(id);
             _setDetailCoins.text = $"{g.state.coins}";
-            LayoutCoinNextToText(_setDetailCoinIcon, _setDetailCoins, marginRight: 40f, coinYOffset: -84f);
+            LayoutCoinNextToText(_setDetailCoinIcon, _setDetailCoins, marginRight: 40f, coinYOffset: -84f - SAFE_AREA_TOP_INSET);
 
             var set = GamexGame.FindSet(_currentSetId);
             if (set == null) return;
