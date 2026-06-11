@@ -36,9 +36,12 @@ static HKHealthStore *_healthStore = nil;
 static std::atomic<int> _authResult{-1};
 static std::atomic<int> _stepsResult{-1};
 static std::atomic<int> _runSecondsResult{-1};
-// Remote-config-driven anti-cheat toggle. Defaults to off so manually-entered
-// Health data still counts (reviewer-friendly). C# flips this when the server
-// config or the local cache says to. Atomic so the toggle is safe to race
+// Remote-config-driven anti-cheat toggle for STEPS ONLY. Defaults to off
+// so manually-entered step data still counts (reviewer-friendly). When
+// flipped on, _HealthKitQueryTodaySteps skips HKQuantitySamples flagged
+// HKMetadataKeyWasUserEntered. Workouts are unaffected and always
+// accepted regardless of this flag — see the v1.0 anti-cheat design in
+// project_anticheat_toggle.md. Atomic so the toggle is safe to race
 // against an in-flight query callback.
 static std::atomic<bool> _filterManualEntries{false};
 
@@ -111,29 +114,39 @@ void _HealthKitQueryTodaySteps() {
     NSPredicate *predicate = [HKQuery predicateForSamplesWithStartDate:startOfDay
                                                               endDate:now
                                                               options:HKQueryOptionStrictStartDate];
-    // HKStatisticsQuery with CumulativeSum is the standard pattern for
-    // "total steps in time window". A SampleQuery would return raw samples
-    // which we'd need to sum manually + dedupe across HK sources (phone +
-    // watch can both write steps and HK reconciles them inside Statistics).
-    // NOTE: when _filterManualEntries flips to true (v1.1+), this query
-    // needs to switch to HKSampleQuery + iterate + check
-    // HKMetadataKeyWasUserEntered. That refactor is intentionally deferred
-    // — for v1.0 the filter only protects the new workout pathway.
-    HKStatisticsQuery *query = [[HKStatisticsQuery alloc]
-        initWithQuantityType:stepType
-     quantitySamplePredicate:predicate
-                     options:HKStatisticsOptionCumulativeSum
-           completionHandler:^(HKStatisticsQuery * _Nonnull q,
-                               HKStatistics * _Nullable result,
-                               NSError * _Nullable error) {
-        int steps = 0;
-        if (result != nil) {
-            HKQuantity *sum = result.sumQuantity;
-            if (sum != nil) {
-                steps = (int)[sum doubleValueForUnit:[HKUnit countUnit]];
-            }
+    // HKSampleQuery (not HKStatisticsQuery) so we can inspect per-sample
+    // metadata for the manual-entry anti-cheat filter. The cost vs the
+    // statistics-aggregation path: we sum samples ourselves and don't get
+    // HK's automatic cross-source deduplication (phone + Apple Watch can
+    // both record the same minute of walking; HKStatistics merges them).
+    //
+    // For the launch demographic (single device, no Watch in most cases),
+    // double-counting is rare enough to accept as a tradeoff for the
+    // anti-cheat protection. Users who do have both devices will see
+    // slightly inflated daily totals, which favours them (more coins,
+    // streak preserved on borderline days) so the failure mode is benign.
+    HKSampleQuery *query = [[HKSampleQuery alloc]
+        initWithSampleType:stepType
+                 predicate:predicate
+                     limit:HKObjectQueryNoLimit
+           sortDescriptors:nil
+            resultsHandler:^(HKSampleQuery * _Nonnull q,
+                             NSArray<__kindof HKSample *> * _Nullable results,
+                             NSError * _Nullable error) {
+        if (error != nil || results == nil) {
+            _stepsResult.store(0);
+            return;
         }
-        _stepsResult.store(steps);
+        bool filter = _filterManualEntries.load();
+        double total = 0;
+        for (HKQuantitySample *sample in results) {
+            if (filter) {
+                NSNumber *wasUserEntered = sample.metadata[HKMetadataKeyWasUserEntered];
+                if ([wasUserEntered boolValue]) continue;
+            }
+            total += [sample.quantity doubleValueForUnit:[HKUnit countUnit]];
+        }
+        _stepsResult.store((int)total);
     }];
     [HK() executeQuery:query];
 }
@@ -152,9 +165,12 @@ int _HealthKitGetStepsResult() {
 // Type predicate: HKWorkoutActivityTypeRunning only — walking workouts
 // already contribute steps via the step query, no double-counting needed.
 //
-// Filter: when _filterManualEntries is true, workouts with
-// HKMetadataKeyWasUserEntered = YES are skipped. That's Apple's canonical
-// "this sample was typed in via the Health app" flag.
+// Manual entries: deliberately NOT filtered. Per the v1.0 anti-cheat
+// design, _filterManualEntries protects step counts only — workouts are
+// always accepted regardless of source. Rationale: streak fraud + walk-
+// quest fraud is more valuable to protect against than run-quest fraud
+// (smaller coin payout), and reviewer-testability requires manual
+// workouts to count. See project_anticheat_toggle.md.
 void _HealthKitQueryTodayRunSeconds() {
     _runSecondsResult.store(-1);
     if (![HKHealthStore isHealthDataAvailable]) {
@@ -182,13 +198,8 @@ void _HealthKitQueryTodayRunSeconds() {
             _runSecondsResult.store(0);
             return;
         }
-        bool filter = _filterManualEntries.load();
         NSTimeInterval total = 0;
         for (HKWorkout *workout in results) {
-            if (filter) {
-                NSNumber *wasUserEntered = workout.metadata[HKMetadataKeyWasUserEntered];
-                if ([wasUserEntered boolValue]) continue;
-            }
             total += workout.duration;
         }
         _runSecondsResult.store((int)total);
@@ -201,8 +212,10 @@ int _HealthKitGetRunSecondsResult() {
 }
 
 // Remote-config flip from C# side. Pass 0 to count everything (default,
-// reviewer-friendly), non-0 to exclude manually-entered Health samples.
-// Idempotent and thread-safe — the next query will pick up the new value.
+// reviewer-friendly), non-0 to exclude manually-entered HKQuantity step
+// samples. Idempotent and thread-safe — the next query picks up the new
+// value. NOTE: workouts are always accepted regardless of this flag (see
+// _HealthKitQueryTodayRunSeconds for rationale).
 void _HealthKitSetFilterManualEntries(int filter) {
     _filterManualEntries.store(filter != 0);
 }
