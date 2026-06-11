@@ -33,6 +33,16 @@ namespace Gamex.Game
         const int FS_BIG     = 77;
         const int FS_HUGE    = 154;
 
+        // Vertical inset applied to every top-anchored title + top-bar
+        // element (level number, coin counters, scroll-view top) so the
+        // iPhone Dynamic Island doesn't cover the top of the UI on
+        // iPhone 14 Pro+ devices. Calibrated to 60px in canvas reference
+        // units (1080x1920) which lands at ~90px on the iPhone 17 Pro Max
+        // display — enough to clear the island with margin. iPhones without
+        // a Dynamic Island just see the title sitting slightly further
+        // from the top edge, which is harmless.
+        const float SAFE_AREA_TOP_INSET = 60f;
+
         // ---- panels ----
         GameObject _titlePanel;
         // Title screen polish — fade-in for the wordmark + tagline, gentle
@@ -152,10 +162,10 @@ namespace Gamex.Game
         const float COIN_FLOAT_DURATION = 1.5f;
         // Home counter sits at y=-60, Shop/SetDetail counters at y=-90.
         // Floater rises ~80px into its respective counter from below.
-        const float COIN_FLOAT_HOME_START_Y  = -150f;
-        const float COIN_FLOAT_HOME_END_Y    = -70f;
-        const float COIN_FLOAT_SHOP_START_Y  = -180f;
-        const float COIN_FLOAT_SHOP_END_Y    = -100f;
+        const float COIN_FLOAT_HOME_START_Y  = -150f - SAFE_AREA_TOP_INSET;
+        const float COIN_FLOAT_HOME_END_Y    = -70f  - SAFE_AREA_TOP_INSET;
+        const float COIN_FLOAT_SHOP_START_Y  = -180f - SAFE_AREA_TOP_INSET;
+        const float COIN_FLOAT_SHOP_END_Y    = -100f - SAFE_AREA_TOP_INSET;
 
         // 6 lines surface in order at the 6 stage transitions (Lv 6 / 11 / 16 / 21 / 26 / 30).
         static readonly string[] MILESTONE_LINES = new[]
@@ -844,7 +854,7 @@ namespace Gamex.Game
             _homePanel = MkFullPanel("HomePanel", root);
 
             // top HUD
-            _homeLevel = MkText("Level", _homePanel.transform, new Vector2(0f, 1f), new Vector2(50f, -60f),
+            _homeLevel = MkText("Level", _homePanel.transform, new Vector2(0f, 1f), new Vector2(50f, -60f - SAFE_AREA_TOP_INSET),
                 new Vector2(400f, 60f), FS_BIG, TextAnchor.UpperLeft, AccentGold);
             // Coin LEFT of the number with a 10px gap. Number rect occupies
             // x=300..500 (right edge 40 left of panel edge); coin rect at
@@ -852,9 +862,9 @@ namespace Gamex.Game
             // down 8px to compensate for Cubic 11's top-heavy glyph metrics
             // — without it the coin reads as floating above the digits even
             // though the rect centres match mathematically.
-            _homeCoinIcon = MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -54f),
+            _homeCoinIcon = MkSpriteIcon("CoinIcon", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -54f - SAFE_AREA_TOP_INSET),
                 new Vector2(80f, 80f), "coin", Color.white).GetComponent<Image>();
-            _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -60f),
+            _homeCoins = MkText("Coins", _homePanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -60f - SAFE_AREA_TOP_INSET),
                 new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
             // Coin gain floater — "+N" pops in just below the counter and rises
@@ -1004,7 +1014,7 @@ namespace Gamex.Game
         {
             _trainPanel = MkFullPanel("QuestsPanel", root);
 
-            MkText("Title", _trainPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
+            MkText("Title", _trainPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f - SAFE_AREA_TOP_INSET),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Daily Quests";
 
             // In-between sizing: rows 150 tall (vs original 130 / first-pass
@@ -1096,11 +1106,11 @@ namespace Gamex.Game
         {
             _shopPanel = MkFullPanel("ShopPanel", root);
 
-            MkText("Title", _shopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
+            MkText("Title", _shopPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f - SAFE_AREA_TOP_INSET),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Shop";
-            _shopCoinIcon = MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f),
+            _shopCoinIcon = MkSpriteIcon("CoinIcon", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f - SAFE_AREA_TOP_INSET),
                 new Vector2(80f, 80f), "coin", Color.white).GetComponent<Image>();
-            _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -90f),
+            _shopCoins = MkText("Coins", _shopPanel.transform, new Vector2(1f, 1f), new Vector2(-40f, -90f - SAFE_AREA_TOP_INSET),
                 new Vector2(200f, 60f), FS_BIG, TextAnchor.MiddleRight, AccentGold);
             _shopCoinFloater = MkText("CoinFloat", _shopPanel.transform, new Vector2(1f, 1f),
                 new Vector2(-40f, COIN_FLOAT_SHOP_START_Y), new Vector2(200f, 50f),
@@ -1113,7 +1123,7 @@ namespace Gamex.Game
             // the back button; content is a RectTransform whose height we
             // adjust at the end to match the cumulative card stack.
             var contentRT = MkScrollView("ShopScroll", _shopPanel.transform,
-                topInset: 200f, bottomInset: 250f);
+                topInset: 200f + SAFE_AREA_TOP_INSET, bottomInset: 250f);
 
             // Layout convention: `y` is the TOP edge of the next element to
             // place (anchor + pivot = (0.5, 1) for both header and cards, so
@@ -1312,12 +1322,12 @@ namespace Gamex.Game
             // "Dark Horned Knight". Left anchor puts the title squarely on
             // the left and gives the coin readout the right half clean.
             _setDetailTitle = MkText("Title", _setDetailPanel.transform, new Vector2(0f, 1f),
-                new Vector2(40f, -80f), new Vector2(620f, 80f),
+                new Vector2(40f, -80f - SAFE_AREA_TOP_INSET), new Vector2(620f, 80f),
                 FS_TITLE, TextAnchor.UpperLeft, AccentGold);
-            _setDetailCoinIcon = MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f),
+            _setDetailCoinIcon = MkSpriteIcon("CoinIcon", _setDetailPanel.transform, new Vector2(1f, 1f), new Vector2(-250f, -84f - SAFE_AREA_TOP_INSET),
                 new Vector2(80f, 80f), "coin", Color.white).GetComponent<Image>();
             _setDetailCoins = MkText("Coins", _setDetailPanel.transform, new Vector2(1f, 1f),
-                new Vector2(-40f, -90f), new Vector2(200f, 60f),
+                new Vector2(-40f, -90f - SAFE_AREA_TOP_INSET), new Vector2(200f, 60f),
                 FS_BIG, TextAnchor.MiddleRight, AccentGold);
             _setDetailCoinFloater = MkText("CoinFloat", _setDetailPanel.transform, new Vector2(1f, 1f),
                 new Vector2(-40f, COIN_FLOAT_SHOP_START_Y), new Vector2(200f, 50f),
@@ -1371,13 +1381,13 @@ namespace Gamex.Game
             _skinDetailPanel = MkFullPanel("SkinDetailPanel", root);
 
             _skinDetailTitle = MkText("Title", _skinDetailPanel.transform, new Vector2(0f, 1f),
-                new Vector2(40f, -80f), new Vector2(620f, 80f),
+                new Vector2(40f, -80f - SAFE_AREA_TOP_INSET), new Vector2(620f, 80f),
                 FS_TITLE, TextAnchor.UpperLeft, AccentGold);
             MkSpriteIcon("CoinIcon", _skinDetailPanel.transform, new Vector2(1f, 1f),
-                new Vector2(-250f, -84f), new Vector2(80f, 80f),
+                new Vector2(-250f, -84f - SAFE_AREA_TOP_INSET), new Vector2(80f, 80f),
                 "coin", Color.white);
             _skinDetailCoins = MkText("Coins", _skinDetailPanel.transform, new Vector2(1f, 1f),
-                new Vector2(-40f, -90f), new Vector2(200f, 60f),
+                new Vector2(-40f, -90f - SAFE_AREA_TOP_INSET), new Vector2(200f, 60f),
                 FS_BIG, TextAnchor.MiddleRight, AccentGold);
 
             // Big preview frame — Skin detail has fewer UI elements than
@@ -1427,7 +1437,7 @@ namespace Gamex.Game
             _inventoryPanel = MkFullPanel("InventoryPanel", root);
 
             // Top header — title + gold (mirrors home/shop styling)
-            MkText("Title", _inventoryPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f),
+            MkText("Title", _inventoryPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -80f - SAFE_AREA_TOP_INSET),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Inventory";
 
             // Paper-doll — large avatar inside a framed panel, anchored to upper third.
@@ -1524,7 +1534,7 @@ namespace Gamex.Game
         {
             _settingsPanel = MkFullPanel("SettingsPanel", root);
 
-            MkText("Title", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -90f),
+            MkText("Title", _settingsPanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -90f - SAFE_AREA_TOP_INSET),
                 new Vector2(800f, 80f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Settings";
 
             // Section: Audio
