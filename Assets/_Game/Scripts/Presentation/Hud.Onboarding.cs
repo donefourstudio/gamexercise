@@ -27,16 +27,16 @@ namespace Gamex.Game
                 .text = "\"...this is what I was meant to be.\"";
 
             MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f,  220f), "Elf", "Male",
-                Make.Portrait(Gender.Male, Curse.Unset, Race.Elf, 5),
+                Make.Portrait(Gender.Male, Race.Elf, 5),
                 "Slender and ancient.",  () => _onSelectRaceAndGender?.Invoke(1, 1));
             MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f,  220f), "Elf", "Female",
-                Make.Portrait(Gender.Female, Curse.Unset, Race.Elf, 5),
+                Make.Portrait(Gender.Female, Race.Elf, 5),
                 "Slender and ancient.",  () => _onSelectRaceAndGender?.Invoke(1, 2));
             MkRaceCard(_raceSelectPanel.transform, new Vector2(-220f, -220f), "Demon", "Male",
-                Make.Portrait(Gender.Male, Curse.Unset, Race.Orc, 5),
+                Make.Portrait(Gender.Male, Race.Orc, 5),
                 "Strength and rage.",    () => _onSelectRaceAndGender?.Invoke(2, 1));
             MkRaceCard(_raceSelectPanel.transform, new Vector2( 220f, -220f), "Demon", "Female",
-                Make.Portrait(Gender.Female, Curse.Unset, Race.Orc, 5),
+                Make.Portrait(Gender.Female, Race.Orc, 5),
                 "Strength and rage.",    () => _onSelectRaceAndGender?.Invoke(2, 2));
         }
 
@@ -78,7 +78,7 @@ namespace Gamex.Game
                 "silhouette", Color.white).GetComponent<Image>();
 
             _raceAnimAvatar = BuildAvatar(_raceAnimPanel.transform, Vector2.zero, 2.4f,
-                Gender.Male, Curse.Unset, stage: 5);
+                Gender.Male, stage: 5);
             _raceAnimAvatar.root.SetActive(false);
 
             _raceAnimText = MkText("AnimText", _raceAnimPanel.transform, new Vector2(0.5f, 0f),
@@ -103,7 +103,7 @@ namespace Gamex.Game
             _curseAnimDim.raycastTarget = false;
 
             _curseAnimAvatar = BuildAvatar(_curseAnimPanel.transform, Vector2.zero, 2.4f,
-                Gender.Male, Curse.Unset, stage: 5);
+                Gender.Male, stage: 5);
         }
 
         // ============================================================
@@ -358,9 +358,9 @@ namespace Gamex.Game
                 new Vector2(0f, 180f), new Vector2(540f, 720f), "panel", new Color(0.95f, 0.78f, 0.42f, 1f));
             var inner = MkSpritePanel("MirrorInner", frame.transform, new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(480f, 660f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
-            // Cursed self at stage 0 — refreshed with the chosen gender+curse on entry.
+            // Cursed self at stage 0 — refreshed with the chosen gender on entry.
             _firstMirrorSelf = BuildAvatar(inner.transform, new Vector2(0f, 0f), 2.0f,
-                Gender.Male, Curse.Weakness, stage: 0);
+                Gender.Male, stage: 0);
 
             _firstMirrorLine = MkText("Line", _firstMirrorPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -380f), new Vector2(1000f, 80f), FS_BIG, TextAnchor.MiddleCenter, AccentGold);

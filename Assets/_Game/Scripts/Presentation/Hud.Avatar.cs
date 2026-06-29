@@ -43,7 +43,7 @@ namespace Gamex.Game
         }
 
         AvatarSprite BuildAvatar(Transform parent, Vector2 anchoredPos, float scale,
-                                 Gender gender, Curse curse, int stage, Race race = Race.Unset)
+                                 Gender gender, int stage, Race race = Race.Unset)
         {
             var root = new GameObject("Avatar");
             root.transform.SetParent(parent, false);
@@ -79,11 +79,11 @@ namespace Gamex.Game
             avatar.helmet    = MkLayer("Helmet",    true);
             avatar.sword     = MkLayer("Sword",     true);
 
-            ApplyAvatarLook(avatar, gender, curse, race, stage);
+            ApplyAvatarLook(avatar, gender, race, stage);
             return avatar;
         }
 
-        void ApplyAvatarLook(AvatarSprite avatar, Gender gender, Curse curse, Race race, int stage,
+        void ApplyAvatarLook(AvatarSprite avatar, Gender gender, Race race, int stage,
                              List<string> equipped = null, string activeSkin = null)
         {
             if (avatar == null || avatar.portrait == null) return;
@@ -132,7 +132,7 @@ namespace Gamex.Game
                     if (GamexGame.SlotOf(id) == GamexGame.EquipSlot.Head) { helmetEquipped = true; break; }
             }
             avatar.portrait.sprite = Make.Portrait(
-                gender == Gender.Unset ? Gender.Male : gender, curse, race, stage, activeSkin, helmetEquipped);
+                gender == Gender.Unset ? Gender.Male : gender, race, stage, activeSkin, helmetEquipped);
             float a = avatar.portrait.color.a;
             avatar.portrait.color = new Color(1f, 1f, 1f, a);
 

@@ -47,18 +47,17 @@ namespace Gamex.Game
 
         // Portrait dispatch (M5c rework):
         //   race == Unset (Lv 1-19) -> weakness_stageN body sprite (skeleton -> flesh).
-        //     (Gluttony curse retired pre-launch; Weakness is the only arc now.)
         //   race != Unset (Lv 20+)  -> {race}_{gender} race form. Race.Human was
         //     dropped per Jackson: starting roster is Orc + Elf only.
         // helmetEquipped switches the base to the _bald variant so the
         // player's hair doesn't clip through the helmet overlay. Falls
         // back to the haired sprite when the bald variant hasn't been
         // baked yet (BakeRaceFormsBald in SPUMBaker writes them).
-        public static Sprite Portrait(Gender gender, Curse curse, Race race, int stage, string activeSkin = null, bool helmetEquipped = false)
+        public static Sprite Portrait(Gender gender, Race race, int stage, string activeSkin = null, bool helmetEquipped = false)
         {
             // Phase 4 — an applied skin overrides everything else. The skin's
             // baked-in art carries the body + clothing + weapon in one image, so
-            // we skip race/curse/stage logic entirely. If the lookup fails (skin
+            // we skip race/stage logic entirely. If the lookup fails (skin
             // asset missing) we fall back to the normal race-form pipeline below.
             if (!string.IsNullOrEmpty(activeSkin))
             {
@@ -67,8 +66,7 @@ namespace Gamex.Game
             }
             if (race == Race.Unset)
             {
-                // Single-curse arc (Weakness). curse param retained for the
-                // wider avatar-render signature but no longer branches.
+                // Pre-Lv20 body: single Weakness arc (skeleton -> flesh).
                 return Char($"weakness_stage{Mathf.Clamp(stage + 1, 1, 4)}");
             }
             string r = race == Race.Orc ? "orc" : "elf";

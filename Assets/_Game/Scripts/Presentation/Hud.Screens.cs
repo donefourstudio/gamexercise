@@ -50,7 +50,7 @@ namespace Gamex.Game
                 new Vector2(0f, 260f), new Vector2(520f, 660f), "panel", new Color(0.95f, 0.78f, 0.42f, 1f));
             var inner = MkSpritePanel("MirrorInner", frame.transform, new Vector2(0.5f, 0.5f),
                 Vector2.zero, new Vector2(460f, 600f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
-            _mirrorSelf = BuildAvatar(inner.transform, Vector2.zero, 1.8f, Gender.Male, Curse.Weakness, stage: 0);
+            _mirrorSelf = BuildAvatar(inner.transform, Vector2.zero, 1.8f, Gender.Male, stage: 0);
 
             // Pet slot — small chibi tucked at lower-right corner of the mirror
             // inner panel, hidden until the player buys + applies a pet skin.
@@ -621,7 +621,7 @@ namespace Gamex.Game
                 Vector2.zero, new Vector2(440f, 540f), "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
             dollInner.GetComponent<Image>().raycastTarget = false;
             _inventoryAvatar = BuildAvatar(dollInner.transform, Vector2.zero, 1.6f,
-                Gender.Male, Curse.Weakness, stage: 0);
+                Gender.Male, stage: 0);
 
             // Pet slot — same convention as the Home mirror.
             _inventoryPet = MkSpriteIcon("Pet", dollInner.transform, new Vector2(1f, 0f),

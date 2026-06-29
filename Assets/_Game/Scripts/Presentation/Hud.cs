@@ -12,7 +12,7 @@ namespace Gamex.Game
 {
     // Single-canvas HUD with six panels (gender / curse / firstMirror / home / training / shop).
     // M2a rebuild: solid-color rectangles replaced with Kenney pixel UI 9-slice (Ancient theme)
-    // and LPC character portraits driven by Make.Portrait(gender, curse, stage). All text is
+    // and LPC character portraits driven by Make.Portrait(gender, race, stage). All text is
     // rendered with Cubic 11 (Chinese pixel font). Refresh() repaints every frame from
     // GamexGame state.
     public partial class Hud

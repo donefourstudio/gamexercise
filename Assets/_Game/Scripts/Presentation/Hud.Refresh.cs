@@ -152,14 +152,13 @@ namespace Gamex.Game
                     _raceAnimAvatar.root.SetActive(swapped);
                     if (swapped)
                         ApplyAvatarLook(_raceAnimAvatar,
-                            (Gender)g.state.gender, (Curse)g.state.curse,
+                            (Gender)g.state.gender,
                             (Race)g.state.race, g.Stage, g.state.equipped);
                 }
                 if (_raceAnimT >= RACE_ANIM_DURATION) _onRaceAnimDone?.Invoke();
             }
 
             var gender = (Gender)g.state.gender;
-            var curse  = (Curse)g.state.curse;
             var safeGender = gender == Gender.Unset ? Gender.Male : gender;
 
             // Curse animation: shake hero + dim background, swap sprite at SWAP_AT,
@@ -190,9 +189,7 @@ namespace Gamex.Game
                 // exact same hero the player just saw.
                 if (swapped)
                 {
-                    ApplyAvatarLook(_curseAnimAvatar, safeGender,
-                                    curse == Curse.Unset ? Curse.Weakness : curse,
-                                    Race.Unset, 0);
+                    ApplyAvatarLook(_curseAnimAvatar, safeGender, Race.Unset, 0);
                 }
                 else
                 {
@@ -212,7 +209,7 @@ namespace Gamex.Game
                     else
                     {
                         // Fallback if composite isn't baked yet.
-                        ApplyAvatarLook(_curseAnimAvatar, safeGender, Curse.Unset, Race.Unset, 5);
+                        ApplyAvatarLook(_curseAnimAvatar, safeGender, Race.Unset, 5);
                     }
                 }
 
@@ -224,8 +221,7 @@ namespace Gamex.Game
 
             // First mirror reveals the cursed self (not the lost hero).
             if (_firstMirrorSelf != null)
-                ApplyAvatarLook(_firstMirrorSelf, safeGender,
-                                curse == Curse.Unset ? Curse.Weakness : curse, Race.Unset, stage: 0);
+                ApplyAvatarLook(_firstMirrorSelf, safeGender, Race.Unset, stage: 0);
 
             if (g.phase == AppPhase.Home || g.phase == AppPhase.Quests || g.phase == AppPhase.Shop)
             {
@@ -319,7 +315,7 @@ namespace Gamex.Game
 
                 // Mirror is the player at the current stage. race == Unset -> skeleton growth,
                 // race != Unset -> race form (post Lv 20 transformation).
-                ApplyAvatarLook(_mirrorSelf, safeGender, curse, (Race)g.state.race, g.Stage,
+                ApplyAvatarLook(_mirrorSelf, safeGender, (Race)g.state.race, g.Stage,
                                 g.state.equipped, g.state.activeSkin);
                 _mirrorSelf.SetAlpha(1f);
 
@@ -742,9 +738,8 @@ namespace Gamex.Game
         {
             var gender = (Gender)g.state.gender;
             var safeGender = gender == Gender.Unset ? Gender.Male : gender;
-            var curse  = (Curse)g.state.curse;
             var race   = (Race)g.state.race;
-            ApplyAvatarLook(_inventoryAvatar, safeGender, curse, race, g.Stage, g.state.equipped, g.state.activeSkin);
+            ApplyAvatarLook(_inventoryAvatar, safeGender, race, g.Stage, g.state.equipped, g.state.activeSkin);
             _inventoryAvatar.SetAlpha(1f);
 
             // Walk owned outfits into the grid: Champion sets first (when all
