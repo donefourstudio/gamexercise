@@ -79,7 +79,7 @@ namespace Gamex.Game
         GameObject _openingIntroPanel, _openingHeroShownPanel, _openingCurseLoomsPanel, _openingAmnesiaPanel;
         GameObject _curseAnimPanel;
         GameObject _raceSelectPanel, _raceAnimPanel;
-        GameObject _cursePanel, _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
+        GameObject _firstMirrorPanel, _homePanel, _trainPanel, _shopPanel;
         GameObject _inventoryPanel;
         GameObject _settingsPanel;
         TMP_Text _settingsSfxLabel, _settingsBgmLabel, _settingsHKLabel, _settingsResetLabel;
@@ -110,7 +110,6 @@ namespace Gamex.Game
         AvatarSprite _firstMirrorSelf;        // cursed self in the first-mirror beat
         AvatarSprite _openingHeroAvatar;     // muscular hero shown during OpeningHeroShown
         AvatarSprite _curseAnimAvatar;       // hero -> cursed in the curse cinematic
-        AvatarSprite _curseMaleA, _curseFemaleA, _curseMaleB, _curseFemaleB;
         Image _raceAnimSilhouette;       // shown for the first half of the cinematic
         AvatarSprite _raceAnimAvatar;    // race form, shown for the second half
         TMP_Text _raceAnimText;
@@ -350,7 +349,6 @@ namespace Gamex.Game
         // ---- callbacks ----
         readonly Action         _onTapAdvanceOpening;
         readonly Action         _onCurseAnimDone;
-        readonly Action<int>    _onSelectCurse;
         readonly Action<int,int> _onSelectRaceAndGender;
         readonly Action         _onRaceAnimDone;
         readonly Action         _onFinishFirstMirror;
@@ -363,7 +361,6 @@ namespace Gamex.Game
         public Hud(
             Action onTapAdvanceOpening,
             Action onCurseAnimDone,
-            Action<int> onSelectCurse,
             Action<int,int> onSelectRaceAndGender,
             Action onRaceAnimDone,
             Action onFinishFirstMirror,
@@ -388,7 +385,6 @@ namespace Gamex.Game
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
-            _onSelectCurse         = onSelectCurse;
             _onSelectRaceAndGender = onSelectRaceAndGender;
             _onRaceAnimDone        = onRaceAnimDone;
             _onFinishFirstMirror   = onFinishFirstMirror;
@@ -435,7 +431,6 @@ namespace Gamex.Game
             BuildOpeningCurseLooms(root);
             BuildCurseAnim(root);
             BuildOpeningAmnesia(root);
-            BuildCurseSelect(root);
             BuildFirstMirror(root);
             BuildHome(root);
             BuildQuests(root);
@@ -783,51 +778,6 @@ namespace Gamex.Game
             var img = go.GetComponent<Image>();
             img.color = BgDark;
             img.raycastTarget = false;
-        }
-
-        // ============================================================
-        // Curse select
-        // ============================================================
-        void BuildCurseSelect(Transform root)
-        {
-            _cursePanel = MkFullPanel("CursePanel", root);
-
-            MkText("Title", _cursePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -240f),
-                new Vector2(900f, 90f), FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "Which curse befell you?";
-            MkText("Sub", _cursePanel.transform, new Vector2(0.5f, 1f), new Vector2(0f, -340f),
-                new Vector2(900f, 60f), FS_LABEL, TextAnchor.UpperCenter, TextDim)
-                .text = "The curse takes two forms.";
-
-            MkCurseOption(_cursePanel.transform, new Vector2(-260f, 60f),
-                "Weakness", "Your strength is fading", Curse.Weakness, () => _onSelectCurse(1),
-                out _curseMaleA, out _curseFemaleA);
-            MkCurseOption(_cursePanel.transform, new Vector2( 260f, 60f),
-                "Gluttony", "Your body grows heavy", Curse.Gluttony, () => _onSelectCurse(2),
-                out _curseMaleB, out _curseFemaleB);
-        }
-
-        void MkCurseOption(Transform parent, Vector2 pos, string title, string sub, Curse curse, Action onClick,
-                           out AvatarSprite male, out AvatarSprite female)
-        {
-            var card = MkSpritePanel("CurseOpt", parent, new Vector2(0.5f, 0.5f), pos,
-                new Vector2(420f, 760f), "panel", PanelTint);
-            var btn = card.AddComponent<Button>();
-            btn.targetGraphic = card.GetComponent<Image>();
-            btn.transition = Selectable.Transition.ColorTint;
-            var cb = btn.colors; cb.highlightedColor = new Color(1f, 0.9f, 0.7f, 1f); btn.colors = cb;
-            btn.onClick.AddListener(() => onClick?.Invoke());
-
-            // Preview the cursed body shape (teen vs pregnant) — NOT the post-transformation
-            // skeleton, so the player can actually see what they're picking between.
-            MkSpriteIcon("Preview", card.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, 110f),
-                new Vector2(300f, 300f), Make.CursePreview(curse), Color.white);
-
-            male = female = null;   // M3a removed gender from curse-select avatar; visuals are gender-neutral here
-
-            MkText("Title", card.transform, new Vector2(0.5f, 0f), new Vector2(0f, 130f),
-                new Vector2(360f, 60f), FS_BIG, TextAnchor.MiddleCenter, AccentGold).text = title;
-            MkText("Sub", card.transform, new Vector2(0.5f, 0f), new Vector2(0f, 60f),
-                new Vector2(360f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim).text = sub;
         }
 
         // ============================================================
@@ -2037,7 +1987,6 @@ namespace Gamex.Game
             Set(_openingCurseLoomsPanel,  g.phase == AppPhase.OpeningCurseLooms);
             Set(_curseAnimPanel,          g.phase == AppPhase.CurseAnim);
             Set(_openingAmnesiaPanel,     g.phase == AppPhase.OpeningAmnesia);
-            Set(_cursePanel,              g.phase == AppPhase.CurseSelect);
             Set(_firstMirrorPanel,        g.phase == AppPhase.FirstMirror);
             Set(_homePanel,               g.phase == AppPhase.Home);
             Set(_trainPanel,              g.phase == AppPhase.Quests);

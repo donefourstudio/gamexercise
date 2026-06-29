@@ -71,13 +71,6 @@ namespace Gamex.Core
             onSave?.Invoke();
         }
 
-        public void SetCurse(Curse c)
-        {
-            state.curse = (int)c;
-            phase = AppPhase.CurseAnim;
-            onSave?.Invoke();
-        }
-
         public void CompleteCurseAnim()
         {
             if (phase != AppPhase.CurseAnim) return;

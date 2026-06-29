@@ -15,7 +15,6 @@ namespace Gamex.Core
         // OpeningIntro       — black, "你曾是这个时代最强的勇士……"   (tap)
         // OpeningHeroShown   — hero standing, bright                  (tap)
         // OpeningCurseLooms  — black, "……直到诅咒降临。"             (tap)
-        // CurseSelect        — pick weakness / gluttony
         // CurseAnim          — shake + dim + sprite swap, auto-advance
         // OpeningAmnesia     — black, "你忘了自己是谁。"             (tap)
         // GenderSelect       — pick male / female
@@ -23,7 +22,6 @@ namespace Gamex.Core
         OpeningIntro,
         OpeningHeroShown,
         OpeningCurseLooms,
-        CurseSelect,
         CurseAnim,
         OpeningAmnesia,
         FirstMirror,
@@ -59,7 +57,7 @@ namespace Gamex.Core
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
-    public enum Curse  { Unset = 0, Weakness = 1, Gluttony = 2 }
+    public enum Curse  { Unset = 0, Weakness = 1 }   // Gluttony (was value 2) retired pre-launch
     public enum Race   { Unset = 0, Elf = 1, Orc = 2 }     // Human dropped in M5c; Dwarf future
     public enum Exercise { Pushup, Situp, Squat }          // kept for legacy save compat
 
@@ -170,8 +168,8 @@ namespace Gamex.Core
         public List<string> ownedPets = new();
 
         public int gender;             // 0=unset, 1=male, 2=female  (chosen at Lv20 RaceSelect)
-        public int curse;              // 0=unset, 1=weakness, 2=gluttony
-        public int race;               // 0=unset, 1=human, 2=orc  (chosen at Lv20)
+        public int curse;              // 0=unset, 1=weakness
+        public int race;               // 0=unset, 1=elf, 2=orc  (chosen at Lv20)
         public int level = 1;          // 1..unlimited (no cap in step-based model)
         public long coins;
 

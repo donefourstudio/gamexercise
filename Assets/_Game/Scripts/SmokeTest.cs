@@ -155,10 +155,10 @@ namespace Gamex.Game
             // Save round-trip — use elfpaladin_sword (the piece g7 bought
             // above) since Phase 2 dropped the old "sword_wood" tier item.
             g7.state.gender = (int)Gender.Female;
-            g7.state.curse  = (int)Curse.Gluttony;
+            g7.state.curse  = (int)Curse.Weakness;
             string json = JsonUtility.ToJson(g7.state);
             var loaded = JsonUtility.FromJson<GameState>(json);
-            Check(loaded.gender == 2 && loaded.curse == 2 && loaded.owned.Contains("elfpaladin_sword"),
+            Check(loaded.gender == 2 && loaded.curse == 1 && loaded.owned.Contains("elfpaladin_sword"),
                   "save round-trip");
 
             if (fails == 0) Debug.Log("[LOGIC OK]");
@@ -255,7 +255,6 @@ namespace Gamex.Game
             yield return null; yield return new WaitForSecondsRealtime(0.2f);
             Capture("/tmp/gamex_curse.png");
 
-            runner.Game.SetCurse(Curse.Weakness);
             yield return new WaitForSecondsRealtime(0.9f);
             Capture("/tmp/gamex_curse_anim.png");
             yield return new WaitForSecondsRealtime(0.9f);
@@ -721,10 +720,8 @@ namespace Gamex.Game
             // without capturing. End state: phase=Home with Lv 1 skeleton.
             runner.Game.TapAdvanceOpening();  // -> OpeningCurseLooms
             yield return new WaitForSecondsRealtime(0.2f);
-            runner.Game.TapAdvanceOpening();  // -> CurseSelect
-            yield return new WaitForSecondsRealtime(0.2f);
-            runner.Game.SetCurse(Curse.Weakness);  // -> CurseAnim
-            yield return new WaitForSecondsRealtime(1.8f);  // curse anim completes
+            runner.Game.TapAdvanceOpening();  // -> CurseAnim (Gluttony retired; auto-sets Weakness)
+            yield return new WaitForSecondsRealtime(2.0f);  // curse anim completes
             runner.Game.TapAdvanceOpening();  // OpeningAmnesia -> FirstMirror
             yield return new WaitForSecondsRealtime(0.3f);
             runner.Game.FinishFirstMirror();  // -> Home

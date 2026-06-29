@@ -46,9 +46,8 @@ namespace Gamex.Game
         public static Sprite Silhouette()           => UI("silhouette");
 
         // Portrait dispatch (M5c rework):
-        //   race == Unset (Lv 1-19) -> per-curse stage sprite:
-        //     Weakness -> weakness_stageN (skeleton -> human flesh)
-        //     Gluttony -> gluttony_stageN (zombie -> human skin tone)
+        //   race == Unset (Lv 1-19) -> weakness_stageN body sprite (skeleton -> flesh).
+        //     (Gluttony curse retired pre-launch; Weakness is the only arc now.)
         //   race != Unset (Lv 20+)  -> {race}_{gender} race form. Race.Human was
         //     dropped per Jackson: starting roster is Orc + Elf only.
         // helmetEquipped switches the base to the _bald variant so the
@@ -68,8 +67,9 @@ namespace Gamex.Game
             }
             if (race == Race.Unset)
             {
-                string c = curse == Curse.Gluttony ? "gluttony" : "weakness";
-                return Char($"{c}_stage{Mathf.Clamp(stage + 1, 1, 4)}");
+                // Single-curse arc (Weakness). curse param retained for the
+                // wider avatar-render signature but no longer branches.
+                return Char($"weakness_stage{Mathf.Clamp(stage + 1, 1, 4)}");
             }
             string r = race == Race.Orc ? "orc" : "elf";
             string g = gender == Gender.Female ? "female" : "male";
@@ -79,14 +79,6 @@ namespace Gamex.Game
                 if (bald != null) return bald;
             }
             return Char($"{r}_{g}");
-        }
-
-        // Preview sprite for the curse-select cards. Stage-1 of either arc is
-        // already gender-neutral (no human heads), so a single lookup is enough.
-        public static Sprite CursePreview(Curse curse)
-        {
-            string c = curse == Curse.Gluttony ? "gluttony" : "weakness";
-            return Char($"{c}_stage1");
         }
     }
 }
