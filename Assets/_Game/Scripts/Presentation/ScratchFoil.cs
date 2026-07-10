@@ -23,6 +23,9 @@ namespace Gamex.Game
         const float SFX_EVERY = 0.12f;  // scratch-tick cadence while actively erasing
 
         public Action onRevealed;
+        // Base material color (set before Init). Default = silver ticket
+        // foil; Gold Rush overrides with dirt brown, Mega with gold.
+        public Color32 foilColor = new Color32(178, 178, 188, 255);
 
         RawImage      _img;
         Texture2D     _tex;
@@ -48,15 +51,19 @@ namespace Gamex.Game
             ResetFoil();
         }
 
-        // Fresh foil for a newly dealt ticket: silver with per-pixel noise
-        // so it reads as scratchable material instead of a flat panel.
+        // Fresh foil for a newly dealt ticket: the base color with
+        // per-pixel noise so it reads as scratchable material instead of
+        // a flat panel.
         public void ResetFoil()
         {
             var rng = new System.Random(GetInstanceID() ^ Environment.TickCount);
             for (int i = 0; i < _px.Length; i++)
             {
-                byte v = (byte)(178 + rng.Next(-12, 13));
-                _px[i] = new Color32(v, v, (byte)Mathf.Min(255, v + 10), 255);
+                int n = rng.Next(-12, 13);
+                _px[i] = new Color32(
+                    (byte)Mathf.Clamp(foilColor.r + n, 0, 255),
+                    (byte)Mathf.Clamp(foilColor.g + n, 0, 255),
+                    (byte)Mathf.Clamp(foilColor.b + n, 0, 255), 255);
                 _holes[i] = false;
             }
             _cleared  = 0;

@@ -455,6 +455,11 @@ namespace Gamex.Game
             BuildCasinoUpgrades(root);   // the AppPhase.Casino* values
             BuildCasinoPrestige(root);
             BuildCasinoSlots(root);
+            BuildCasinoFindCash(root);   // P5b — the full roster
+            BuildCasinoGoldRush(root);
+            BuildCasinoLadder(root);
+            BuildCasinoHighStakes(root);
+            BuildCasinoMega(root);
         }
 
     }

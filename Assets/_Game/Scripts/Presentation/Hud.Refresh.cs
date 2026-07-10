@@ -32,6 +32,9 @@ namespace Gamex.Game
                 }
                 if (g.phase == AppPhase.CasinoScratch)  OnEnterCasinoScratch();
                 if (g.phase == AppPhase.CasinoPrestige) OnEnterCasinoPrestige();
+                if (g.phase == AppPhase.CasinoFindCash) OnEnterCasinoFindCash();
+                if (g.phase == AppPhase.CasinoGoldRush) OnEnterCasinoGoldRush();
+                if (g.phase == AppPhase.CasinoMega)     OnEnterCasinoMega();
                 _lastPhase = g.phase;
             }
 
@@ -53,7 +56,12 @@ namespace Gamex.Game
                       || g.phase == AppPhase.CasinoScratch
                       || g.phase == AppPhase.CasinoUpgrades
                       || g.phase == AppPhase.CasinoPrestige
-                      || g.phase == AppPhase.CasinoSlots;
+                      || g.phase == AppPhase.CasinoSlots
+                      || g.phase == AppPhase.CasinoFindCash
+                      || g.phase == AppPhase.CasinoGoldRush
+                      || g.phase == AppPhase.CasinoLadder
+                      || g.phase == AppPhase.CasinoHighStakes
+                      || g.phase == AppPhase.CasinoMega;
             if (bgmOn) Bgm.PlayLoop("bgm_home");
             else       Bgm.Stop();
 
@@ -158,6 +166,16 @@ namespace Gamex.Game
             if (g.phase == AppPhase.CasinoPrestige) UpdateCasinoPrestige();
             Set(_casinoSlotsPanel,        g.phase == AppPhase.CasinoSlots);
             if (g.phase == AppPhase.CasinoSlots) UpdateCasinoSlots();
+            Set(_casinoFindCashPanel,     g.phase == AppPhase.CasinoFindCash);
+            if (g.phase == AppPhase.CasinoFindCash) UpdateCasinoFindCash();
+            Set(_casinoGoldRushPanel,     g.phase == AppPhase.CasinoGoldRush);
+            if (g.phase == AppPhase.CasinoGoldRush) UpdateCasinoGoldRush();
+            Set(_casinoLadderPanel,       g.phase == AppPhase.CasinoLadder);
+            if (g.phase == AppPhase.CasinoLadder) UpdateCasinoLadder();
+            Set(_casinoHighStakesPanel,   g.phase == AppPhase.CasinoHighStakes);
+            if (g.phase == AppPhase.CasinoHighStakes) UpdateCasinoHighStakes();
+            Set(_casinoMegaPanel,         g.phase == AppPhase.CasinoMega);
+            if (g.phase == AppPhase.CasinoMega) UpdateCasinoMega();
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {

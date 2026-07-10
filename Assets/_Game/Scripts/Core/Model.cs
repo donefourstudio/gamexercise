@@ -65,6 +65,12 @@ namespace Gamex.Core
         CasinoPrestige,
         // P4 — the reel room. Same pre-rolled engine, slot-machine theatre.
         CasinoSlots,
+        // P5b — the full roster, level-gated (see CasinoGame.UNLOCK_*).
+        CasinoFindCash,
+        CasinoGoldRush,
+        CasinoLadder,
+        CasinoHighStakes,
+        CasinoMega,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }

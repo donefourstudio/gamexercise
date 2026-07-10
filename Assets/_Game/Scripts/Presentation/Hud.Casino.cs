@@ -102,6 +102,61 @@ namespace Gamex.Game
         };
         bool SlotsAllStopped => _slStopped[0] && _slStopped[1] && _slStopped[2];
 
+        // ---- Lobby game grid (P5b) ----
+        readonly List<(Button btn, TMP_Text label, string name, int lv)> _lobbyGames = new();
+
+        // ---- Find the Cash (P5b) — 3x3 hunt for 3-of-a-kind ----
+        GameObject _casinoFindCashPanel;
+        TMP_Text _fcCoins, _fcTickets, _fcResultLine, _fcEmptyLabel;
+        readonly TMP_Text[]    _fcCellTexts = new TMP_Text[9];
+        readonly Image[]       _fcCellIcons = new Image[9];
+        readonly ScratchFoil[] _fcFoils = new ScratchFoil[9];
+        readonly CasinoTier[]  _fcSymbols = new CasinoTier[9];
+        readonly bool[]        _fcDud = new bool[9];
+        readonly bool[]        _fcFlipped = new bool[9];
+        PlayResult _fcPending; bool _fcHasPending;
+        GameObject _fcCard, _fcNextBtn;
+        float _fcPopT, _fcShakeT, _fcCoinsShown = -1f;
+        static readonly Vector2 FC_CARD_POS = new Vector2(0f, 290f);
+
+        // ---- Gold Rush (P5b) — the high-variance dig ----
+        GameObject _casinoGoldRushPanel, _grField;
+        TMP_Text _grCoins, _grTickets, _grResultLine, _grEmptyLabel;
+        ScratchFoil _grFoil;
+        readonly Image[] _grItems = new Image[12];
+        PlayResult _grPending; bool _grHasPending, _grRevealed;
+        GameObject _grNextBtn;
+        float _grPopT, _grShakeT, _grCoinsShown = -1f;
+        static readonly Vector2 GR_FIELD_POS = new Vector2(0f, 300f);
+
+        // ---- The Ladder (P5b) — press-your-luck, core state persisted ----
+        GameObject _casinoLadderPanel, _ldCard;
+        TMP_Text _ldCoins, _ldTickets, _ldPot, _ldRungLine, _ldOddsLine, _ldResultLine, _ldEmptyLabel;
+        GameObject _ldStartBtn, _ldClimbBtn, _ldBankBtn;
+        TMP_Text _ldBankLabel;
+        string _ldResult;
+        float _ldPopT, _ldShakeT, _ldCoinsShown = -1f;
+        static readonly Vector2 LD_CARD_POS = new Vector2(0f, 300f);
+
+        // ---- High Stakes (P5b) — opt-in coin wager ----
+        GameObject _casinoHighStakesPanel, _hsCard;
+        TMP_Text _hsCoins, _hsTickets, _hsResultLine, _hsEmptyLabel, _hsCellText;
+        Image _hsCellIcon; ScratchFoil _hsFoil;
+        readonly Button[] _hsWagerBtns = new Button[3];
+        static readonly long[] HS_WAGERS = { 100, 500, 2000 };
+        PlayResult _hsPending; bool _hsHasPending, _hsRevealed; long _hsWager;
+        float _hsPopT, _hsShakeT, _hsCoinsShown = -1f;
+        static readonly Vector2 HS_CARD_POS = new Vector2(0f, 300f);
+
+        // ---- MEGA JACKPOT (P5b) — the white whale ----
+        GameObject _casinoMegaPanel, _mgCard;
+        TMP_Text _mgCoins, _mgTickets, _mgResultLine, _mgEmptyLabel, _mgCellText;
+        Image _mgCellIcon; ScratchFoil _mgFoil;
+        PlayResult _mgPending; bool _mgHasPending, _mgRevealed;
+        GameObject _mgNextBtn;
+        float _mgPopT, _mgShakeT, _mgCoinsShown = -1f;
+        static readonly Vector2 MG_CARD_POS = new Vector2(0f, 300f);
+
         // ---- Upgrades ----
         TMP_Text _upWallet;
         (TMP_Text lvl, TMP_Text cost, Button btn) _rowPayout, _rowLuck, _rowStride,
@@ -164,20 +219,16 @@ namespace Gamex.Game
                 new Vector2(0f, -215f), new Vector2(420f, 100f), "PRESTIGE",
                 () => _onCasinoNav((int)AppPhase.CasinoPrestige));
 
-            MkButton("Scratchers", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -370f), new Vector2(640f, 140f), "SCRATCHERS",
-                () => _onCasinoNav((int)AppPhase.CasinoScratch));
-            MkButton("Slots", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -530f), new Vector2(640f, 110f), "SLOTS",
-                () => _onCasinoNav((int)AppPhase.CasinoSlots));
-            // Little cabinet by the door (P5a dressing) — only if imported.
-            var slotDeco = Make.Casino("slot_full");
-            if (slotDeco != null)
-                MkSpriteIcon("SlotDeco", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
-                    new Vector2(-425f, -530f), new Vector2(128f, 98f), slotDeco, Color.white);
-            MkButton("Upgrades", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -670f), new Vector2(640f, 110f), "UPGRADES",
-                () => _onCasinoNav((int)AppPhase.CasinoUpgrades));
+            // P5b — the full game grid. Two columns, level-gated unlocks
+            // (the casino grows as the player's real walking does).
+            MkLobbyGame("SCRATCHERS",    0, 0, 0,                            AppPhase.CasinoScratch);
+            MkLobbyGame("SLOTS",         1, 0, 0,                            AppPhase.CasinoSlots);
+            MkLobbyGame("FIND THE CASH", 0, 1, CasinoGame.UNLOCK_FINDCASH,   AppPhase.CasinoFindCash);
+            MkLobbyGame("GOLD RUSH",     1, 1, CasinoGame.UNLOCK_GOLDRUSH,   AppPhase.CasinoGoldRush);
+            MkLobbyGame("THE LADDER",    0, 2, CasinoGame.UNLOCK_LADDER,     AppPhase.CasinoLadder);
+            MkLobbyGame("HIGH STAKES",   1, 2, CasinoGame.UNLOCK_HIGHSTAKES, AppPhase.CasinoHighStakes);
+            MkLobbyGame("MEGA JACKPOT",  0, 3, CasinoGame.UNLOCK_MEGA,       AppPhase.CasinoMega);
+            MkLobbyGame("UPGRADES",      1, 3, 0,                            AppPhase.CasinoUpgrades);
 
             MkButton("Back", _casinoLobbyPanel.transform, new Vector2(0.5f, 0f),
                 new Vector2(0f, 40f), new Vector2(300f, 90f), "BACK",
@@ -189,9 +240,33 @@ namespace Gamex.Game
                     .text = "(Editor: T = +1000 steps)";
         }
 
+        // One grid entry: col 0/1, row 0..3. Locked games show their level
+        // gate and refuse the tap; the label refreshes per frame so an
+        // unlock mid-session lights up immediately.
+        void MkLobbyGame(string name, int col, int row, int unlockLv, AppPhase target)
+        {
+            var go = MkButton("G_" + name, _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(col == 0 ? -245f : 245f, -320f - 125f * row), new Vector2(460f, 110f),
+                name, () =>
+                {
+                    if (_casino.host.level >= unlockLv) _onCasinoNav((int)target);
+                    else Sfx.Play("error");
+                });
+            var lbl = go.GetComponentInChildren<TMP_Text>();
+            lbl.fontSize = FS_LABEL;
+            _lobbyGames.Add((go.GetComponent<Button>(), lbl, name, unlockLv));
+        }
+
         void UpdateCasinoLobby(GamexGame g)
         {
             TickCoinBurst(Time.unscaledDeltaTime);
+            foreach (var lg in _lobbyGames)
+            {
+                bool un = _casino.host.level >= lg.lv;
+                lg.btn.interactable = un;
+                lg.label.text  = un ? lg.name : $"{lg.name}\nLv {lg.lv}";
+                lg.label.color = un ? new Color(0.20f, 0.12f, 0.05f) : new Color(0.42f, 0.33f, 0.22f);
+            }
             var c = _casino.state;
             _lobbyCoins.text   = $"{CasinoDisplayCoins:N0} COINS";
             _lobbyPp.text      = $"Prestige Points: {c.prestigePoints:0.#}";
@@ -292,11 +367,16 @@ namespace Gamex.Game
 
         // Coins as shown on screen: a pending play's payout is already in
         // the wallet (credited at play time) but hasn't "happened" visually
-        // until the reveal finishes, so hold it back — for the scratch
-        // ticket AND a mid-spin slot play alike.
+        // until the reveal finishes, so hold it back — one term per room
+        // with an unresolved play. High Stakes holds back its NET effect
+        // (the escrowed wager already left the wallet).
         long CasinoDisplayCoins => _casino.host.coins
             - (_scHasPending && !TicketFullyRevealed ? _scPending.coins : 0)
-            - (_slHasPending && !SlotsAllStopped ? _slPending.coins : 0);
+            - (_slHasPending && !SlotsAllStopped ? _slPending.coins : 0)
+            - (_fcHasPending && !FindCashAllRevealed ? _fcPending.coins : 0)
+            - (_grHasPending && !_grRevealed ? _grPending.coins : 0)
+            - (_mgHasPending && !_mgRevealed ? _mgPending.coins : 0)
+            - (_hsHasPending && !_hsRevealed ? _hsPending.coins - _hsWager : 0);
 
         void ScratchDealNext()
         {
@@ -923,6 +1003,665 @@ namespace Gamex.Game
             _slEmptyLabel.gameObject.SetActive(dry);
             if (dry)
                 _slEmptyLabel.text = $"Out of tickets — walk {_casino.StepsPerTicket - _casino.state.stepAccumulator} more steps.";
+        }
+
+        // ============================================================
+        // P5b shared juice helpers
+        // ============================================================
+        long TickCountUp(ref float shown, long target, float dt)
+        {
+            if (shown < 0f) shown = target;
+            shown = Mathf.Abs(shown - target) < 1f
+                ? target : Mathf.Lerp(shown, target, 1f - Mathf.Exp(-8f * dt));
+            return (long)shown;
+        }
+
+        static void TickPop(RectTransform rt, ref float t, float dt)
+        {
+            float s = 1f;
+            if (t > 0f)
+            {
+                t -= dt;
+                float t01 = 1f - Mathf.Clamp01(t / 0.35f);
+                s = Mathf.Lerp(1.35f, 1f, t01 * t01 * (3f - 2f * t01));
+            }
+            rt.localScale = new Vector3(s, s, 1f);
+        }
+
+        static void TickShake(GameObject card, Vector2 basePos, ref float t, float dt)
+        {
+            var rt = (RectTransform)card.transform;
+            if (t <= 0f) return;
+            t -= dt;
+            float amp = Mathf.Lerp(0f, 16f, Mathf.Clamp01(t / 0.6f));
+            rt.anchoredPosition = basePos + new Vector2(
+                UnityEngine.Random.Range(-amp, amp), UnityEngine.Random.Range(-amp, amp));
+            if (t <= 0f) rt.anchoredPosition = basePos;
+        }
+
+        void PlayFanfare(PlayResult r, Transform panel, Vector2 origin, ref float shakeT)
+        {
+            if (r.jackpot)
+            {
+                Sfx.Play("milestone"); Sfx.Play("level_up");
+                shakeT = 0.6f;
+                SpawnCoinBurst(panel, origin, BURST_POOL);
+            }
+            else if (r.tier == CasinoTier.Bar)
+            {
+                Sfx.Play("coin"); Sfx.Play("quest_done", 0.7f);
+                SpawnCoinBurst(panel, origin, 10);
+            }
+            else if (r.tier != CasinoTier.Bust) Sfx.Play("coin");
+        }
+
+        void MkCasinoHeader(GameObject panel, out TMP_Text coins, out TMP_Text tickets)
+        {
+            coins = MkText("Coins", panel.transform, new Vector2(0f, 1f),
+                new Vector2(50f, -140f - SAFE_AREA_TOP_INSET), new Vector2(500f, 60f),
+                FS_LABEL, TextAnchor.UpperLeft, TextWhite);
+            tickets = MkText("Tickets", panel.transform, new Vector2(1f, 1f),
+                new Vector2(-50f, -140f - SAFE_AREA_TOP_INSET), new Vector2(500f, 60f),
+                FS_LABEL, TextAnchor.UpperRight, TextWhite);
+        }
+
+        GameObject MkCasinoBack(GameObject panel)
+            => MkButton("Back", panel.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 50f), new Vector2(300f, 100f), "BACK",
+                () => _onCasinoNav((int)AppPhase.CasinoLobby), sfx: "back");
+
+        // ============================================================
+        // Find the Cash (P5b, Lv 5) — 3x3 grid, hunt 3-of-a-kind.
+        // Classic table; the hunt is the theatre. Busts use a "—" dud
+        // cell so no symbol ever reaches 3.
+        // ============================================================
+        void BuildCasinoFindCash(Transform root)
+        {
+            _casinoFindCashPanel = MkFullPanel("CasinoFindCash", root);
+            MkCasinoHeader(_casinoFindCashPanel, out _fcCoins, out _fcTickets);
+
+            _fcCard = MkSpritePanel("Card", _casinoFindCashPanel.transform, new Vector2(0.5f, 0.5f),
+                FC_CARD_POS, new Vector2(760f, 680f), "panel", PanelTint);
+            _fcCard.GetComponent<Image>().raycastTarget = false;
+            MkText("Title", _fcCard.transform, new Vector2(0.5f, 1f), new Vector2(0f, -26f),
+                new Vector2(700f, 56f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "· FIND THE CASH ·";
+            MkText("Rule", _fcCard.transform, new Vector2(0.5f, 0f), new Vector2(0f, 22f),
+                new Vector2(700f, 40f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "find 3 of a kind";
+
+            for (int i = 0; i < 9; i++)
+            {
+                int idx = i;
+                int col = i % 3, row = i / 3;
+                var cell = MkSpritePanel("Cell" + i, _fcCard.transform, new Vector2(0.5f, 0.5f),
+                    new Vector2(-200f + 200f * col, 165f - 190f * row), new Vector2(180f, 176f),
+                    "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
+                _fcCellTexts[i] = MkText("Sym", cell.transform, new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(170f, 170f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+                _fcCellIcons[i] = MkSpriteIcon("SymIcon", cell.transform, new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(120f, 120f), (Sprite)null, Color.white).GetComponent<Image>();
+                _fcCellIcons[i].enabled = false;
+                var foilGo = new GameObject("Foil", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                foilGo.transform.SetParent(cell.transform, false);
+                var frt = foilGo.GetComponent<RectTransform>();
+                frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+                frt.offsetMin = new Vector2(5f, 5f); frt.offsetMax = new Vector2(-5f, -5f);
+                var foil = foilGo.AddComponent<ScratchFoil>();
+                foil.Init();
+                foil.onRevealed = () => OnFindCellRevealed(idx);
+                _fcFoils[i] = foil;
+            }
+
+            _fcEmptyLabel = MkText("Empty", _casinoFindCashPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -190f), new Vector2(1040f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+            _fcResultLine = MkText("Result", _casinoFindCashPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -110f), new Vector2(1040f, 70f), FS_BTN, TextAnchor.MiddleCenter, AccentGold);
+            _fcNextBtn = MkButton("Next", _casinoFindCashPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -300f), new Vector2(540f, 130f), "NEXT TICKET", () => FindCashDeal());
+            MkCasinoBack(_casinoFindCashPanel);
+        }
+
+        bool FindCashAllRevealed
+        {
+            get { for (int i = 0; i < 9; i++) if (!_fcFlipped[i]) return false; return true; }
+        }
+
+        void OnEnterCasinoFindCash()
+        {
+            if (!_fcHasPending || FindCashAllRevealed) FindCashDeal();
+        }
+
+        void FindCashDeal()
+        {
+            if (!_casino.CanPlay) { _fcHasPending = false; return; }
+            _fcPending = _casino.Play();   // classic table — the hunt is theatre
+            _fcHasPending = true;
+            FillFindGrid(_fcPending.tier);
+            for (int i = 0; i < 9; i++)
+            {
+                _fcFlipped[i] = false;
+                if (_fcDud[i])
+                {
+                    _fcCellIcons[i].enabled = false;
+                    _fcCellTexts[i].text = "—";
+                    _fcCellTexts[i].color = TextDim;
+                }
+                else SetSymbolCell(_fcCellIcons[i], _fcCellTexts[i], _fcSymbols[i]);
+                _fcFoils[i].ResetFoil();
+            }
+        }
+
+        // Win tier T: exactly 3 of T + 2 each of the other three symbols.
+        // Bust: 2 of each symbol + one dud "—" (max possible with 4 symbol
+        // types is 8 cells, so the 9th is the dud). Shuffled; presentation
+        // randomness only — the payout was rolled in CasinoGame.
+        void FillFindGrid(CasinoTier tier)
+        {
+            var syms = new List<CasinoTier>();
+            var duds = new List<bool>();
+            var all = new[] { CasinoTier.Cherry, CasinoTier.Bell, CasinoTier.Bar, CasinoTier.Seven };
+            if (tier != CasinoTier.Bust)
+            {
+                for (int k = 0; k < 3; k++) { syms.Add(tier); duds.Add(false); }
+                foreach (var o in all)
+                    if (o != tier) { syms.Add(o); duds.Add(false); syms.Add(o); duds.Add(false); }
+            }
+            else
+            {
+                foreach (var o in all) { syms.Add(o); duds.Add(false); syms.Add(o); duds.Add(false); }
+                syms.Add(CasinoTier.Bust); duds.Add(true);
+            }
+            for (int i = syms.Count - 1; i > 0; i--)
+            {
+                int j = UnityEngine.Random.Range(0, i + 1);
+                (syms[i], syms[j]) = (syms[j], syms[i]);
+                (duds[i], duds[j]) = (duds[j], duds[i]);
+            }
+            for (int i = 0; i < 9; i++) { _fcSymbols[i] = syms[i]; _fcDud[i] = duds[i]; }
+        }
+
+        void OnFindCellRevealed(int i)
+        {
+            if (!_fcHasPending || _fcFlipped[i]) return;
+            _fcFlipped[i] = true;
+            if (!FindCashAllRevealed) return;
+            _fcPopT = 0.35f;
+            PlayFanfare(_fcPending, _casinoFindCashPanel.transform, FC_CARD_POS, ref _fcShakeT);
+        }
+
+        void UpdateCasinoFindCash()
+        {
+            float dt = Time.unscaledDeltaTime;
+            TickCoinBurst(dt);
+            _fcCoins.text   = $"Coins: {TickCountUp(ref _fcCoinsShown, CasinoDisplayCoins, dt):N0}";
+            _fcTickets.text = $"Tickets: {_casino.state.ticketsBanked:N0}";
+            _fcCard.SetActive(_fcHasPending);
+            TickShake(_fcCard, FC_CARD_POS, ref _fcShakeT, dt);
+            TickPop(_fcResultLine.rectTransform, ref _fcPopT, dt);
+            _fcResultLine.text = _fcHasPending && FindCashAllRevealed ? CasinoResultText(_fcPending) : "";
+            _fcNextBtn.SetActive((!_fcHasPending || FindCashAllRevealed) && _casino.CanPlay);
+            bool dry = !_casino.CanPlay && (!_fcHasPending || FindCashAllRevealed);
+            _fcEmptyLabel.gameObject.SetActive(dry);
+            if (dry) _fcEmptyLabel.text =
+                $"Out of tickets — walk {_casino.StepsPerTicket - _casino.state.stepAccumulator} more steps.";
+        }
+
+        // ============================================================
+        // Gold Rush (P5b, Lv 9) — dig through the dirt; whatever glints
+        // is yours. High-variance table; buried coins peek out as you
+        // scratch (the Scritchy corner-peek, reskinned as glints).
+        // ============================================================
+        void BuildCasinoGoldRush(Transform root)
+        {
+            _casinoGoldRushPanel = MkFullPanel("CasinoGoldRush", root);
+            MkCasinoHeader(_casinoGoldRushPanel, out _grCoins, out _grTickets);
+
+            _grField = MkSpritePanel("Field", _casinoGoldRushPanel.transform, new Vector2(0.5f, 0.5f),
+                GR_FIELD_POS, new Vector2(900f, 620f), "panel", new Color(0.72f, 0.58f, 0.42f, 1f));
+            _grField.GetComponent<Image>().raycastTarget = false;
+            MkText("Title", _grField.transform, new Vector2(0.5f, 1f), new Vector2(0f, -24f),
+                new Vector2(840f, 52f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "· GOLD RUSH ·";
+            MkText("Table", _grField.transform, new Vector2(0.5f, 0f), new Vector2(0f, 18f),
+                new Vector2(860f, 40f), FS_BODY, TextAnchor.LowerCenter, TextDim)
+                .text = "DUST 5 · POCKET 30 · CHEST 150 · VEIN 400 · MOTHERLODE 1,000";
+
+            // Buried treasure layer (under the dirt foil).
+            var coinSpr = Make.Casino("coin_gold_1");
+            for (int i = 0; i < 12; i++)
+            {
+                _grItems[i] = coinSpr != null
+                    ? MkSpriteIcon("Item" + i, _grField.transform, new Vector2(0.5f, 0.5f),
+                        Vector2.zero, new Vector2(72f, 60f), coinSpr, Color.white).GetComponent<Image>()
+                    : MkSpriteIcon("Item" + i, _grField.transform, new Vector2(0.5f, 0.5f),
+                        Vector2.zero, new Vector2(56f, 56f), "coin", Color.white).GetComponent<Image>();
+                _grItems[i].gameObject.SetActive(false);
+            }
+
+            // The dirt itself — one big scratchable foil.
+            var foilGo = new GameObject("Dirt", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+            foilGo.transform.SetParent(_grField.transform, false);
+            var frt = foilGo.GetComponent<RectTransform>();
+            frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+            frt.offsetMin = new Vector2(12f, 74f); frt.offsetMax = new Vector2(-12f, -70f);
+            _grFoil = foilGo.AddComponent<ScratchFoil>();
+            _grFoil.foilColor = new Color32(124, 94, 62, 255);   // dirt, not silver
+            _grFoil.Init();
+            _grFoil.onRevealed = OnGoldRushRevealed;
+
+            _grEmptyLabel = MkText("Empty", _casinoGoldRushPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -190f), new Vector2(1040f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+            _grResultLine = MkText("Result", _casinoGoldRushPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -110f), new Vector2(1040f, 70f), FS_BTN, TextAnchor.MiddleCenter, AccentGold);
+            _grNextBtn = MkButton("Next", _casinoGoldRushPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -300f), new Vector2(540f, 130f), "DIG AGAIN", () => GoldRushDeal());
+            MkCasinoBack(_casinoGoldRushPanel);
+        }
+
+        void OnEnterCasinoGoldRush()
+        {
+            if (!_grHasPending || _grRevealed) GoldRushDeal();
+        }
+
+        void GoldRushDeal()
+        {
+            if (!_casino.CanPlay) { _grHasPending = false; return; }
+            _grPending = _casino.PlayTable(CasinoGame.TableKind.GoldRush);
+            _grHasPending = true;
+            _grRevealed = false;
+            int count;
+            float scale;
+            switch (_grPending.tier)
+            {
+                case CasinoTier.Seven:  count = 12; scale = 1.35f; break;   // MOTHERLODE
+                case CasinoTier.Bar:    count = 8;  scale = 1.15f; break;
+                case CasinoTier.Bell:   count = 5;  scale = 1f;    break;
+                case CasinoTier.Cherry: count = 3;  scale = 0.9f;  break;
+                default:                count = 1;  scale = 0.7f;  break;   // just dust
+            }
+            for (int i = 0; i < 12; i++)
+            {
+                bool on = i < count;
+                _grItems[i].gameObject.SetActive(on);
+                if (!on) continue;
+                _grItems[i].rectTransform.anchoredPosition = new Vector2(
+                    UnityEngine.Random.Range(-360f, 360f), UnityEngine.Random.Range(-190f, 200f));
+                _grItems[i].rectTransform.localScale = Vector3.one * scale * UnityEngine.Random.Range(0.85f, 1.15f);
+            }
+            _grFoil.ResetFoil();
+        }
+
+        static string GoldRushResultText(PlayResult r)
+        {
+            switch (r.tier)
+            {
+                case CasinoTier.Seven:  return $"MOTHERLODE!  +{r.coins:N0} COINS";
+                case CasinoTier.Bar:    return $"Struck a vein.  +{r.coins:N0} coins";
+                case CasinoTier.Bell:   return $"A buried chest.  +{r.coins:N0} coins";
+                case CasinoTier.Cherry: return $"A little pocket.  +{r.coins:N0} coins";
+                default:                return $"Dust.  (+{r.coins:N0} coins)";
+            }
+        }
+
+        void OnGoldRushRevealed()
+        {
+            if (!_grHasPending || _grRevealed) return;
+            _grRevealed = true;
+            _grPopT = 0.35f;
+            PlayFanfare(_grPending, _casinoGoldRushPanel.transform, GR_FIELD_POS, ref _grShakeT);
+        }
+
+        void UpdateCasinoGoldRush()
+        {
+            float dt = Time.unscaledDeltaTime;
+            TickCoinBurst(dt);
+            _grCoins.text   = $"Coins: {TickCountUp(ref _grCoinsShown, CasinoDisplayCoins, dt):N0}";
+            _grTickets.text = $"Tickets: {_casino.state.ticketsBanked:N0}";
+            // (Foil visibility is owned by ResetFoil/Reveal; dug-up items
+            // stay on show until the next dig re-buries the field.)
+            TickShake(_grField, GR_FIELD_POS, ref _grShakeT, dt);
+            TickPop(_grResultLine.rectTransform, ref _grPopT, dt);
+            _grResultLine.text = _grHasPending && _grRevealed ? GoldRushResultText(_grPending) : "";
+            _grNextBtn.SetActive((!_grHasPending || _grRevealed) && _casino.CanPlay);
+            bool dry = !_casino.CanPlay && (!_grHasPending || _grRevealed);
+            _grEmptyLabel.gameObject.SetActive(dry);
+            if (dry) _grEmptyLabel.text =
+                $"Out of tickets — walk {_casino.StepsPerTicket - _casino.state.stepAccumulator} more steps.";
+        }
+
+        // ============================================================
+        // The Ladder (P5b, Lv 13) — press-your-luck. EV 72 whatever you
+        // do; the only choice is how much variance you can stomach.
+        // ============================================================
+        void BuildCasinoLadder(Transform root)
+        {
+            _casinoLadderPanel = MkFullPanel("CasinoLadder", root);
+            MkCasinoHeader(_casinoLadderPanel, out _ldCoins, out _ldTickets);
+
+            _ldCard = MkSpritePanel("Card", _casinoLadderPanel.transform, new Vector2(0.5f, 0.5f),
+                LD_CARD_POS, new Vector2(900f, 560f), "panel", PanelTint);
+            _ldCard.GetComponent<Image>().raycastTarget = false;
+            MkText("Title", _ldCard.transform, new Vector2(0.5f, 1f), new Vector2(0f, -26f),
+                new Vector2(840f, 56f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "· THE LADDER ·";
+            MkText("Cap", _ldCard.transform, new Vector2(0.5f, 0f), new Vector2(0f, 20f),
+                new Vector2(840f, 40f), FS_BODY, TextAnchor.LowerCenter, TextDim)
+                .text = "every rung: 50/50 to double — top of the ladder: 18,432";
+
+            _ldPot = MkText("Pot", _ldCard.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 60f), new Vector2(840f, 130f), FS_BIG, TextAnchor.MiddleCenter, TextWhite);
+            _ldRungLine = MkText("Rung", _ldCard.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -50f), new Vector2(840f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
+            _ldOddsLine = MkText("Odds", _ldCard.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -115f), new Vector2(840f, 44f), FS_BODY, TextAnchor.MiddleCenter, TextDim);
+
+            _ldResultLine = MkText("Result", _casinoLadderPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -60f), new Vector2(1040f, 70f), FS_BTN, TextAnchor.MiddleCenter, AccentGold);
+            _ldEmptyLabel = MkText("Empty", _casinoLadderPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -140f), new Vector2(1040f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+
+            _ldStartBtn = MkButton("Start", _casinoLadderPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -240f), new Vector2(600f, 140f), "START — 1 TICKET", LadderStartPressed);
+            _ldClimbBtn = MkButton("Climb", _casinoLadderPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -240f), new Vector2(600f, 140f), "CLIMB", LadderClimbPressed);
+            _ldBankBtn = MkButton("Bank", _casinoLadderPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -410f), new Vector2(600f, 120f), "BANK", LadderBankPressed,
+                "btn_grey", "btn_grey_down");
+            _ldBankLabel = _ldBankBtn.GetComponentInChildren<TMP_Text>();
+            MkCasinoBack(_casinoLadderPanel);
+        }
+
+        void LadderStartPressed()
+        {
+            if (_casino.TryLadderStart()) _ldResult = null;
+        }
+
+        void LadderClimbPressed()
+        {
+            if (!_casino.LadderActive) return;
+            if (_casino.LadderClimb())
+            {
+                Sfx.Play("coin");
+                _ldPopT = 0.35f;
+            }
+            else
+            {
+                Sfx.Play("error");
+                _ldShakeT = 0.5f;
+                _ldResult = "The ladder snapped. Pot gone.";
+                _ldPopT = 0.35f;
+            }
+        }
+
+        void LadderBankPressed()
+        {
+            if (!_casino.LadderActive) return;
+            int rung = _casino.LadderRung;
+            long pot = _casino.LadderBank();
+            _ldResult = $"Banked +{pot:N0} coins.";
+            _ldPopT = 0.35f;
+            if (rung >= CasinoGame.LADDER_JACKPOT_RUNG)
+            {
+                Sfx.Play("milestone");
+                _ldShakeT = 0.4f;
+                SpawnCoinBurst(_casinoLadderPanel.transform, LD_CARD_POS, BURST_POOL);
+            }
+            else Sfx.Play("coin");
+        }
+
+        void UpdateCasinoLadder()
+        {
+            float dt = Time.unscaledDeltaTime;
+            TickCoinBurst(dt);
+            _ldCoins.text   = $"Coins: {TickCountUp(ref _ldCoinsShown, CasinoDisplayCoins, dt):N0}";
+            _ldTickets.text = $"Tickets: {_casino.state.ticketsBanked:N0}";
+
+            bool active = _casino.LadderActive;
+            bool atCap  = _casino.LadderRung >= CasinoGame.LADDER_MAX_RUNG;
+            _ldPot.text      = active ? $"{_casino.LadderPot:N0}" : "—";
+            _ldRungLine.text = active ? $"RUNG {_casino.LadderRung} / {CasinoGame.LADDER_MAX_RUNG}" : "buy a rung, start climbing";
+            _ldOddsLine.text = active
+                ? (atCap ? "top of the ladder — take it!" : $"climb: 50/50 → {_casino.LadderPot * 2:N0}")
+                : $"a ticket starts the pot at {CasinoGame.LADDER_BASE_POT}";
+
+            _ldStartBtn.SetActive(!active && _casino.CanPlay);
+            _ldClimbBtn.SetActive(active && !atCap);
+            _ldBankBtn.SetActive(active);
+            if (active) _ldBankLabel.text = $"BANK {_casino.LadderPot:N0}";
+
+            TickShake(_ldCard, LD_CARD_POS, ref _ldShakeT, dt);
+            TickPop(_ldResultLine.rectTransform, ref _ldPopT, dt);
+            _ldResultLine.text = _ldResult ?? "";
+
+            bool dry = !active && !_casino.CanPlay;
+            _ldEmptyLabel.gameObject.SetActive(dry);
+            if (dry) _ldEmptyLabel.text =
+                $"Out of tickets — walk {_casino.StepsPerTicket - _casino.state.stepAccumulator} more steps.";
+        }
+
+        // ============================================================
+        // High Stakes (P5b, Lv 24) — pick a wager, scratch one panel.
+        // Bust eats the wager; CHERRY pushes, BELL x2, BAR x4, 7 x10.
+        // The only room where banked coins are ever at risk — strictly
+        // opt-in, multipliers printed on the card.
+        // ============================================================
+        void BuildCasinoHighStakes(Transform root)
+        {
+            _casinoHighStakesPanel = MkFullPanel("CasinoHighStakes", root);
+            MkCasinoHeader(_casinoHighStakesPanel, out _hsCoins, out _hsTickets);
+
+            _hsCard = MkSpritePanel("Card", _casinoHighStakesPanel.transform, new Vector2(0.5f, 0.5f),
+                HS_CARD_POS, new Vector2(900f, 560f), "panel", PanelTint);
+            _hsCard.GetComponent<Image>().raycastTarget = false;
+            MkText("Title", _hsCard.transform, new Vector2(0.5f, 1f), new Vector2(0f, -26f),
+                new Vector2(840f, 56f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "· HIGH STAKES ·";
+            MkText("Table", _hsCard.transform, new Vector2(0.5f, 0f), new Vector2(0f, 20f),
+                new Vector2(860f, 40f), FS_BODY, TextAnchor.LowerCenter, TextDim)
+                .text = "CHERRY push · BELL x2 · BAR x4 · 7 x10 · bust eats the wager";
+
+            var cell = MkSpritePanel("Cell", _hsCard.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -10f), new Vector2(270f, 330f),
+                "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
+            _hsCellText = MkText("Sym", cell.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(260f, 320f), FS_BTN, TextAnchor.MiddleCenter, TextDim);
+            _hsCellIcon = MkSpriteIcon("SymIcon", cell.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(190f, 190f), (Sprite)null, Color.white).GetComponent<Image>();
+            _hsCellIcon.enabled = false;
+            var hsFoilGo = new GameObject("Foil", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+            hsFoilGo.transform.SetParent(cell.transform, false);
+            var hsFrt = hsFoilGo.GetComponent<RectTransform>();
+            hsFrt.anchorMin = Vector2.zero; hsFrt.anchorMax = Vector2.one;
+            hsFrt.offsetMin = new Vector2(8f, 8f); hsFrt.offsetMax = new Vector2(-8f, -8f);
+            _hsFoil = hsFoilGo.AddComponent<ScratchFoil>();
+            _hsFoil.Init();
+            _hsFoil.onRevealed = OnHighStakesRevealed;
+            _hsFoil.gameObject.SetActive(false);
+
+            for (int i = 0; i < 3; i++)
+            {
+                long w = HS_WAGERS[i];
+                var b = MkButton("Wager" + w, _casinoHighStakesPanel.transform, new Vector2(0.5f, 0.5f),
+                    new Vector2(-310f + 310f * i, -140f), new Vector2(280f, 120f),
+                    $"{w:N0}", () => HighStakesWager(w));
+                _hsWagerBtns[i] = b.GetComponent<Button>();
+            }
+            MkText("WagerHint", _casinoHighStakesPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -230f), new Vector2(800f, 40f), FS_BODY, TextAnchor.MiddleCenter, TextDim)
+                .text = "pick a wager — 1 ticket per play";
+
+            _hsResultLine = MkText("Result", _casinoHighStakesPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -320f), new Vector2(1040f, 70f), FS_BTN, TextAnchor.MiddleCenter, AccentGold);
+            _hsEmptyLabel = MkText("Empty", _casinoHighStakesPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -400f), new Vector2(1040f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+            MkCasinoBack(_casinoHighStakesPanel);
+        }
+
+        void HighStakesWager(long w)
+        {
+            if (_hsHasPending && !_hsRevealed) return;
+            if (!_casino.CanPlay || _casino.host.coins < w) { Sfx.Play("error"); return; }
+            _hsWager = w;
+            _hsPending = _casino.PlayHighStakes(w);
+            _hsHasPending = true;
+            _hsRevealed = false;
+            if (_hsPending.tier == CasinoTier.Bust)
+            {
+                _hsCellIcon.enabled = false;
+                _hsCellText.text = "BUST";
+                _hsCellText.color = new Color(0.6f, 0.35f, 0.3f);
+            }
+            else SetSymbolCell(_hsCellIcon, _hsCellText, _hsPending.tier);
+            _hsFoil.ResetFoil();
+        }
+
+        void OnHighStakesRevealed()
+        {
+            if (!_hsHasPending || _hsRevealed) return;
+            _hsRevealed = true;
+            _hsPopT = 0.35f;
+            if (_hsPending.tier == CasinoTier.Bust) { Sfx.Play("error"); _hsShakeT = 0.4f; }
+            else PlayFanfare(_hsPending, _casinoHighStakesPanel.transform, HS_CARD_POS, ref _hsShakeT);
+        }
+
+        string HighStakesResultText()
+        {
+            var r = _hsPending;
+            if (r.tier == CasinoTier.Bust) return $"Bust. The house keeps {_hsWager:N0}.";
+            long net = r.coins - _hsWager;
+            switch (r.tier)
+            {
+                case CasinoTier.Seven:  return $"7! WAGER x10 —  +{net:N0} COINS";
+                case CasinoTier.Bar:    return $"BAR — wager x4.  +{net:N0} coins";
+                case CasinoTier.Bell:   return $"BELL — wager x2.  +{net:N0} coins";
+                default:                return "Cherry — push. Wager returned.";
+            }
+        }
+
+        void UpdateCasinoHighStakes()
+        {
+            float dt = Time.unscaledDeltaTime;
+            TickCoinBurst(dt);
+            _hsCoins.text   = $"Coins: {TickCountUp(ref _hsCoinsShown, CasinoDisplayCoins, dt):N0}";
+            _hsTickets.text = $"Tickets: {_casino.state.ticketsBanked:N0}";
+            bool mid = _hsHasPending && !_hsRevealed;
+            for (int i = 0; i < 3; i++)
+                _hsWagerBtns[i].interactable = !mid && _casino.CanPlay && CasinoDisplayCoins >= HS_WAGERS[i];
+            TickShake(_hsCard, HS_CARD_POS, ref _hsShakeT, dt);
+            TickPop(_hsResultLine.rectTransform, ref _hsPopT, dt);
+            _hsResultLine.text = _hsHasPending && _hsRevealed ? HighStakesResultText() : "";
+            bool dry = !_casino.CanPlay && !mid;
+            _hsEmptyLabel.gameObject.SetActive(dry);
+            if (dry) _hsEmptyLabel.text =
+                $"Out of tickets — walk {_casino.StepsPerTicket - _casino.state.stepAccumulator} more steps.";
+        }
+
+        // ============================================================
+        // MEGA JACKPOT (P5b, Lv 30) — the white whale. 1 in 2,000 for
+        // 100,000 coins; every other ticket is a deadpan 20. Odds are
+        // printed on the card — no fine print, ever.
+        // ============================================================
+        void BuildCasinoMega(Transform root)
+        {
+            _casinoMegaPanel = MkFullPanel("CasinoMega", root);
+            MkCasinoHeader(_casinoMegaPanel, out _mgCoins, out _mgTickets);
+
+            _mgCard = MkSpritePanel("Card", _casinoMegaPanel.transform, new Vector2(0.5f, 0.5f),
+                MG_CARD_POS, new Vector2(760f, 640f), "panel", new Color(1f, 0.88f, 0.55f, 1f));
+            _mgCard.GetComponent<Image>().raycastTarget = false;
+            MkText("Title", _mgCard.transform, new Vector2(0.5f, 1f), new Vector2(0f, -26f),
+                new Vector2(700f, 60f), FS_LABEL, TextAnchor.UpperCenter, new Color(0.45f, 0.28f, 0.05f))
+                .text = "★ MEGA JACKPOT ★";
+            MkText("Prize", _mgCard.transform, new Vector2(0.5f, 1f), new Vector2(0f, -86f),
+                new Vector2(700f, 56f), FS_BTN, TextAnchor.UpperCenter, new Color(0.55f, 0.33f, 0.05f))
+                .text = "TOP PRIZE: 100,000";
+            MkText("Odds", _mgCard.transform, new Vector2(0.5f, 0f), new Vector2(0f, 20f),
+                new Vector2(700f, 40f), FS_BODY, TextAnchor.LowerCenter, new Color(0.5f, 0.36f, 0.14f))
+                .text = "1 in 2,000 — no fine print";
+
+            var cell = MkSpritePanel("Cell", _mgCard.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -60f), new Vector2(340f, 380f),
+                "panel_light", new Color(0.28f, 0.24f, 0.14f, 1f));
+            _mgCellText = MkText("Sym", cell.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(320f, 360f), FS_TITLE, TextAnchor.MiddleCenter, TextDim);
+            _mgCellIcon = MkSpriteIcon("SymIcon", cell.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, new Vector2(240f, 240f), (Sprite)null, Color.white).GetComponent<Image>();
+            _mgCellIcon.enabled = false;
+            var mgFoilGo = new GameObject("Foil", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+            mgFoilGo.transform.SetParent(cell.transform, false);
+            var mgFrt = mgFoilGo.GetComponent<RectTransform>();
+            mgFrt.anchorMin = Vector2.zero; mgFrt.anchorMax = Vector2.one;
+            mgFrt.offsetMin = new Vector2(8f, 8f); mgFrt.offsetMax = new Vector2(-8f, -8f);
+            _mgFoil = mgFoilGo.AddComponent<ScratchFoil>();
+            _mgFoil.foilColor = new Color32(206, 168, 74, 255);   // gold foil for the golden ticket
+            _mgFoil.Init();
+            _mgFoil.onRevealed = OnMegaRevealed;
+
+            _mgResultLine = MkText("Result", _casinoMegaPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -110f), new Vector2(1040f, 70f), FS_BTN, TextAnchor.MiddleCenter, AccentGold);
+            _mgEmptyLabel = MkText("Empty", _casinoMegaPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -190f), new Vector2(1040f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+            _mgNextBtn = MkButton("Next", _casinoMegaPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -300f), new Vector2(540f, 130f), "ANOTHER — 1 TICKET", () => MegaDeal());
+            MkCasinoBack(_casinoMegaPanel);
+        }
+
+        void OnEnterCasinoMega()
+        {
+            if (!_mgHasPending || _mgRevealed) MegaDeal();
+        }
+
+        void MegaDeal()
+        {
+            if (!_casino.CanPlay) { _mgHasPending = false; return; }
+            _mgPending = _casino.PlayTable(CasinoGame.TableKind.Mega);
+            _mgHasPending = true;
+            _mgRevealed = false;
+            if (_mgPending.jackpot)
+            {
+                var seven = Make.Casino("sym_seven");
+                if (seven != null) { _mgCellIcon.sprite = seven; _mgCellIcon.enabled = true; _mgCellText.text = ""; }
+                else { _mgCellIcon.enabled = false; _mgCellText.text = "MEGA"; _mgCellText.color = new Color(1f, 0.3f, 0.25f); }
+            }
+            else
+            {
+                _mgCellIcon.enabled = false;
+                _mgCellText.text = "20";
+                _mgCellText.color = TextDim;
+            }
+            _mgFoil.ResetFoil();
+        }
+
+        void OnMegaRevealed()
+        {
+            if (!_mgHasPending || _mgRevealed) return;
+            _mgRevealed = true;
+            _mgPopT = 0.35f;
+            if (_mgPending.jackpot)
+            {
+                // The whale. Double burst + long shake + everything we have.
+                Sfx.Play("milestone"); Sfx.Play("level_up"); Sfx.Play("coin");
+                _mgShakeT = 1.0f;
+                SpawnCoinBurst(_casinoMegaPanel.transform, MG_CARD_POS, BURST_POOL);
+                SpawnCoinBurst(_casinoMegaPanel.transform, MG_CARD_POS + new Vector2(0f, -300f), BURST_POOL);
+            }
+        }
+
+        void UpdateCasinoMega()
+        {
+            float dt = Time.unscaledDeltaTime;
+            TickCoinBurst(dt);
+            _mgCoins.text   = $"Coins: {TickCountUp(ref _mgCoinsShown, CasinoDisplayCoins, dt):N0}";
+            _mgTickets.text = $"Tickets: {_casino.state.ticketsBanked:N0}";
+            _mgCard.SetActive(true);
+            _mgFoil.transform.parent.gameObject.SetActive(_mgHasPending);
+            TickShake(_mgCard, MG_CARD_POS, ref _mgShakeT, dt);
+            TickPop(_mgResultLine.rectTransform, ref _mgPopT, dt);
+            _mgResultLine.text = _mgHasPending && _mgRevealed
+                ? (_mgPending.jackpot ? $"★ MEGA JACKPOT ★  +{_mgPending.coins:N0} COINS"
+                                      : $"Not this time.  (+{_mgPending.coins:N0})")
+                : "";
+            _mgNextBtn.SetActive((!_mgHasPending || _mgRevealed) && _casino.CanPlay);
+            bool dry = !_casino.CanPlay && (!_mgHasPending || _mgRevealed);
+            _mgEmptyLabel.gameObject.SetActive(dry);
+            if (dry) _mgEmptyLabel.text =
+                $"Out of tickets — walk {_casino.StepsPerTicket - _casino.state.stepAccumulator} more steps.";
         }
 
         // ============================================================

@@ -122,6 +122,14 @@ namespace Gamex.Core
         // tedium has real time to bite first — automation is EARNED.
         public const int   AUTOSCR_COST = 8;
 
+        // ---- game unlock ladder (P5b) — gated by the RPG level (steps),
+        //      so the casino grows as the player's real walking does ----
+        public const int UNLOCK_FINDCASH   = 5;
+        public const int UNLOCK_GOLDRUSH   = 9;
+        public const int UNLOCK_LADDER     = 13;
+        public const int UNLOCK_HIGHSTAKES = 24;
+        public const int UNLOCK_MEGA       = 30;
+
         // ---- prestige ----
         public const int   FIRST_PRESTIGE_PLAYS = 25;   // scripted tutorial gate (pure effort, day-1 reachable)
         public const float FIRST_PRESTIGE_PP    = 5f;   // guaranteed starter PP
