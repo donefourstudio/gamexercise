@@ -20,10 +20,15 @@ namespace Gamex.Game
 
         GamexGame _game;
         Hud _hud;
-        // Fate Cards mode (M_fate Phase 0). Latched ONCE in Awake from the
+        // Fate Cards mode (M_fate). Latched ONCE in Awake from the
         // RemoteConfig cache so the mode can't flip mid-session — a live
         // remote change only lands on the next launch.
         bool _fateMode;
+        // Fate economy core. Constructed in BOTH modes (it's inert without
+        // input) so the mode flip never races save-state setup; only Fate
+        // mode routes activity into it.
+        FateGame _fate;
+        public FateGame Fate => _fate;
 
         void Awake()
         {
@@ -36,6 +41,9 @@ namespace Gamex.Game
             if (loaded != null) _game.state = loaded;
             _game.onSave = () => SaveSystem.Save(_game.state);
             _game.CatchUpDays();
+
+            _fate = new FateGame(_game.state.fate);
+            _fate.onSave = () => SaveSystem.Save(_game.state);
 
             // Cold start always lands on the Title screen — tapping "Start
             // Game" routes to DetermineInitialPhase() which picks the same
@@ -123,6 +131,7 @@ namespace Gamex.Game
                 {
                     SaveSystem.Wipe();
                     _game.state = new GameState();
+                    _fate.state = _game.state.fate;   // re-point at the fresh nested state
                     _game.phase = AppPhase.Title;   // back to the front door
                     // SyncHealthKit reads state.todayHealthKitSteps which is
                     // now 0, so the next focus event will write the full HK
@@ -151,7 +160,14 @@ namespace Gamex.Game
                         }
                         // Denied / NotDetermined: stay on gate; UI auto-updates.
                     });
-                });
+                },
+                // Fate Cards mode (M_fate Phase 2). Nav sets the phase
+                // directly (same pattern as onLeaveTitle). The FateGame ref
+                // is handed straight to the Hud — unlike GamexGame's
+                // callback routing — because scratch results must flow back
+                // into the reveal animation synchronously.
+                onFateNav:            p => _game.phase = (AppPhase)p,
+                fate:                 _fate);
 
             // Mirror persisted audio mutes into the Sfx/Bgm singletons so the
             // very first Refresh after Hud construction respects them. The
@@ -208,14 +224,16 @@ namespace Gamex.Game
             => p == AppPhase.Home || p == AppPhase.Quests || p == AppPhase.Shop
             || p == AppPhase.Inventory || p == AppPhase.SetDetail || p == AppPhase.Settings;
 
+        static bool IsFatePhase(AppPhase p)
+            => p == AppPhase.FateHome || p == AppPhase.FateScratch || p == AppPhase.FateUpgrades;
+
         void Update()
         {
-            // Phase-0 clamp: old-game logic can still auto-move the phase
+            // Fate-mode clamp: old-game logic can still auto-move the phase
             // (e.g. AddActivity fires RaceSelect when level crosses 20).
-            // Until Fate mode has real routing (Phase 2), snap any such leak
-            // back to the shell so flag-on can never land on an old-game
-            // screen mid-session.
-            if (_fateMode && _game.phase != AppPhase.FateHome)
+            // Snap any such leak back to Fate Home so flag-on can never land
+            // on an old-game screen mid-session.
+            if (_fateMode && !IsFatePhase(_game.phase))
                 _game.phase = AppPhase.FateHome;
 
             _hud?.Refresh(_game);
@@ -238,13 +256,20 @@ namespace Gamex.Game
             // T = +1000 steps. Brought back as a separate key after the R
             // remap took step injection away from shop testing — Jackson
             // still needs both during a single play session.
-            if (Input.GetKeyDown(KeyCode.T)) _game.AddActivity(1000, 0, 0);
+            if (Input.GetKeyDown(KeyCode.T))
+            {
+                _game.AddActivity(1000, 0, 0);
+                // Fate mode: the same debug steps also fill the card faucet
+                // so the Editor loop is playable end to end.
+                if (_fateMode) _fate.GrantActivity(1000, 0);
+            }
             // Shift+R from anywhere: nuke save + replay opening (dev / QA only).
             if (Input.GetKeyDown(KeyCode.R) &&
                 (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
             {
                 SaveSystem.Wipe();
                 _game.state = new GameState();
+                _fate.state = _game.state.fate;   // re-point at the fresh nested state
                 _game.phase = AppPhase.OpeningIntro;
                 Debug.Log("[Gamex] save wiped, replaying opening");
             }
@@ -291,7 +316,14 @@ namespace Gamex.Game
             {
                 if (steps < 0 || _game == null) return;
                 int delta = steps - _game.state.todayHealthKitSteps;
-                if (delta > 0) _game.AddActivity(delta, 0, 0);
+                if (delta > 0)
+                {
+                    _game.AddActivity(delta, 0, 0);
+                    // Fate-mode dual feed: levels / streaks (sacred stats)
+                    // keep ticking through the old pipeline while the same
+                    // delta fills the card faucet.
+                    if (_fateMode) _fate.GrantActivity(delta, 0);
+                }
                 _game.state.todayHealthKitSteps = steps;
                 _game.onSave?.Invoke();
             });
@@ -299,7 +331,11 @@ namespace Gamex.Game
             {
                 if (runSec < 0 || _game == null) return;
                 int delta = runSec - _game.state.todayHealthKitRunSeconds;
-                if (delta > 0) _game.AddActivity(0, 0, delta);
+                if (delta > 0)
+                {
+                    _game.AddActivity(0, 0, delta);
+                    if (_fateMode) _fate.GrantActivity(0, delta);   // Marathoner bonus credit
+                }
                 _game.state.todayHealthKitRunSeconds = runSec;
                 _game.onSave?.Invoke();
             });

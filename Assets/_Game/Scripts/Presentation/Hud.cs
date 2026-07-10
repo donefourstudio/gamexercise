@@ -357,6 +357,9 @@ namespace Gamex.Game
         readonly Action         _onGoSettings, _onToggleSfx, _onToggleBgm, _onResetProgress;
         readonly Action         _onLeaveTitle;
         readonly Action         _onConnectHealthKit;
+        // ---- Fate Cards mode (M_fate Phase 2) ----
+        readonly Action<int>    _onFateNav;   // arg = (int)AppPhase; Fate screens only
+        readonly FateGame       _fate;        // direct core ref — see Hud.FateCards.cs header
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -381,7 +384,9 @@ namespace Gamex.Game
             Action onToggleBgm,
             Action onResetProgress,
             Action onLeaveTitle,
-            Action onConnectHealthKit)
+            Action onConnectHealthKit,
+            Action<int> onFateNav,
+            FateGame fate)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -406,6 +411,8 @@ namespace Gamex.Game
             _onResetProgress       = onResetProgress;
             _onLeaveTitle          = onLeaveTitle;
             _onConnectHealthKit    = onConnectHealthKit;
+            _onFateNav             = onFateNav;
+            _fate                  = fate;
 
             if (EventSystem.current == null)
             {
@@ -443,7 +450,9 @@ namespace Gamex.Game
             BuildSettings(root);
             BuildHealthKitGate(root);
             BuildTutorialOverlay(root);
-            BuildFateShell(root);   // M_fate Phase 0 — inert unless AppPhase.FateHome
+            BuildFateHome(root);      // M_fate Phase 2 — flag-gated screens,
+            BuildFateScratch(root);   // all inert unless the phase is one of
+            BuildFateUpgrades(root);  // the AppPhase.Fate* values
         }
 
     }

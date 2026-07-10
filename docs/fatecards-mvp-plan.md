@@ -1,6 +1,6 @@
 # Fate Cards — MVP Implementation Plan
 
-**Status:** Phase 0 ✅ (scaffold + flag, `64e9a6c`) · Phase 1 ✅ (FateGame core + LogicTest economy coverage) · **Phase 2 next** (core screens + steps→cards wiring) · Phases 3–4 pending.
+**Status:** Phase 0 ✅ (scaffold + flag, `64e9a6c`) · Phase 1 ✅ (FateGame core + tests, `2a97408`) · Phase 2 ✅ (Home/Scratch/Upgrades screens + steps→cards wiring; first playable in Editor) · **Phase 3 next** (ascension flow + juice) · Phase 4 pending.
 **Monetization (decided 2026-07):** free download + one-time **$5.99** non-consumable unlock — see the Monetization section below.
 **Goal:** Pivot Gamexercise from a passive idle-RPG into an **exercise-fuelled scratch-card / casino game** where real walking/running is the only faucet. Make fitness addictive (daily retention, short-term dopamine, long-term habit) without ever letting the fun run without the walking.
 

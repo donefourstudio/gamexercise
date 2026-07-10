@@ -54,11 +54,13 @@ namespace Gamex.Core
         // detail page — big preview + price + Buy/Apply/Remove CTA. Mirrors
         // SetDetail for sets. Appended last for save-compat.
         SkinDetail,
-        // Fate Cards mode (M_fate Phase 0) — flag-gated parallel experience
-        // (docs/fatecards-mvp-plan.md). Phase 0 ships a placeholder shell;
-        // FateScratch / FateUpgrades / FateAscend follow with their screens.
-        // Appended last per the save-compat convention.
+        // Fate Cards mode (M_fate) — flag-gated parallel experience
+        // (docs/fatecards-mvp-plan.md). Phase 2 ships Home / Scratch /
+        // Upgrades; FateAscend follows in Phase 3. Appended last per the
+        // save-compat convention.
         FateHome,
+        FateScratch,
+        FateUpgrades,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }

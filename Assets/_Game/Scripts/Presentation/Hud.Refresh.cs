@@ -30,6 +30,7 @@ namespace Gamex.Game
                     if (_titleCanvasGroup != null)  _titleCanvasGroup.alpha = 1f;
                     if (_titleStartButton != null)  _titleStartButton.interactable = true;
                 }
+                if (g.phase == AppPhase.FateScratch) OnEnterFateScratch();
                 _lastPhase = g.phase;
             }
 
@@ -46,7 +47,10 @@ namespace Gamex.Game
                       || g.phase == AppPhase.SetDetail
                       || g.phase == AppPhase.SkinDetail
                       || g.phase == AppPhase.Inventory
-                      || g.phase == AppPhase.Settings;
+                      || g.phase == AppPhase.Settings
+                      || g.phase == AppPhase.FateHome
+                      || g.phase == AppPhase.FateScratch
+                      || g.phase == AppPhase.FateUpgrades;
             if (bgmOn) Bgm.PlayLoop("bgm_home");
             else       Bgm.Stop();
 
@@ -142,7 +146,11 @@ namespace Gamex.Game
             Set(_hkGatePanel,             g.phase == AppPhase.HealthKitGate);
             if (g.phase == AppPhase.HealthKitGate) UpdateHealthKitGate();
             Set(_fatePanel,               g.phase == AppPhase.FateHome);
-            if (g.phase == AppPhase.FateHome) UpdateFateShell(g);
+            if (g.phase == AppPhase.FateHome) UpdateFateHome(g);
+            Set(_fateScratchPanel,        g.phase == AppPhase.FateScratch);
+            if (g.phase == AppPhase.FateScratch) UpdateFateScratch();
+            Set(_fateUpgradesPanel,       g.phase == AppPhase.FateUpgrades);
+            if (g.phase == AppPhase.FateUpgrades) UpdateFateUpgrades();
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {
