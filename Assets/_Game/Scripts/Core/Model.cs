@@ -270,6 +270,12 @@ namespace Gamex.Core
         public int runLuck;
         public int runStride;
 
+        // ---- The Ladder (P5b) — persisted so an app quit mid-climb never
+        // eats the pot (never punish the player for real life happening) ----
+        public bool ladderActive;
+        public long ladderPot;
+        public int  ladderRung;
+
         // ---- permanent (never resets) ----
         public float prestigePoints;     // PP wallet (fractional — effort floor pays plays/40)
         public int   prestigeCount;

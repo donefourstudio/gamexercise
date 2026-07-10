@@ -179,6 +179,103 @@ namespace Gamex.Game
                   "Auto Scratcher is one-time (refuses re-buy)");
             Check(System.Math.Abs(cauto.state.prestigePoints - 12f) < 1e-4, "8 PP deducted, no double-charge");
 
+            // ==== P5b game tables ====
+
+            // Gold Rush: high-variance dig. 50k plays -> EV ~72.25,
+            // motherlode (jackpot band) ~2%.
+            var grhost = new GameState();
+            grhost.casino.lifetimeJackpots = 1;   // disarm the rig
+            var cgr = new CasinoGame(grhost, new System.Random(881));
+            cgr.state.ticketsBanked = 50000;
+            long grCoins = 0; int grLodes = 0;
+            for (int i = 0; i < 50000; i++)
+            {
+                var r = cgr.PlayTable(CasinoGame.TableKind.GoldRush);
+                grCoins += r.coins; if (r.jackpot) grLodes++;
+            }
+            double grEv = grCoins / 50000.0, grRate = grLodes / 50000.0;
+            Check(grEv > 67 && grEv < 78, $"Gold Rush EV ~72.25, got {grEv:F1}");
+            Check(grRate > 0.014 && grRate < 0.026, $"motherlode ~2%, got {grRate:P2}");
+            Check(cgr.state.ticketsBanked == 0, "Gold Rush consumes tickets");
+
+            // MEGA JACKPOT: 1-in-2,000 pays 100,000, else 20. 200k plays ->
+            // EV ~70 (wide bounds — single-jackpot variance dominates).
+            var mghost = new GameState();
+            mghost.casino.lifetimeJackpots = 1;
+            var cmg = new CasinoGame(mghost, new System.Random(882));
+            cmg.state.ticketsBanked = 200000;
+            long mgCoins = 0; int mgWins = 0;
+            for (int i = 0; i < 200000; i++)
+            {
+                var r = cmg.PlayTable(CasinoGame.TableKind.Mega);
+                mgCoins += r.coins; if (r.jackpot) mgWins++;
+            }
+            double mgEv = mgCoins / 200000.0;
+            Check(mgEv > 55 && mgEv < 85, $"Mega EV ~70, got {mgEv:F1}");
+            Check(mgWins > 60 && mgWins < 140, $"Mega hits ~1/2000 (expect ~100 in 200k), got {mgWins}");
+
+            // The Ladder: fair double-or-fall, EV = 72 for any strategy.
+            // Always-climb-to-cap over 20k ladders: banked/ladder ~72.
+            var ldhost = new GameState();
+            ldhost.casino.lifetimeJackpots = 1;
+            var cld = new CasinoGame(ldhost, new System.Random(883));
+            cld.state.ticketsBanked = 20000;
+            Check(cld.TryLadderStart(), "ladder starts");
+            Check(!cld.TryLadderStart(), "can't start a second ladder mid-climb");
+            Check(cld.state.ticketsBanked == 19999, "ladder start consumed a ticket");
+            long ldWallet0 = ldhost.coins;
+            int ladders = 1;
+            while (true)
+            {
+                while (cld.LadderActive && cld.state.ladderRung < CasinoGame.LADDER_MAX_RUNG)
+                    cld.LadderClimb();
+                if (cld.LadderActive) cld.LadderBank();   // reached the cap
+                if (cld.state.ticketsBanked == 0) break;
+                cld.TryLadderStart();
+                ladders++;
+            }
+            double ldEv = (ldhost.coins - ldWallet0) / (double)ladders;
+            Check(ldEv > 47 && ldEv < 97, $"Ladder climb-to-cap EV ~72, got {ldEv:F1} over {ladders} ladders");
+            Check(ldhost.coins >= ldWallet0, "the Ladder never reduces the wallet");
+            // Deterministic bank + jackpot flag at rung >= 6.
+            var ld2host = new GameState();
+            var cld2 = new CasinoGame(ld2host, new System.Random(884));
+            cld2.state.ladderActive = true; cld2.state.ladderPot = 4608; cld2.state.ladderRung = 6;
+            long banked = cld2.LadderBank();
+            Check(banked == 4608 && ld2host.coins == 4608, "bank credits the pot");
+            Check(cld2.state.jackpotsThisRun == 1, "rung-6 bank counts as a jackpot");
+            Check(!cld2.LadderActive && cld2.LadderBank() == 0, "bank is idempotent");
+
+            // High Stakes: wager rides a classic roll. Deterministic via the
+            // rigged 777: wager 100 -> returns 1000 (net +900); Payout
+            // upgrades must NOT multiply wagers.
+            var hshost = new GameState();
+            hshost.casino.lifetimePlays = 2;      // next play is the rigged Seven
+            hshost.coins = 100;
+            var chs = new CasinoGame(hshost, new System.Random(885));
+            chs.state.runPayout = 5;              // would be x1.4 if it (wrongly) applied
+            chs.state.ticketsBanked = 1;
+            var hsr = chs.PlayHighStakes(100);
+            Check(hsr.rigged && hsr.jackpot && hsr.coins == 1000,
+                  "High Stakes 777 returns wager x10, got " + hsr.coins);
+            Check(hshost.coins == 1000, "wallet: 100 - 100 escrow + 1000 return");
+            Check(!chs.PlayHighStakes(100).jackpot && hshost.coins == 1000,
+                  "refuses without a ticket (wallet untouched)");
+            var hs0 = new CasinoGame(new GameState(), new System.Random(886));
+            hs0.state.ticketsBanked = 1;
+            Check(hs0.PlayHighStakes(100).coins == 0 && hs0.state.ticketsBanked == 1,
+                  "refuses wager it can't cover (no ticket burned)");
+            // EV: net per play ~ +5% of a 100 wager over 50k plays.
+            var hsEvHost = new GameState();
+            hsEvHost.casino.lifetimeJackpots = 1;
+            hsEvHost.coins = 10000000;
+            var chsEv = new CasinoGame(hsEvHost, new System.Random(887));
+            chsEv.state.ticketsBanked = 50000;
+            long hsBefore = hsEvHost.coins;
+            for (int i = 0; i < 50000; i++) chsEv.PlayHighStakes(100);
+            double hsNet = (hsEvHost.coins - hsBefore) / 50000.0;
+            Check(hsNet > 2 && hsNet < 8, $"High Stakes net EV ~ +5/play on 100 wager, got {hsNet:F2}");
+
             // Marathoner: run-seconds add bonus step credit on top of the
             // pedometer steps (600 s * 2.8 steps/s * 2 lvl * 10% = 336).
             var rhost = new GameState();

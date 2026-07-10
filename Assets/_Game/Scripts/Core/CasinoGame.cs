@@ -69,6 +69,41 @@ namespace Gamex.Core
         // one. Fires once per save, ever.
         public const int RIGGED_JACKPOT_AT = 2;   // 0-based lifetime index
 
+        // ---- P5b game tables ----
+        // Every game consumes 1 ticket and is EV-balanced near the classic
+        // 72 so no game strictly dominates — what differs is VARIANCE.
+        public enum TableKind { Classic, GoldRush, Mega }
+        // Gold Rush — the high-variance dig: mostly dust, rare motherlode.
+        // EV = .55*5 + .25*30 + .12*150 + .06*400 + .02*1000 = 72.25.
+        public const float GR_P_SEVEN  = 0.02f;    // motherlode (counts as jackpot)
+        public const float GR_P_BAR    = 0.06f;
+        public const float GR_P_BELL   = 0.12f;
+        public const float GR_P_CHERRY = 0.25f;
+        public const int GR_COINS_BUST = 5, GR_COINS_CHERRY = 30, GR_COINS_BELL = 150,
+                         GR_COINS_BAR = 400, GR_COINS_SEVEN = 1000;
+        // MEGA JACKPOT — the white whale. 1-in-2,000 pays 100,000; every
+        // other play is a deadpan 20. EV ≈ 69.99, variance is the product.
+        // Odds are shown to the player (honest gambling).
+        public const float MEGA_P_SEVEN   = 0.0005f;
+        public const int   MEGA_COINS_WIN = 100000, MEGA_COINS_BUST = 20;
+
+        // The Ladder — press-your-luck. Pot starts at the classic EV and
+        // each rung is a fair double-or-fall (0.5 * 2 = 1), so EV = 72 for
+        // EVERY strategy — the player is purely choosing their variance.
+        // Banking from rung 6+ counts as a jackpot for PP.
+        public const long  LADDER_BASE_POT    = 72;
+        public const float LADDER_SURVIVE     = 0.5f;
+        public const int   LADDER_MAX_RUNG    = 8;    // cap: 72 * 256 = 18,432
+        public const int   LADDER_JACKPOT_RUNG = 6;
+
+        // High Stakes — an opt-in coin wager riding a classic roll. Bust
+        // (45%) eats the wager; wins return wager * multiplier. Return EV =
+        // .30*1 + .17*2 + .065*4 + .015*10 = 1.05x — a deliberate ~+5%
+        // player edge so the thrill never quietly drains the wallet
+        // (mission rule: risk is opt-in, the house is friendly). Payout
+        // upgrades deliberately do NOT multiply wagers.
+        public const int HS_MULT_CHERRY = 1, HS_MULT_BELL = 2, HS_MULT_BAR = 4, HS_MULT_SEVEN = 10;
+
         // ---- run upgrades (coins; reset on prestige) ----
         // Flattened curve for the ~2-3 day prestige cadence (plan doc).
         public const int   PAYOUT_L1_COST = 300;  public const float PAYOUT_COST_MULT = 1.4f;
@@ -146,9 +181,12 @@ namespace Gamex.Core
             return granted;
         }
 
-        // ---- the play (scratch now; slots reuse this in P4) ----
+        // ---- the play (shared by scratchers / slots / find-the-cash;
+        //      Gold Rush + Mega pass their own table) ----
 
-        public PlayResult Play()
+        public PlayResult Play() => PlayTable(TableKind.Classic);
+
+        public PlayResult PlayTable(TableKind kind)
         {
             if (state.ticketsBanked <= 0) return default;   // UI gates on CanPlay
 
@@ -158,8 +196,8 @@ namespace Gamex.Core
             state.lifetimePlays++;
             state.playsThisRun++;
 
-            CasinoTier tier = rig ? CasinoTier.Seven : RollTier();
-            long coins = (long)Math.Round(BaseCoins(tier) * CoinsMultiplier);
+            CasinoTier tier = rig ? CasinoTier.Seven : RollTier(kind);
+            long coins = (long)Math.Round(BaseCoins(kind, tier) * CoinsMultiplier);
             host.coins += coins;
             if (tier == CasinoTier.Seven)
             {
@@ -170,28 +208,158 @@ namespace Gamex.Core
             return new PlayResult { tier = tier, coins = coins, jackpot = tier == CasinoTier.Seven, rigged = rig };
         }
 
-        CasinoTier RollTier()
+        CasinoTier RollTier(TableKind kind)
         {
             double r = _rng.NextDouble();
-            double pSeven  = P_SEVEN_BASE  + SEVEN_PER_LUCK  * Luck;
-            double pCherry = P_CHERRY_BASE + CHERRY_PER_LUCK * Luck;
+            double pSeven, pBar, pBell, pCherry;
+            switch (kind)
+            {
+                case TableKind.GoldRush:
+                    // Luck shifts Gold Rush the same way: more motherlodes,
+                    // dust becomes small finds.
+                    pSeven  = GR_P_SEVEN  + SEVEN_PER_LUCK  * Luck;
+                    pBar    = GR_P_BAR;
+                    pBell   = GR_P_BELL;
+                    pCherry = GR_P_CHERRY + CHERRY_PER_LUCK * Luck;
+                    break;
+                case TableKind.Mega:
+                    // Fixed odds, shown to the player. Luck doesn't move
+                    // the white whale — 1 in 2,000, no fine print.
+                    pSeven = MEGA_P_SEVEN; pBar = 0; pBell = 0; pCherry = 0;
+                    break;
+                default:
+                    pSeven  = P_SEVEN_BASE  + SEVEN_PER_LUCK  * Luck;
+                    pBar    = P_BAR;
+                    pBell   = P_BELL;
+                    pCherry = P_CHERRY_BASE + CHERRY_PER_LUCK * Luck;
+                    break;
+            }
             if ((r -= pSeven)  < 0) return CasinoTier.Seven;
-            if ((r -= P_BAR)   < 0) return CasinoTier.Bar;
-            if ((r -= P_BELL)  < 0) return CasinoTier.Bell;
+            if ((r -= pBar)    < 0) return CasinoTier.Bar;
+            if ((r -= pBell)   < 0) return CasinoTier.Bell;
             if ((r -= pCherry) < 0) return CasinoTier.Cherry;
             return CasinoTier.Bust;
         }
 
-        static long BaseCoins(CasinoTier t)
+        static long BaseCoins(TableKind kind, CasinoTier t)
         {
-            switch (t)
+            switch (kind)
             {
-                case CasinoTier.Seven:  return COINS_SEVEN;
-                case CasinoTier.Bar:    return COINS_BAR;
-                case CasinoTier.Bell:   return COINS_BELL;
-                case CasinoTier.Cherry: return COINS_CHERRY;
-                default:                return COINS_BUST;
+                case TableKind.GoldRush:
+                    switch (t)
+                    {
+                        case CasinoTier.Seven:  return GR_COINS_SEVEN;
+                        case CasinoTier.Bar:    return GR_COINS_BAR;
+                        case CasinoTier.Bell:   return GR_COINS_BELL;
+                        case CasinoTier.Cherry: return GR_COINS_CHERRY;
+                        default:                return GR_COINS_BUST;
+                    }
+                case TableKind.Mega:
+                    return t == CasinoTier.Seven ? MEGA_COINS_WIN : MEGA_COINS_BUST;
+                default:
+                    switch (t)
+                    {
+                        case CasinoTier.Seven:  return COINS_SEVEN;
+                        case CasinoTier.Bar:    return COINS_BAR;
+                        case CasinoTier.Bell:   return COINS_BELL;
+                        case CasinoTier.Cherry: return COINS_CHERRY;
+                        default:                return COINS_BUST;
+                    }
             }
+        }
+
+        // ---- The Ladder (P5b) — press-your-luck, state persisted ----
+
+        public bool LadderActive => state.ladderActive;
+        public long LadderPot    => state.ladderPot;
+        public int  LadderRung   => state.ladderRung;
+
+        public bool TryLadderStart()
+        {
+            if (state.ladderActive || state.ticketsBanked <= 0) return false;
+            state.ticketsBanked--;
+            state.lifetimePlays++;
+            state.playsThisRun++;
+            state.ladderActive = true;
+            state.ladderPot    = LADDER_BASE_POT;
+            state.ladderRung   = 0;
+            onSave?.Invoke();
+            return true;
+        }
+
+        // One rung up: fair double-or-fall. Returns true if the climb
+        // survived; on a fall the pot is gone (the wager was only ever
+        // this ticket's own winnings — the wallet is never touched).
+        public bool LadderClimb()
+        {
+            if (!state.ladderActive || state.ladderRung >= LADDER_MAX_RUNG) return false;
+            bool survive = _rng.NextDouble() < LADDER_SURVIVE;
+            if (survive)
+            {
+                state.ladderPot *= 2;
+                state.ladderRung++;
+            }
+            else
+            {
+                state.ladderPot    = 0;
+                state.ladderActive = false;
+            }
+            onSave?.Invoke();
+            return survive;
+        }
+
+        public long LadderBank()
+        {
+            if (!state.ladderActive) return 0;
+            long pot = state.ladderPot;
+            host.coins += pot;
+            if (state.ladderRung >= LADDER_JACKPOT_RUNG)
+            {
+                state.jackpotsThisRun++;
+                state.lifetimeJackpots++;
+            }
+            state.ladderActive = false;
+            state.ladderPot    = 0;
+            state.ladderRung   = 0;
+            onSave?.Invoke();
+            return pot;
+        }
+
+        // ---- High Stakes (P5b) — opt-in coin wager on a classic roll ----
+
+        // Consumes 1 ticket + escrows the wager; returns wager * tier
+        // multiplier (0 on bust). PlayResult.coins = the amount RETURNED
+        // (UI derives net). Wagers ignore CoinsMultiplier by design.
+        public PlayResult PlayHighStakes(long wager)
+        {
+            if (state.ticketsBanked <= 0 || wager <= 0 || host.coins < wager) return default;
+
+            state.ticketsBanked--;
+            host.coins -= wager;
+            bool rig = state.lifetimePlays == RIGGED_JACKPOT_AT
+                       && state.lifetimeJackpots == 0;
+            state.lifetimePlays++;
+            state.playsThisRun++;
+
+            CasinoTier tier = rig ? CasinoTier.Seven : RollTier(TableKind.Classic);
+            long mult;
+            switch (tier)
+            {
+                case CasinoTier.Seven:  mult = HS_MULT_SEVEN;  break;
+                case CasinoTier.Bar:    mult = HS_MULT_BAR;    break;
+                case CasinoTier.Bell:   mult = HS_MULT_BELL;   break;
+                case CasinoTier.Cherry: mult = HS_MULT_CHERRY; break;
+                default:                mult = 0;              break;
+            }
+            long returned = wager * mult;
+            host.coins += returned;
+            if (tier == CasinoTier.Seven)
+            {
+                state.jackpotsThisRun++;
+                state.lifetimeJackpots++;
+            }
+            onSave?.Invoke();
+            return new PlayResult { tier = tier, coins = returned, jackpot = tier == CasinoTier.Seven, rigged = rig };
         }
 
         // ---- run upgrades (coins) ----
