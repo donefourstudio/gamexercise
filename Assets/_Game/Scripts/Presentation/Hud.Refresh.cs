@@ -141,6 +141,8 @@ namespace Gamex.Game
             if (g.phase == AppPhase.Settings) UpdateSettings(g);
             Set(_hkGatePanel,             g.phase == AppPhase.HealthKitGate);
             if (g.phase == AppPhase.HealthKitGate) UpdateHealthKitGate();
+            Set(_fatePanel,               g.phase == AppPhase.FateHome);
+            if (g.phase == AppPhase.FateHome) UpdateFateShell(g);
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {

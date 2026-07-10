@@ -20,6 +20,10 @@ namespace Gamex.Game
 
         GamexGame _game;
         Hud _hud;
+        // Fate Cards mode (M_fate Phase 0). Latched ONCE in Awake from the
+        // RemoteConfig cache so the mode can't flip mid-session — a live
+        // remote change only lands on the next launch.
+        bool _fateMode;
 
         void Awake()
         {
@@ -36,7 +40,11 @@ namespace Gamex.Game
             // Cold start always lands on the Title screen — tapping "Start
             // Game" routes to DetermineInitialPhase() which picks the same
             // resume / new-player branch the bootstrap used to pick directly.
-            _game.phase = AppPhase.Title;
+            // Fate Cards mode (Phase 0 shell) boots straight into the
+            // placeholder instead; real routing (title / HK gate) lands with
+            // the Phase 2 screens. docs/fatecards-mvp-plan.md.
+            _fateMode = RemoteConfig.FateCardsEnabled;
+            _game.phase = _fateMode ? AppPhase.FateHome : AppPhase.Title;
 
             var camGO = new GameObject("MainCamera") { tag = "MainCamera" };
             var cam = camGO.AddComponent<Camera>();
@@ -202,6 +210,14 @@ namespace Gamex.Game
 
         void Update()
         {
+            // Phase-0 clamp: old-game logic can still auto-move the phase
+            // (e.g. AddActivity fires RaceSelect when level crosses 20).
+            // Until Fate mode has real routing (Phase 2), snap any such leak
+            // back to the shell so flag-on can never land on an old-game
+            // screen mid-session.
+            if (_fateMode && _game.phase != AppPhase.FateHome)
+                _game.phase = AppPhase.FateHome;
+
             _hud?.Refresh(_game);
 
             // (Old post-tutorial soft prompt removed — HealthKit is now a

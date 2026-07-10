@@ -26,7 +26,7 @@ namespace Gamex.Core
     public static class Migrations
     {
         // Bump every time a new migration block is added below.
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
 
         public static void Apply(GameState s)
         {
@@ -41,9 +41,19 @@ namespace Gamex.Core
                 s.schemaVersion = 1;
             }
 
+            // v1 -> v2: Fate Cards scaffold (M_fate Phase 0). Guarantees the
+            // nested FateState exists on saves written before the field was
+            // added. All-zero fields are a valid "never played Fate mode"
+            // state, so no value backfill is needed.
+            if (s.schemaVersion < 2)
+            {
+                if (s.fate == null) s.fate = new FateState();
+                s.schemaVersion = 2;
+            }
+
             // Future migrations go here, e.g.:
-            //   if (s.schemaVersion < 2) { ...split foo into foo_a + foo_b...; s.schemaVersion = 2; }
-            //   if (s.schemaVersion < 3) { ...backfill new default...;          s.schemaVersion = 3; }
+            //   if (s.schemaVersion < 3) { ...split foo into foo_a + foo_b...; s.schemaVersion = 3; }
+            //   if (s.schemaVersion < 4) { ...backfill new default...;          s.schemaVersion = 4; }
 
             // Forward-compat guard: a save from a newer build than the one
             // running (downgrade scenario) — we can't reverse-migrate, so

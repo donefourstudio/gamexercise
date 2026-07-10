@@ -443,6 +443,7 @@ namespace Gamex.Game
             BuildSettings(root);
             BuildHealthKitGate(root);
             BuildTutorialOverlay(root);
+            BuildFateShell(root);   // M_fate Phase 0 — inert unless AppPhase.FateHome
         }
 
     }

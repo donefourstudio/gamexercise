@@ -34,6 +34,25 @@ namespace Gamex.Game
             // no-op (no field corruption, version stays put).
             Migrations.Apply(v0);
             Check(v0.schemaVersion == Migrations.CurrentVersion, "Apply is idempotent on current-version save");
+            Check(v0.fate != null, "migration guarantees FateState on legacy saves");
+
+            // v1 save (pre-Fate, 2026-06 era) walks the ladder to v2 and
+            // gains a FateState (M_fate Phase 0).
+            var v1 = JsonUtility.FromJson<GameState>("{\"schemaVersion\":1,\"level\":7}");
+            Migrations.Apply(v1);
+            Check(v1.schemaVersion == 2 && v1.fate != null && v1.level == 7,
+                  "v1 -> v2 adds FateState, preserves fields");
+
+            // FateState survives the save round-trip (nested-object
+            // serialization through JsonUtility).
+            var fateGs = new GameState();
+            fateGs.fate.gold = 4321;
+            fateGs.fate.cardsBanked = 17;
+            fateGs.fate.permMidas = 2;
+            var fateBack = JsonUtility.FromJson<GameState>(JsonUtility.ToJson(fateGs));
+            Check(fateBack.fate != null && fateBack.fate.gold == 4321
+                  && fateBack.fate.cardsBanked == 17 && fateBack.fate.permMidas == 2,
+                  "FateState survives save round-trip");
 
             // Linear XP: 5000 steps per level, no curve.
             var g = new GamexGame();

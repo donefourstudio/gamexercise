@@ -35,6 +35,27 @@ namespace Gamex.Platform
         // GET completes.
         public static bool FilterManualEntries { get; private set; }
 
+        // Fate Cards boot-mode flag (M_fate Phase 0 — docs/fatecards-mvp-plan.md).
+        // Cache-only by design: GameRunner.Awake reads this ONCE to pick the
+        // session's mode, before the async fetch even starts. The fetched
+        // value only updates the PlayerPrefs cache and takes effect on the
+        // NEXT launch — flipping game modes mid-session would tear down the
+        // whole UI. The GAMEX_FATE scripting define forces the mode on for
+        // dev/QA builds; the Editor menu "Gamex > Fate Cards Mode" toggles
+        // the same cached key for play-mode testing.
+        public const string CACHE_KEY_FATE = "remote_config_fate_cards_v1";
+        public static bool FateCardsEnabled
+        {
+            get
+            {
+#if GAMEX_FATE
+                return true;
+#else
+                return PlayerPrefs.GetInt(CACHE_KEY_FATE, 0) != 0;
+#endif
+            }
+        }
+
         static RemoteConfig _instance;
 
         // Idempotent — safe to call from multiple entry points. GameRunner
@@ -91,6 +112,16 @@ namespace Gamex.Platform
                 HealthKitBridge.SetFilterManualEntries(next);
                 Debug.Log("[RemoteConfig] filterManualEntries -> " + next);
             }
+
+            // Fate Cards flag — cache for the NEXT launch only (see
+            // FateCardsEnabled above for why there's no live apply).
+            bool fate = parsed.fateCardsEnabled;
+            if (fate != (PlayerPrefs.GetInt(CACHE_KEY_FATE, 0) != 0))
+            {
+                PlayerPrefs.SetInt(CACHE_KEY_FATE, fate ? 1 : 0);
+                PlayerPrefs.Save();
+                Debug.Log("[RemoteConfig] fateCardsEnabled -> " + fate + " (applies next launch)");
+            }
         }
 
         // Server JSON shape. Add fields here as future flags are needed.
@@ -100,6 +131,7 @@ namespace Gamex.Platform
         class ConfigSchema
         {
             public bool filterManualEntries;
+            public bool fateCardsEnabled;   // M_fate Phase 0 boot-mode flag
         }
     }
 }

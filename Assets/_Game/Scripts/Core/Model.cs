@@ -54,6 +54,11 @@ namespace Gamex.Core
         // detail page — big preview + price + Buy/Apply/Remove CTA. Mirrors
         // SetDetail for sets. Appended last for save-compat.
         SkinDetail,
+        // Fate Cards mode (M_fate Phase 0) — flag-gated parallel experience
+        // (docs/fatecards-mvp-plan.md). Phase 0 ships a placeholder shell;
+        // FateScratch / FateUpgrades / FateAscend follow with their screens.
+        // Appended last per the save-compat convention.
+        FateHome,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
@@ -226,5 +231,41 @@ namespace Gamex.Core
         // upgrading the app doesn't suddenly silence the game).
         public bool sfxMuted;
         public bool bgmMuted;
+
+        // ---- Fate Cards mode (M_fate Phase 0) ----
+        // Guaranteed non-null from schemaVersion 2 (Migrations backfills
+        // older saves). See FateState below + docs/fatecards-mvp-plan.md.
+        public FateState fate = new FateState();
+    }
+
+    // Fate Cards mode state (M_fate Phase 0 — docs/fatecards-mvp-plan.md).
+    // Nested inside GameState so it rides the existing save + migration
+    // machinery. Every field's zero-default is a valid "never played Fate
+    // mode" state, so fresh saves and migrated pre-Fate saves both work
+    // with no value backfill. Economy constants (payout table, upgrade
+    // costs, steps-per-card) live in FateGame (Phase 1), not in state.
+    [Serializable]
+    public class FateState
+    {
+        public long gold;                    // the winnings currency ("+500 GOLD")
+        public int  cardsBanked;             // unscratched Fate Cards in hand
+        public int  cardCap;                 // 0 = FateGame default (~300); >0 = upgraded cap
+        public int  stepAccumulator;         // leftover steps not yet worth a card (0..stepsPerCard-1)
+        public long lifetimeCardsScratched;  // never resets — real-effort record
+
+        // ---- current run (resets on Ascension) ----
+        public int cardsThisRun;             // effort-floor input for AP
+        public int jackpotsThisRun;          // primary AP driver + ascension gate
+        public int runFortune;               // per-run upgrade levels (gold-bought)
+        public int runFavor;
+        public int runEndurance;
+
+        // ---- permanent (never resets) ----
+        public float ascensionPoints;        // AP wallet (fractional — effort floor pays cards/40)
+        public int   ascensionCount;
+        public bool  firstAscensionDone;     // the scripted tutorial ascension (Fix #1)
+        public int   permMidas;              // AP-tree levels — MVP trio
+        public int   permBlessedFate;
+        public int   permMarathoner;
     }
 }
