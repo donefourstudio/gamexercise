@@ -59,6 +59,7 @@ namespace Gamex.Game
         GameObject _scCard;
         readonly GameObject[]  _scCells = new GameObject[3];
         readonly TMP_Text[]    _scCellTexts = new TMP_Text[3];
+        readonly Image[]       _scCellIcons = new Image[3];   // P5a — Caz symbol sprites (text = fallback)
         readonly bool[]        _scCellFlipped = new bool[3];
         readonly CasinoTier[]  _scCellSymbols = new CasinoTier[3];
         readonly ScratchFoil[] _scFoils = new ScratchFoil[3];
@@ -73,9 +74,18 @@ namespace Gamex.Game
         static readonly Vector2 SC_CARD_POS = new Vector2(0f, 250f);
 
         // ---- Slots (P4) — same pre-rolled engine, reel theatre ----
+        // P5a: real cabinet from Caz's Pixel Fantasy Slot Machine. The pack
+        // is LAYERED on one 816x624 canvas: glass backdrop -> symbols ->
+        // translucent glass shade -> cabinet (reel windows are punched
+        // holes) -> crank (up/pulled states swapped on spin). Reel centers
+        // measured from the glass layer: (-125.5,-38.5) (+4.5,-38.5)
+        // (+134.5,-38.5), windows 108x210 — scaled by 900/816 below.
         GameObject _casinoSlotsPanel, _slMachine, _slSpinBtn;
         TMP_Text _slCoins, _slTickets, _slResultLine, _slEmptyLabel;
         readonly TMP_Text[]   _slReelTexts = new TMP_Text[3];
+        readonly Image[]      _slReelIcons = new Image[3];
+        Image _slCrankUp, _slCrankDown;
+        float _slCrankDownT;
         readonly CasinoTier[] _slFinal   = new CasinoTier[3];
         readonly bool[]       _slStopped = new bool[3];
         readonly float[]      _slStopAt  = new float[3];
@@ -84,7 +94,12 @@ namespace Gamex.Game
         bool  _slHasPending;
         float _slSpinT, _slCycleT, _slShakeT, _slResultPopT;
         float _slCoinsShown = -1f;
-        static readonly Vector2 SL_MACHINE_POS = new Vector2(0f, 280f);
+        static readonly Vector2 SL_MACHINE_POS  = new Vector2(0f, 330f);
+        static readonly Vector2 SL_MACHINE_SIZE = new Vector2(900f, 688f);   // 816x624 * 1.1029
+        static readonly Vector2[] SL_REEL_POS =
+        {
+            new Vector2(-138.4f, -42.5f), new Vector2(5.0f, -42.5f), new Vector2(148.4f, -42.5f),
+        };
         bool SlotsAllStopped => _slStopped[0] && _slStopped[1] && _slStopped[2];
 
         // ---- Upgrades ----
@@ -104,6 +119,8 @@ namespace Gamex.Game
         Vector2[] _burstVel;
         float[]   _burstSpin;
         bool      _burstAny;
+        Sprite[]  _coinFrames;   // P5a — Caz coin-flip flipbook (null entries = fallback)
+        float     _coinFlipT;
 
         // ============================================================
         // Lobby
@@ -153,6 +170,11 @@ namespace Gamex.Game
             MkButton("Slots", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -530f), new Vector2(640f, 110f), "SLOTS",
                 () => _onCasinoNav((int)AppPhase.CasinoSlots));
+            // Little cabinet by the door (P5a dressing) — only if imported.
+            var slotDeco = Make.Casino("slot_full");
+            if (slotDeco != null)
+                MkSpriteIcon("SlotDeco", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
+                    new Vector2(-425f, -530f), new Vector2(128f, 98f), slotDeco, Color.white);
             MkButton("Upgrades", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -670f), new Vector2(640f, 110f), "UPGRADES",
                 () => _onCasinoNav((int)AppPhase.CasinoUpgrades));
@@ -213,8 +235,13 @@ namespace Gamex.Game
                     "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
                 _scCells[i] = cell;
                 // Symbol sits UNDER the foil — scratching uncovers it.
+                // Sprite icon is primary (P5a); text is the fallback when
+                // the art hasn't imported.
                 _scCellTexts[i] = MkText("Sym", cell.transform, new Vector2(0.5f, 0.5f),
                     Vector2.zero, new Vector2(260f, 320f), FS_BTN, TextAnchor.MiddleCenter, TextDim);
+                _scCellIcons[i] = MkSpriteIcon("SymIcon", cell.transform, new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(190f, 190f), (Sprite)null, Color.white).GetComponent<Image>();
+                _scCellIcons[i].enabled = false;
                 // The scratchable foil (P3): RawImage + runtime texture.
                 var foilGo = new GameObject("Foil", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
                 foilGo.transform.SetParent(cell.transform, false);
@@ -282,9 +309,39 @@ namespace Gamex.Game
             else for (int i = 0; i < 3; i++) _scCellSymbols[i] = _scPending.tier;
             for (int i = 0; i < 3; i++)
             {
-                _scCellTexts[i].text  = CasinoSymbolLabel(_scCellSymbols[i]);
-                _scCellTexts[i].color = CasinoTierColor(_scCellSymbols[i]);
+                SetSymbolCell(_scCellIcons[i], _scCellTexts[i], _scCellSymbols[i]);
                 _scFoils[i].ResetFoil();
+            }
+        }
+
+        // Sprite-first symbol display with text fallback (art may be absent
+        // in a fresh checkout before the Casino/ import).
+        static Sprite CasinoSymbolSprite(CasinoTier t)
+        {
+            switch (t)
+            {
+                case CasinoTier.Seven:  return Make.Casino("sym_seven");
+                case CasinoTier.Bar:    return Make.Casino("sym_bar");
+                case CasinoTier.Bell:   return Make.Casino("sym_bell");
+                case CasinoTier.Cherry: return Make.Casino("sym_cherry");
+                default:                return null;
+            }
+        }
+
+        static void SetSymbolCell(Image icon, TMP_Text label, CasinoTier t)
+        {
+            var s = CasinoSymbolSprite(t);
+            if (icon != null && s != null)
+            {
+                icon.sprite  = s;
+                icon.enabled = true;
+                label.text   = "";
+            }
+            else
+            {
+                if (icon != null) icon.enabled = false;
+                label.text  = CasinoSymbolLabel(t);
+                label.color = CasinoTierColor(t);
             }
         }
 
@@ -686,22 +743,31 @@ namespace Gamex.Game
                 new Vector2(-50f, -140f - SAFE_AREA_TOP_INSET), new Vector2(500f, 60f),
                 FS_LABEL, TextAnchor.UpperRight, TextWhite);
 
-            _slMachine = MkSpritePanel("Machine", _casinoSlotsPanel.transform, new Vector2(0.5f, 0.5f),
-                SL_MACHINE_POS, new Vector2(960f, 460f), "panel", PanelTint);
+            // The machine: Caz's layered cabinet. Bottom-to-top: glass
+            // backdrop -> reel symbols -> translucent glass shade (reel
+            // shading over the symbols) -> cabinet (windows are punched
+            // holes) -> crank up/down. All layers share the same canvas so
+            // stacked full-size Images stay registered. Falls back to bare
+            // symbol text if the art is missing.
+            _slMachine = MkPanel("Machine", _casinoSlotsPanel.transform, new Vector2(0.5f, 0.5f),
+                SL_MACHINE_POS, SL_MACHINE_SIZE, new Color(0f, 0f, 0f, 0f));
             _slMachine.GetComponent<Image>().raycastTarget = false;
-            MkText("MachineTitle", _slMachine.transform, new Vector2(0.5f, 1f), new Vector2(0f, -28f),
-                new Vector2(900f, 56f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "· SLOTS ·";
 
+            MkSlotLayer("GlassBack", "slot_glass", Color.white);
             for (int i = 0; i < 3; i++)
             {
-                var win = MkSpritePanel("Reel" + i, _slMachine.transform, new Vector2(0.5f, 0.5f),
-                    new Vector2(-300f + 300f * i, -20f), new Vector2(270f, 250f),
-                    "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
-                win.GetComponent<Image>().raycastTarget = false;
-                _slReelTexts[i] = MkText("Sym", win.transform, new Vector2(0.5f, 0.5f),
-                    Vector2.zero, new Vector2(260f, 240f), FS_BTN, TextAnchor.MiddleCenter, TextDim);
+                _slReelTexts[i] = MkText("Sym" + i, _slMachine.transform, new Vector2(0.5f, 0.5f),
+                    SL_REEL_POS[i], new Vector2(130f, 220f), FS_BTN, TextAnchor.MiddleCenter, TextDim);
                 _slReelTexts[i].text = "—";
+                _slReelIcons[i] = MkSpriteIcon("SymIcon" + i, _slMachine.transform, new Vector2(0.5f, 0.5f),
+                    SL_REEL_POS[i], new Vector2(106f, 106f), (Sprite)null, Color.white).GetComponent<Image>();
+                _slReelIcons[i].enabled = false;
             }
+            var shade = MkSlotLayer("GlassShade", "slot_glass", new Color(1f, 1f, 1f, 0.45f));
+            MkSlotLayer("Cabinet", "slot_cabinet", Color.white);
+            _slCrankUp   = MkSlotLayer("CrankUp",   "slot_crank_up",   Color.white);
+            _slCrankDown = MkSlotLayer("CrankDown", "slot_crank_down", Color.white);
+            if (_slCrankDown != null) _slCrankDown.enabled = false;
 
             _slEmptyLabel = MkText("Empty", _casinoSlotsPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -150f), new Vector2(1040f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
@@ -720,6 +786,18 @@ namespace Gamex.Game
                 () => _onCasinoNav((int)AppPhase.CasinoLobby), sfx: "back");
         }
 
+        // One full-canvas layer of the slot machine sandwich. Returns the
+        // Image (disabled when the sprite hasn't been imported, so the
+        // text-fallback view still works).
+        Image MkSlotLayer(string name, string spriteName, Color tint)
+        {
+            var spr = Make.Casino(spriteName);
+            var img = MkSpriteIcon(name, _slMachine.transform, new Vector2(0.5f, 0.5f),
+                Vector2.zero, SL_MACHINE_SIZE, spr, tint).GetComponent<Image>();
+            img.enabled = spr != null;
+            return img;
+        }
+
         void SlotsSpin()
         {
             if (!_casino.CanPlay || (_slHasPending && !SlotsAllStopped)) return;
@@ -733,6 +811,7 @@ namespace Gamex.Game
             // extra beat — maximum tension whether it hits or heartbreaks.
             if (_slFinal[0] == _slFinal[1]) _slStopAt[2] += 0.7f;
             for (int i = 0; i < 3; i++) _slStopped[i] = false;
+            _slCrankDownT = 0.35f;   // pull the lever
         }
 
         void SlotsResolve()
@@ -783,8 +862,7 @@ namespace Gamex.Game
                     if (_slSpinT >= _slStopAt[i])
                     {
                         _slStopped[i] = true;
-                        _slReelTexts[i].text  = CasinoSymbolLabel(_slFinal[i]);
-                        _slReelTexts[i].color = CasinoTierColor(_slFinal[i]);
+                        SetSymbolCell(_slReelIcons[i], _slReelTexts[i], _slFinal[i]);
                         _slStopPop[i] = 0.25f;
                         Sfx.Play("tap");
                         if (i == 2) SlotsResolve();
@@ -792,23 +870,29 @@ namespace Gamex.Game
                     else if (cycle)
                     {
                         var t = (CasinoTier)UnityEngine.Random.Range((int)CasinoTier.Cherry, (int)CasinoTier.Seven + 1);
-                        _slReelTexts[i].text  = CasinoSymbolLabel(t);
-                        _slReelTexts[i].color = TextDim;
+                        SetSymbolCell(_slReelIcons[i], _slReelTexts[i], t);
                     }
                 }
             }
 
+            // Crank returns after the pull.
+            if (_slCrankDownT > 0f) _slCrankDownT -= dt;
+            bool crankDown = _slCrankDownT > 0f;
+            if (_slCrankDown != null && _slCrankDown.sprite != null) _slCrankDown.enabled = crankDown;
+            if (_slCrankUp   != null && _slCrankUp.sprite   != null) _slCrankUp.enabled   = !crankDown;
+
             // Per-reel stop pop.
             for (int i = 0; i < 3; i++)
             {
+                float s = 1f;
                 if (_slStopPop[i] > 0f)
                 {
                     _slStopPop[i] -= dt;
                     float t01 = 1f - Mathf.Clamp01(_slStopPop[i] / 0.25f);
-                    float s = Mathf.Lerp(1.3f, 1f, t01);
-                    _slReelTexts[i].rectTransform.localScale = new Vector3(s, s, 1f);
+                    s = Mathf.Lerp(1.3f, 1f, t01);
                 }
-                else _slReelTexts[i].rectTransform.localScale = Vector3.one;
+                _slReelTexts[i].rectTransform.localScale = new Vector3(s, s, 1f);
+                _slReelIcons[i].rectTransform.localScale = new Vector3(s, s, 1f);
             }
 
             // 777 machine shake.
@@ -847,13 +931,26 @@ namespace Gamex.Game
         void EnsureBurstPool()
         {
             if (_burstCoins != null) return;
+            // Caz coin-flip flipbook (P5a); falls back to the old UI coin.
+            _coinFrames = new Sprite[6];
+            bool anyFrame = false;
+            for (int i = 0; i < 6; i++)
+            {
+                _coinFrames[i] = Make.Casino("coin_gold_" + (i + 1));
+                anyFrame |= _coinFrames[i] != null;
+            }
+            if (!anyFrame) _coinFrames = null;
+
             _burstCoins = new Image[BURST_POOL];
             _burstVel   = new Vector2[BURST_POOL];
             _burstSpin  = new float[BURST_POOL];
             for (int i = 0; i < BURST_POOL; i++)
             {
-                var go = MkSpriteIcon("BurstCoin" + i, _casinoLobbyPanel.transform,
-                    new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(56f, 56f), "coin", Color.white);
+                var go = _coinFrames != null
+                    ? MkSpriteIcon("BurstCoin" + i, _casinoLobbyPanel.transform,
+                        new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(64f, 53f), _coinFrames[0], Color.white)
+                    : MkSpriteIcon("BurstCoin" + i, _casinoLobbyPanel.transform,
+                        new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(56f, 56f), "coin", Color.white);
                 go.SetActive(false);
                 _burstCoins[i] = go.GetComponent<Image>();
             }
@@ -885,11 +982,19 @@ namespace Gamex.Game
         void TickCoinBurst(float dt)
         {
             if (!_burstAny || _burstCoins == null) return;
+            // Flipbook: all airborne coins share a frame — reads as glinting.
+            Sprite frame = null;
+            if (_coinFrames != null)
+            {
+                _coinFlipT += dt;
+                frame = _coinFrames[(int)(_coinFlipT / 0.08f) % 6];
+            }
             bool any = false;
             for (int i = 0; i < BURST_POOL; i++)
             {
                 var img = _burstCoins[i];
                 if (!img.gameObject.activeSelf) continue;
+                if (frame != null) img.sprite = frame;
                 var rt = img.rectTransform;
                 _burstVel[i].y -= 2400f * dt;
                 rt.anchoredPosition += _burstVel[i] * dt;

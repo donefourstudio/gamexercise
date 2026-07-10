@@ -18,6 +18,9 @@ namespace Gamex.Game
         }
 
         public static Sprite UI(string name)        => Resources.Load<Sprite>("UI/" + name);
+        // Casino art (P5a) — Caz's Pixel Fantasy packs staged under
+        // Resources/Casino/ (slot cabinet layers, reel symbols, coins).
+        public static Sprite Casino(string name)    => Resources.Load<Sprite>("Casino/" + name);
         public static Sprite Char(string name)      => Resources.Load<Sprite>("Char/" + name);
         public static Sprite Equipment(string id)   => Resources.Load<Sprite>("Equip/" + id);
         // Phase 4 — full-body skin sprite (Resources/Skins/<id>.png). Returned by

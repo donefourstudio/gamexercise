@@ -22,7 +22,8 @@ namespace Gamex.EditorTools
             bool isIcons = p.Contains("/Resources/Icons/");
             bool isSets  = p.Contains("/Resources/Sets/");
             bool isSkins = p.Contains("/Resources/Skins/");
-            if (!isUI && !isChar && !isEquip && !isIcons && !isSets && !isSkins) return;
+            bool isCasino = p.Contains("/Resources/Casino/");
+            if (!isUI && !isChar && !isEquip && !isIcons && !isSets && !isSkins && !isCasino) return;
 
             ti.textureType        = TextureImporterType.Sprite;
             ti.spriteImportMode   = SpriteImportMode.Single;
@@ -36,12 +37,15 @@ namespace Gamex.EditorTools
             // Equipment overlays are 256x256 with content only in a small region —
             // force FullRect mesh so the sprite renders at its full canvas size
             // (not cropped to visible bounds, which would offset alignment).
-            if (isEquip || isSets || isSkins)
+            if (isEquip || isSets || isSkins || isCasino)
             {
                 // Sets/* + Skins/* are 256x256 full-character previews; FullRect
                 // prevents Sprite mesh from cropping to visible bounds and
                 // offsetting the centred layouts. Equip overlays also need
                 // FullRect so they composite at the body-coord y on the avatar.
+                // Casino/* includes layered slot-machine sprites (cabinet /
+                // glass / crank states) sharing one 816x624 canvas, stacked
+                // as aligned Images — FullRect keeps the layers registered.
                 var s = new TextureImporterSettings();
                 ti.ReadTextureSettings(s);
                 s.spriteMeshType = SpriteMeshType.FullRect;

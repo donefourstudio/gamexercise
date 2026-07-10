@@ -1,0 +1,17 @@
+Casino art assets by Caz Wolf ("Pixel Fantasy" series), licensed CC BY 4.0.
+
+Included here (renamed for Resources loading):
+- Pixel Fantasy Slot Machine  -> slot_*.png, sym_*.png
+  https://cazwolf.itch.io/pixel-slot-machine
+- Pixel Fantasy Coin Flip     -> coin_gold_*.png
+  https://cazwolf.itch.io/pixel-coin-flip
+- Pixel Fantasy Playing Cards -> card_*.png
+  https://cazwolf.itch.io/pixel-cards
+
+Artist: Caz Wolf — https://cazwolf.itch.io/
+License: Creative Commons Attribution 4.0 International (CC BY 4.0),
+per the packs' EULA. Redistribution here links back to the original
+store pages per the license terms. Thank you, Caz!
+
+(Ship reminder: credit Caz in the in-app credits screen too — tracked
+in docs/casino-mvp-plan.md P6.)

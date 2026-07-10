@@ -47,10 +47,12 @@ Second room, same engine: a spin consumes a ticket, pays from the same pre-rolle
 
 | Phase | Scope | Verify |
 |---|---|---|
-| **R — Restructure + reskin** (now) | Home CASINO button + lobby; kill mode-replacement; rename `Fate*`→`Casino*` end to end (flag, save field, phases, files — free: never shipped); unified wallet; Coins/777/deadpan strings | compile + LogicTest; Editor playtest |
-| **3 — Prestige + juice** | Cash-out Prestige ceremony, 777 fanfare, coin showers, shake, **true drag-to-scratch** (the tactile foil-erase — the scratch IS the product) | Editor playtest |
-| **4 — Slots + automation** | Reels room on the shared engine; **Auto Scratcher as an EARNED unlock** (PP tree) — processes the backlog once owned | Editor playtest |
-| **5 — Device + integration** | Real HealthKit on iPhone; tuning; **RPG integration: shop→trophy gallery + retroactive milestone credit** (quests→tickets already done); StoreKit unlock | device + TestFlight |
+| R — Restructure + reskin ✅ | Casino-as-section + rename + unified wallet + Coins/777 strings | done `71fa885` |
+| 3 — Prestige + juice ✅ | Prestige ceremony, 777 fanfare, coin showers, drag-to-scratch foil | done `0ab223b` |
+| 4 — Slots + automation ✅ | SLOTS reel room; Auto Scratcher as earned 8-PP one-time unlock | done `5a7bc1b` |
+| 5a — Art pass ✅ | Caz "Pixel Fantasy" packs (free, commercial-OK) imported to `Resources/Casino/`: layered slot cabinet (glass→symbols→shade→cabinet→crank up/down, windows measured at ±138.4/5.0 ×-offsets), real CHERRY/BELL/BAR/7 sprites on reels + scratch cells (text fallback kept), Caz coin flipbook in bursts, lobby cabinet dressing. Ticket-face composition + more dressing continues in 5b | Editor playtest |
+| **5b — Full game roster** | **LAUNCH REQUIRES ALL designed games** (user decision: the $5.99 unlock can't gate a thin product): Find the Cash, Gold Rush, The Ladder (press-luck), High Stakes (coin wagers), MEGA JACKPOT (white whale) — level-gated unlock ladder | compile + LogicTest EV checks per game + Editor playtest |
+| **6 — Ship prep** | Real HealthKit on iPhone; tuning from real walks; **shop→trophy gallery + retroactive milestone credit**; StoreKit $5.99 unlock; **in-app credits incl. Caz (CC BY 4.0 attribution)**; TestFlight | device + TestFlight |
 
 **Interim hybrid (dev-only):** quests now pay tickets (done); the old shop still charges coins until the P5 trophy conversion. Acceptable while the flag is off in prod — but the casino flag must be ON at ship (quest ticket rewards are invisible with it off).
 
