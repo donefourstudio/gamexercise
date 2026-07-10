@@ -54,13 +54,13 @@ namespace Gamex.Core
         // detail page — big preview + price + Buy/Apply/Remove CTA. Mirrors
         // SetDetail for sets. Appended last for save-compat.
         SkinDetail,
-        // Fate Cards mode (M_fate) — flag-gated parallel experience
-        // (docs/fatecards-mvp-plan.md). Phase 2 ships Home / Scratch /
-        // Upgrades; FateAscend follows in Phase 3. Appended last per the
-        // save-compat convention.
-        FateHome,
-        FateScratch,
-        FateUpgrades,
+        // The Casino — flag-gated section reached from Home
+        // (docs/casino-mvp-plan.md). Lobby -> Scratch / Upgrades; the
+        // Prestige and Slots screens follow in P3/P4. Appended last per
+        // the save-compat convention.
+        CasinoLobby,
+        CasinoScratch,
+        CasinoUpgrades,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
@@ -234,41 +234,44 @@ namespace Gamex.Core
         public bool sfxMuted;
         public bool bgmMuted;
 
-        // ---- Fate Cards mode (M_fate Phase 0) ----
+        // ---- The Casino ----
         // Guaranteed non-null from schemaVersion 2 (Migrations backfills
-        // older saves). See FateState below + docs/fatecards-mvp-plan.md.
-        public FateState fate = new FateState();
+        // older saves). See CasinoState below + docs/casino-mvp-plan.md.
+        // NOTE: the casino's coin winnings live in `coins` above — ONE
+        // unified wallet shared with quests + (until the P5 trophy
+        // conversion) the shop. Prestige resets that balance.
+        public CasinoState casino = new CasinoState();
     }
 
-    // Fate Cards mode state (M_fate Phase 0 — docs/fatecards-mvp-plan.md).
-    // Nested inside GameState so it rides the existing save + migration
-    // machinery. Every field's zero-default is a valid "never played Fate
-    // mode" state, so fresh saves and migrated pre-Fate saves both work
-    // with no value backfill. Economy constants (payout table, upgrade
-    // costs, steps-per-card) live in FateGame (Phase 1), not in state.
+    // Casino progression state (docs/casino-mvp-plan.md). Nested inside
+    // GameState so it rides the existing save + migration machinery. Every
+    // field's zero-default is a valid "never entered the casino" state, so
+    // fresh saves and migrated pre-casino saves both work with no value
+    // backfill. Economy constants (payout table, upgrade costs, steps-per-
+    // ticket) live in CasinoGame, not in state. Money is NOT here — the
+    // unified wallet is GameState.coins.
     [Serializable]
-    public class FateState
+    public class CasinoState
     {
-        public long gold;                    // the winnings currency ("+500 GOLD")
-        public int  cardsBanked;             // unscratched Fate Cards in hand
-        public int  cardCap;                 // 0 = FateGame default (~300); >0 = upgraded cap
-        public int  stepAccumulator;         // leftover steps not yet worth a card (0..stepsPerCard-1)
-        public long lifetimeCardsScratched;  // never resets — real-effort record
-        public long lifetimeJackpots;        // never resets — gates the one-time rigged first jackpot (Fix #1)
+        public int  ticketsBanked;       // unplayed tickets in hand (1 ticket = 1 scratch or 1 spin)
+        public int  ticketCap;           // 0 = CasinoGame default (~300); >0 = upgraded cap
+        public int  stepAccumulator;     // leftover steps not yet worth a ticket (0..stepsPerTicket-1)
+        public long lifetimePlays;       // never resets — real-effort record
+        public long lifetimeJackpots;    // never resets — gates the one-time rigged first 777 (Fix #1)
 
-        // ---- current run (resets on Ascension) ----
-        public int cardsThisRun;             // effort-floor input for AP
-        public int jackpotsThisRun;          // primary AP driver + ascension gate
-        public int runFortune;               // per-run upgrade levels (gold-bought)
-        public int runFavor;
-        public int runEndurance;
+        // ---- current run (resets on Prestige) ----
+        public int playsThisRun;         // effort-floor input for PP
+        public int jackpotsThisRun;      // primary PP driver + prestige gate
+        public int runPayout;            // run upgrade levels (coin-bought)
+        public int runLuck;
+        public int runStride;
 
         // ---- permanent (never resets) ----
-        public float ascensionPoints;        // AP wallet (fractional — effort floor pays cards/40)
-        public int   ascensionCount;
-        public bool  firstAscensionDone;     // the scripted tutorial ascension (Fix #1)
-        public int   permMidas;              // AP-tree levels — MVP trio
-        public int   permBlessedFate;
+        public float prestigePoints;     // PP wallet (fractional — effort floor pays plays/40)
+        public int   prestigeCount;
+        public bool  firstPrestigeDone;  // the scripted tutorial prestige (Fix #1)
+        public int   permGoldenTouch;    // PP-tree levels — MVP trio
+        public int   permLoadedDice;
         public int   permMarathoner;
     }
 }

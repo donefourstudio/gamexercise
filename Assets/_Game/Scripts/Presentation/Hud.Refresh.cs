@@ -30,7 +30,7 @@ namespace Gamex.Game
                     if (_titleCanvasGroup != null)  _titleCanvasGroup.alpha = 1f;
                     if (_titleStartButton != null)  _titleStartButton.interactable = true;
                 }
-                if (g.phase == AppPhase.FateScratch) OnEnterFateScratch();
+                if (g.phase == AppPhase.CasinoScratch) OnEnterCasinoScratch();
                 _lastPhase = g.phase;
             }
 
@@ -48,9 +48,9 @@ namespace Gamex.Game
                       || g.phase == AppPhase.SkinDetail
                       || g.phase == AppPhase.Inventory
                       || g.phase == AppPhase.Settings
-                      || g.phase == AppPhase.FateHome
-                      || g.phase == AppPhase.FateScratch
-                      || g.phase == AppPhase.FateUpgrades;
+                      || g.phase == AppPhase.CasinoLobby
+                      || g.phase == AppPhase.CasinoScratch
+                      || g.phase == AppPhase.CasinoUpgrades;
             if (bgmOn) Bgm.PlayLoop("bgm_home");
             else       Bgm.Stop();
 
@@ -145,12 +145,12 @@ namespace Gamex.Game
             if (g.phase == AppPhase.Settings) UpdateSettings(g);
             Set(_hkGatePanel,             g.phase == AppPhase.HealthKitGate);
             if (g.phase == AppPhase.HealthKitGate) UpdateHealthKitGate();
-            Set(_fatePanel,               g.phase == AppPhase.FateHome);
-            if (g.phase == AppPhase.FateHome) UpdateFateHome(g);
-            Set(_fateScratchPanel,        g.phase == AppPhase.FateScratch);
-            if (g.phase == AppPhase.FateScratch) UpdateFateScratch();
-            Set(_fateUpgradesPanel,       g.phase == AppPhase.FateUpgrades);
-            if (g.phase == AppPhase.FateUpgrades) UpdateFateUpgrades();
+            Set(_casinoLobbyPanel,        g.phase == AppPhase.CasinoLobby);
+            if (g.phase == AppPhase.CasinoLobby) UpdateCasinoLobby(g);
+            Set(_casinoScratchPanel,      g.phase == AppPhase.CasinoScratch);
+            if (g.phase == AppPhase.CasinoScratch) UpdateCasinoScratch();
+            Set(_casinoUpgradesPanel,     g.phase == AppPhase.CasinoUpgrades);
+            if (g.phase == AppPhase.CasinoUpgrades) UpdateCasinoUpgrades();
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {

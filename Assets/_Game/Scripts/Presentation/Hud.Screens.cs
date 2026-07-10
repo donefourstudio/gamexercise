@@ -152,8 +152,22 @@ namespace Gamex.Game
             // "Next form change" hint (text bottom at y=580 from screen bottom).
             MkButton("Quests", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 360f),
                 new Vector2(800f, 160f), "Quests", () => _onGoQuests?.Invoke());
-            MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 200f),
-                new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
+            // The Casino door (docs/casino-mvp-plan.md) — flag-gated at
+            // build time (RemoteConfig cache, read once per session), so
+            // flag-off ships a Home screen identical to today's. When on,
+            // Shop + Casino split the middle row.
+            if (RemoteConfig.CasinoEnabled)
+            {
+                MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(-215f, 200f),
+                    new Vector2(400f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
+                MkButton("Casino", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(215f, 200f),
+                    new Vector2(400f, 100f), "CASINO", () => _onCasinoNav((int)AppPhase.CasinoLobby));
+            }
+            else
+            {
+                MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(0f, 200f),
+                    new Vector2(420f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
+            }
 
             // Settings — sits below Shop with ~20px breathing. Visual hierarchy
             // reads Quests > Shop > Settings via decreasing width (800 / 420 / 380).

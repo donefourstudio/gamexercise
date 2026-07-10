@@ -357,9 +357,9 @@ namespace Gamex.Game
         readonly Action         _onGoSettings, _onToggleSfx, _onToggleBgm, _onResetProgress;
         readonly Action         _onLeaveTitle;
         readonly Action         _onConnectHealthKit;
-        // ---- Fate Cards mode (M_fate Phase 2) ----
-        readonly Action<int>    _onFateNav;   // arg = (int)AppPhase; Fate screens only
-        readonly FateGame       _fate;        // direct core ref — see Hud.FateCards.cs header
+        // ---- The Casino ----
+        readonly Action<int>    _onCasinoNav;   // arg = (int)AppPhase; casino nav incl. BACK to Home
+        readonly CasinoGame     _casino;        // direct core ref — see Hud.Casino.cs header
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -385,8 +385,8 @@ namespace Gamex.Game
             Action onResetProgress,
             Action onLeaveTitle,
             Action onConnectHealthKit,
-            Action<int> onFateNav,
-            FateGame fate)
+            Action<int> onCasinoNav,
+            CasinoGame casino)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -411,8 +411,8 @@ namespace Gamex.Game
             _onResetProgress       = onResetProgress;
             _onLeaveTitle          = onLeaveTitle;
             _onConnectHealthKit    = onConnectHealthKit;
-            _onFateNav             = onFateNav;
-            _fate                  = fate;
+            _onCasinoNav           = onCasinoNav;
+            _casino                = casino;
 
             if (EventSystem.current == null)
             {
@@ -450,9 +450,9 @@ namespace Gamex.Game
             BuildSettings(root);
             BuildHealthKitGate(root);
             BuildTutorialOverlay(root);
-            BuildFateHome(root);      // M_fate Phase 2 — flag-gated screens,
-            BuildFateScratch(root);   // all inert unless the phase is one of
-            BuildFateUpgrades(root);  // the AppPhase.Fate* values
+            BuildCasinoLobby(root);      // The Casino — flag-gated section,
+            BuildCasinoScratch(root);    // inert unless the phase is one of
+            BuildCasinoUpgrades(root);   // the AppPhase.Casino* values
         }
 
     }

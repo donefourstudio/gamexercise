@@ -20,15 +20,11 @@ namespace Gamex.Game
 
         GamexGame _game;
         Hud _hud;
-        // Fate Cards mode (M_fate). Latched ONCE in Awake from the
-        // RemoteConfig cache so the mode can't flip mid-session — a live
-        // remote change only lands on the next launch.
-        bool _fateMode;
-        // Fate economy core. Constructed in BOTH modes (it's inert without
-        // input) so the mode flip never races save-state setup; only Fate
-        // mode routes activity into it.
-        FateGame _fate;
-        public FateGame Fate => _fate;
+        // Casino economy core (docs/casino-mvp-plan.md). Always constructed
+        // and always fed activity — tickets accrue harmlessly even while
+        // the RemoteConfig flag hides the Casino button.
+        CasinoGame _casino;
+        public CasinoGame Casino => _casino;
 
         void Awake()
         {
@@ -42,17 +38,14 @@ namespace Gamex.Game
             _game.onSave = () => SaveSystem.Save(_game.state);
             _game.CatchUpDays();
 
-            _fate = new FateGame(_game.state.fate);
-            _fate.onSave = () => SaveSystem.Save(_game.state);
+            _casino = new CasinoGame(_game.state);
+            _casino.onSave = () => SaveSystem.Save(_game.state);
 
             // Cold start always lands on the Title screen — tapping "Start
             // Game" routes to DetermineInitialPhase() which picks the same
             // resume / new-player branch the bootstrap used to pick directly.
-            // Fate Cards mode (Phase 0 shell) boots straight into the
-            // placeholder instead; real routing (title / HK gate) lands with
-            // the Phase 2 screens. docs/fatecards-mvp-plan.md.
-            _fateMode = RemoteConfig.FateCardsEnabled;
-            _game.phase = _fateMode ? AppPhase.FateHome : AppPhase.Title;
+            // (The Casino is an in-game section off Home, not a boot mode.)
+            _game.phase = AppPhase.Title;
 
             var camGO = new GameObject("MainCamera") { tag = "MainCamera" };
             var cam = camGO.AddComponent<Camera>();
@@ -131,7 +124,7 @@ namespace Gamex.Game
                 {
                     SaveSystem.Wipe();
                     _game.state = new GameState();
-                    _fate.state = _game.state.fate;   // re-point at the fresh nested state
+                    _casino.host = _game.state;   // re-point at the fresh save
                     _game.phase = AppPhase.Title;   // back to the front door
                     // SyncHealthKit reads state.todayHealthKitSteps which is
                     // now 0, so the next focus event will write the full HK
@@ -161,13 +154,13 @@ namespace Gamex.Game
                         // Denied / NotDetermined: stay on gate; UI auto-updates.
                     });
                 },
-                // Fate Cards mode (M_fate Phase 2). Nav sets the phase
-                // directly (same pattern as onLeaveTitle). The FateGame ref
-                // is handed straight to the Hud — unlike GamexGame's
-                // callback routing — because scratch results must flow back
-                // into the reveal animation synchronously.
-                onFateNav:            p => _game.phase = (AppPhase)p,
-                fate:                 _fate);
+                // The Casino. Nav sets the phase directly (same pattern as
+                // onLeaveTitle — including BACK to AppPhase.Home). The
+                // CasinoGame ref is handed straight to the Hud — unlike
+                // GamexGame's callback routing — because play results must
+                // flow back into the reveal animation synchronously.
+                onCasinoNav:          p => _game.phase = (AppPhase)p,
+                casino:               _casino);
 
             // Mirror persisted audio mutes into the Sfx/Bgm singletons so the
             // very first Refresh after Hud construction respects them. The
@@ -222,20 +215,11 @@ namespace Gamex.Game
 
         static bool IsGameplayPhase(AppPhase p)
             => p == AppPhase.Home || p == AppPhase.Quests || p == AppPhase.Shop
-            || p == AppPhase.Inventory || p == AppPhase.SetDetail || p == AppPhase.Settings;
-
-        static bool IsFatePhase(AppPhase p)
-            => p == AppPhase.FateHome || p == AppPhase.FateScratch || p == AppPhase.FateUpgrades;
+            || p == AppPhase.Inventory || p == AppPhase.SetDetail || p == AppPhase.Settings
+            || p == AppPhase.CasinoLobby || p == AppPhase.CasinoScratch || p == AppPhase.CasinoUpgrades;
 
         void Update()
         {
-            // Fate-mode clamp: old-game logic can still auto-move the phase
-            // (e.g. AddActivity fires RaceSelect when level crosses 20).
-            // Snap any such leak back to Fate Home so flag-on can never land
-            // on an old-game screen mid-session.
-            if (_fateMode && !IsFatePhase(_game.phase))
-                _game.phase = AppPhase.FateHome;
-
             _hud?.Refresh(_game);
 
             // (Old post-tutorial soft prompt removed — HealthKit is now a
@@ -259,9 +243,9 @@ namespace Gamex.Game
             if (Input.GetKeyDown(KeyCode.T))
             {
                 _game.AddActivity(1000, 0, 0);
-                // Fate mode: the same debug steps also fill the card faucet
+                // The same debug steps also fill the casino ticket faucet
                 // so the Editor loop is playable end to end.
-                if (_fateMode) _fate.GrantActivity(1000, 0);
+                _casino.GrantActivity(1000, 0);
             }
             // Shift+R from anywhere: nuke save + replay opening (dev / QA only).
             if (Input.GetKeyDown(KeyCode.R) &&
@@ -269,7 +253,7 @@ namespace Gamex.Game
             {
                 SaveSystem.Wipe();
                 _game.state = new GameState();
-                _fate.state = _game.state.fate;   // re-point at the fresh nested state
+                _casino.host = _game.state;   // re-point at the fresh save
                 _game.phase = AppPhase.OpeningIntro;
                 Debug.Log("[Gamex] save wiped, replaying opening");
             }
@@ -319,10 +303,10 @@ namespace Gamex.Game
                 if (delta > 0)
                 {
                     _game.AddActivity(delta, 0, 0);
-                    // Fate-mode dual feed: levels / streaks (sacred stats)
-                    // keep ticking through the old pipeline while the same
-                    // delta fills the card faucet.
-                    if (_fateMode) _fate.GrantActivity(delta, 0);
+                    // Dual feed: levels / streaks (sacred stats) keep
+                    // ticking through the old pipeline while the same delta
+                    // fills the casino ticket faucet.
+                    _casino.GrantActivity(delta, 0);
                 }
                 _game.state.todayHealthKitSteps = steps;
                 _game.onSave?.Invoke();
@@ -334,7 +318,7 @@ namespace Gamex.Game
                 if (delta > 0)
                 {
                     _game.AddActivity(0, 0, delta);
-                    if (_fateMode) _fate.GrantActivity(0, delta);   // Marathoner bonus credit
+                    _casino.GrantActivity(0, delta);   // Marathoner bonus credit
                 }
                 _game.state.todayHealthKitRunSeconds = runSec;
                 _game.onSave?.Invoke();

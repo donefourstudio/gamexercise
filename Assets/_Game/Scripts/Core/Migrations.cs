@@ -41,13 +41,16 @@ namespace Gamex.Core
                 s.schemaVersion = 1;
             }
 
-            // v1 -> v2: Fate Cards scaffold (M_fate Phase 0). Guarantees the
-            // nested FateState exists on saves written before the field was
-            // added. All-zero fields are a valid "never played Fate mode"
-            // state, so no value backfill is needed.
+            // v1 -> v2: Casino scaffold. Guarantees the nested CasinoState
+            // exists on saves written before the field was added. All-zero
+            // fields are a valid "never entered the casino" state, so no
+            // value backfill is needed. (Historical note: v2 originally
+            // added this as `fate`/FateState; renamed wholesale to casino
+            // in Phase R before the feature ever shipped, so no production
+            // save carries the old key.)
             if (s.schemaVersion < 2)
             {
-                if (s.fate == null) s.fate = new FateState();
+                if (s.casino == null) s.casino = new CasinoState();
                 s.schemaVersion = 2;
             }
 

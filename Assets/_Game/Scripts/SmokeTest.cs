@@ -34,136 +34,155 @@ namespace Gamex.Game
             // no-op (no field corruption, version stays put).
             Migrations.Apply(v0);
             Check(v0.schemaVersion == Migrations.CurrentVersion, "Apply is idempotent on current-version save");
-            Check(v0.fate != null, "migration guarantees FateState on legacy saves");
+            Check(v0.casino != null, "migration guarantees CasinoState on legacy saves");
 
-            // v1 save (pre-Fate, 2026-06 era) walks the ladder to v2 and
-            // gains a FateState (M_fate Phase 0).
+            // v1 save (pre-casino, 2026-06 era) walks the ladder to v2 and
+            // gains a CasinoState.
             var v1 = JsonUtility.FromJson<GameState>("{\"schemaVersion\":1,\"level\":7}");
             Migrations.Apply(v1);
-            Check(v1.schemaVersion == 2 && v1.fate != null && v1.level == 7,
-                  "v1 -> v2 adds FateState, preserves fields");
+            Check(v1.schemaVersion == 2 && v1.casino != null && v1.level == 7,
+                  "v1 -> v2 adds CasinoState, preserves fields");
 
-            // FateState survives the save round-trip (nested-object
-            // serialization through JsonUtility).
-            var fateGs = new GameState();
-            fateGs.fate.gold = 4321;
-            fateGs.fate.cardsBanked = 17;
-            fateGs.fate.permMidas = 2;
-            var fateBack = JsonUtility.FromJson<GameState>(JsonUtility.ToJson(fateGs));
-            Check(fateBack.fate != null && fateBack.fate.gold == 4321
-                  && fateBack.fate.cardsBanked == 17 && fateBack.fate.permMidas == 2,
-                  "FateState survives save round-trip");
+            // CasinoState + the unified coin wallet survive the save
+            // round-trip (nested-object serialization through JsonUtility).
+            var casGs = new GameState();
+            casGs.coins = 4321;                     // unified wallet
+            casGs.casino.ticketsBanked = 17;
+            casGs.casino.permGoldenTouch = 2;
+            var casBack = JsonUtility.FromJson<GameState>(JsonUtility.ToJson(casGs));
+            Check(casBack.casino != null && casBack.coins == 4321
+                  && casBack.casino.ticketsBanked == 17 && casBack.casino.permGoldenTouch == 2,
+                  "CasinoState + unified wallet survive save round-trip");
 
-            // ==== Fate Cards core economy (M_fate Phase 1) ====
+            // ==== Casino core economy ====
             // RNG is seeded so every run of this suite is reproducible.
+            // Coins are the UNIFIED wallet (GameState.coins), so every
+            // money assertion checks the host, not CasinoState.
 
-            // Faucet: 1 card / 100 steps, remainder accumulates across ticks.
-            var ff = new FateGame(new FateState(), new System.Random(12345));
-            ff.GrantActivity(250, 0);
-            Check(ff.state.cardsBanked == 2 && ff.state.stepAccumulator == 50,
-                  "250 steps -> 2 cards + 50 acc, got " + ff.state.cardsBanked + "/" + ff.state.stepAccumulator);
-            ff.GrantActivity(50, 0);
-            Check(ff.state.cardsBanked == 3 && ff.state.stepAccumulator == 0, "accumulator completes a card");
+            // Faucet: 1 ticket / 100 steps, remainder accumulates across ticks.
+            var chost = new GameState();
+            var cg = new CasinoGame(chost, new System.Random(12345));
+            cg.GrantActivity(250, 0);
+            Check(cg.state.ticketsBanked == 2 && cg.state.stepAccumulator == 50,
+                  "250 steps -> 2 tickets + 50 acc, got " + cg.state.ticketsBanked + "/" + cg.state.stepAccumulator);
+            cg.GrantActivity(50, 0);
+            Check(cg.state.ticketsBanked == 3 && cg.state.stepAccumulator == 0, "accumulator completes a ticket");
 
             // Fix #1: a jackpot is guaranteed within the first 3 lifetime
-            // cards (card #3 is rigged if none landed naturally).
-            var s1 = ff.ScratchCard(); var s2 = ff.ScratchCard(); var s3 = ff.ScratchCard();
-            Check(s1.jackpot || s2.jackpot || s3.jackpot, "first session guarantees a jackpot within 3 cards");
-            Check(ff.state.lifetimeJackpots >= 1 && ff.state.jackpotsThisRun >= 1, "jackpot counters tick");
-            Check(ff.state.cardsBanked == 0 && !ff.CanScratch, "scratching consumes cards");
-            Check(ff.ScratchCard().gold == 0 && ff.state.lifetimeCardsScratched == 3,
-                  "scratch at 0 cards is a no-op");
+            // plays (play #3 is rigged if none landed naturally).
+            var p1 = cg.Play(); var p2 = cg.Play(); var p3 = cg.Play();
+            Check(p1.jackpot || p2.jackpot || p3.jackpot, "first session guarantees a 777 within 3 plays");
+            Check(cg.state.lifetimeJackpots >= 1 && cg.state.jackpotsThisRun >= 1, "jackpot counters tick");
+            Check(chost.coins >= 2000, "jackpot coins land in the unified wallet");
+            Check(cg.state.ticketsBanked == 0 && !cg.CanPlay, "plays consume tickets");
+            Check(cg.Play().coins == 0 && cg.state.lifetimePlays == 3, "play at 0 tickets is a no-op");
 
-            // Distribution: 50k scratches at luck 0 -> EV within 72 +/- 5,
-            // jackpot rate within 1.5% +/- 0.4%. (SEM at 50k ~ 1.1 gold /
+            // Distribution: 50k plays at luck 0 -> EV within 72 +/- 5,
+            // jackpot rate within 1.5% +/- 0.4%. (SEM at 50k ~ 1.1 coins /
             // 0.05%, so a fail means the table changed, not noise.)
-            var fdist = new FateGame(new FateState { lifetimeJackpots = 1 }, new System.Random(777));
-            fdist.state.cardsBanked = 50000;
-            long distGold = 0; int distSuns = 0;
-            for (int i = 0; i < 50000; i++) { var r = fdist.ScratchCard(); distGold += r.gold; if (r.jackpot) distSuns++; }
-            double distEv = distGold / 50000.0, distSunRate = distSuns / 50000.0;
-            Check(distEv > 67 && distEv < 77, $"Three Fates EV ~72, got {distEv:F1}");
-            Check(distSunRate > 0.011 && distSunRate < 0.019, $"jackpot rate ~1.5%, got {distSunRate:P2}");
+            var dhost = new GameState();
+            dhost.casino.lifetimeJackpots = 1;    // disarm the rig
+            var cdist = new CasinoGame(dhost, new System.Random(777));
+            cdist.state.ticketsBanked = 50000;
+            long distCoins = 0; int distSevens = 0;
+            for (int i = 0; i < 50000; i++) { var r = cdist.Play(); distCoins += r.coins; if (r.jackpot) distSevens++; }
+            double distEv = distCoins / 50000.0, distSevenRate = distSevens / 50000.0;
+            Check(distEv > 67 && distEv < 77, $"payout EV ~72, got {distEv:F1}");
+            Check(distSevenRate > 0.011 && distSevenRate < 0.019, $"jackpot rate ~1.5%, got {distSevenRate:P2}");
+            Check(dhost.coins == distCoins, "every payout lands in the host wallet");
 
-            // Luck (Favor + BlessedFate) shifts the table: +0.3%/lvl into
-            // Sun, busts -> moons. EV at luck 5 ~ 72 + 6.185*5 = 102.9.
-            var fluck = new FateGame(new FateState { lifetimeJackpots = 1 }, new System.Random(778));
-            fluck.state.runFavor = 5;
-            Check(System.Math.Abs(fluck.JackpotChance - 0.030f) < 1e-4, "luck 5 -> 3.0% jackpot odds");
-            fluck.state.cardsBanked = 50000;
-            long luckGold = 0; int luckSuns = 0;
-            for (int i = 0; i < 50000; i++) { var r = fluck.ScratchCard(); luckGold += r.gold; if (r.jackpot) luckSuns++; }
-            double luckEv = luckGold / 50000.0, luckSunRate = luckSuns / 50000.0;
+            // Luck (run Luck + Loaded Dice) shifts the table: +0.3%/lvl into
+            // Seven, busts -> cherries. EV at luck 5 ~ 72 + 6.185*5 = 102.9.
+            var lhost = new GameState();
+            lhost.casino.lifetimeJackpots = 1;
+            var cluck = new CasinoGame(lhost, new System.Random(778));
+            cluck.state.runLuck = 5;
+            Check(System.Math.Abs(cluck.JackpotChance - 0.030f) < 1e-4, "luck 5 -> 3.0% jackpot odds");
+            cluck.state.ticketsBanked = 50000;
+            long luckCoins = 0; int luckSevens = 0;
+            for (int i = 0; i < 50000; i++) { var r = cluck.Play(); luckCoins += r.coins; if (r.jackpot) luckSevens++; }
+            double luckEv = luckCoins / 50000.0, luckSevenRate = luckSevens / 50000.0;
             Check(luckEv > 97 && luckEv < 109, $"EV at luck 5 ~102.9, got {luckEv:F1}");
-            Check(luckSunRate > 0.025 && luckSunRate < 0.035, $"jackpot ~3% at luck 5, got {luckSunRate:P2}");
+            Check(luckSevenRate > 0.025 && luckSevenRate < 0.035, $"jackpot ~3% at luck 5, got {luckSevenRate:P2}");
 
-            // Fortune + Midas multiply payouts (deterministic via the rigged
-            // Sun): 2000 * (1 + 5*0.08 + 2*0.05) = 3000.
-            var fmult = new FateGame(new FateState { lifetimeCardsScratched = 2 }, new System.Random(1));
-            fmult.state.runFortune = 5; fmult.state.permMidas = 2; fmult.state.cardsBanked = 1;
-            var rigged = fmult.ScratchCard();
-            Check(rigged.rigged && rigged.gold == 3000,
-                  "multipliers: rigged Sun pays 2000*1.5 = 3000, got " + rigged.gold);
+            // Payout + Golden Touch multiply payouts (deterministic via the
+            // rigged 777): 2000 * (1 + 5*0.08 + 2*0.05) = 3000.
+            var mhost = new GameState();
+            mhost.casino.lifetimePlays = 2;
+            var cmult = new CasinoGame(mhost, new System.Random(1));
+            cmult.state.runPayout = 5; cmult.state.permGoldenTouch = 2; cmult.state.ticketsBanked = 1;
+            var rigged = cmult.Play();
+            Check(rigged.rigged && rigged.coins == 3000,
+                  "multipliers: rigged 777 pays 2000*1.5 = 3000, got " + rigged.coins);
 
-            // Per-run upgrade curve + purchase gating.
-            var fup = new FateGame(new FateState(), new System.Random(2));
-            Check(fup.RunUpgradeCost(FateGame.RunUpgrade.Fortune) == 300, "Fortune L1 costs 300");
-            fup.state.gold = 720;   // exactly L1 (300) + L2 (420)
-            Check(fup.TryBuyRunUpgrade(FateGame.RunUpgrade.Fortune) && fup.state.runFortune == 1, "buy Fortune L1");
-            Check(fup.RunUpgradeCost(FateGame.RunUpgrade.Fortune) == 420, "Fortune L2 costs 420 (300*1.4)");
-            Check(fup.TryBuyRunUpgrade(FateGame.RunUpgrade.Fortune) && fup.state.gold == 0, "L2 drains the wallet");
-            Check(!fup.TryBuyRunUpgrade(FateGame.RunUpgrade.Fortune), "refuses purchase without gold");
-            fup.state.gold = 1000000;
-            for (int i = 0; i < 10; i++) fup.TryBuyRunUpgrade(FateGame.RunUpgrade.Endurance);
-            Check(fup.state.runEndurance == 7 && fup.StepsPerCard == 44,
-                  "Endurance caps at L7 -> 44 steps/card floor");
+            // Run upgrade curve + purchase gating (spends the unified wallet).
+            var uhost = new GameState();
+            var cup = new CasinoGame(uhost, new System.Random(2));
+            Check(cup.RunUpgradeCost(CasinoGame.RunUpgrade.Payout) == 300, "Payout L1 costs 300");
+            uhost.coins = 720;   // exactly L1 (300) + L2 (420)
+            Check(cup.TryBuyRunUpgrade(CasinoGame.RunUpgrade.Payout) && cup.state.runPayout == 1, "buy Payout L1");
+            Check(cup.RunUpgradeCost(CasinoGame.RunUpgrade.Payout) == 420, "Payout L2 costs 420 (300*1.4)");
+            Check(cup.TryBuyRunUpgrade(CasinoGame.RunUpgrade.Payout) && uhost.coins == 0, "L2 drains the wallet");
+            Check(!cup.TryBuyRunUpgrade(CasinoGame.RunUpgrade.Payout), "refuses purchase without coins");
+            uhost.coins = 1000000;
+            for (int i = 0; i < 10; i++) cup.TryBuyRunUpgrade(CasinoGame.RunUpgrade.Stride);
+            Check(cup.state.runStride == 7 && cup.StepsPerTicket == 44,
+                  "Stride caps at L7 -> 44 steps/ticket floor");
 
-            // Scripted first ascension: pure-effort gate at 25 cards; grants
-            // flat 5 AP; resets gold + run levels; NEVER touches banked
-            // cards / lifetime counters (never punish exercise).
-            var fasc = new FateGame(new FateState { lifetimeJackpots = 1 }, new System.Random(3));
-            fasc.state.cardsBanked = 30;
-            for (int i = 0; i < 24; i++) fasc.ScratchCard();
-            Check(!fasc.AscensionEligible, "not eligible at 24 cards");
-            fasc.ScratchCard();
-            Check(fasc.AscensionEligible, "first ascension eligible at 25 cards");
-            fasc.state.gold = 9999; fasc.state.runFortune = 3;
-            int bankedBefore = fasc.state.cardsBanked;
-            Check(fasc.TryAscend(), "ascend succeeds");
-            Check(System.Math.Abs(fasc.state.ascensionPoints - 5f) < 1e-4, "first ascension grants flat 5 AP");
-            Check(fasc.state.gold == 0 && fasc.state.runFortune == 0, "ascension resets gold + run levels");
-            Check(fasc.state.cardsBanked == bankedBefore && fasc.state.lifetimeCardsScratched == 25,
-                  "banked cards + lifetime counters survive ascension");
-            // n=2 gates: 2 jackpots OR 150 cards; AP = jackpots + cards/40.
-            Check(fasc.GateJackpots == 2 && fasc.GateCards == 150, "n=2 gates: J=2, C=150");
-            fasc.state.jackpotsThisRun = 2; fasc.state.cardsThisRun = 20;
-            Check(fasc.AscensionEligible, "2 jackpots satisfy the n=2 gate");
-            Check(System.Math.Abs(fasc.AscensionApPreview - (2 + 20 / 40f)) < 1e-4,
-                  "AP preview = jackpots + cards/40 (effort floor)");
+            // Scripted first prestige: pure-effort gate at 25 plays; grants
+            // flat 5 PP; resets the unified coin balance + run levels; NEVER
+            // touches banked tickets / lifetime counters (never punish
+            // exercise).
+            var phost = new GameState();
+            phost.casino.lifetimeJackpots = 1;
+            var cpre = new CasinoGame(phost, new System.Random(3));
+            cpre.state.ticketsBanked = 30;
+            for (int i = 0; i < 24; i++) cpre.Play();
+            Check(!cpre.PrestigeEligible, "not eligible at 24 plays");
+            cpre.Play();
+            Check(cpre.PrestigeEligible, "first prestige eligible at 25 plays");
+            phost.coins = 9999; cpre.state.runPayout = 3;
+            int ticketsBefore = cpre.state.ticketsBanked;
+            Check(cpre.TryPrestige(), "prestige succeeds");
+            Check(System.Math.Abs(cpre.state.prestigePoints - 5f) < 1e-4, "first prestige grants flat 5 PP");
+            Check(phost.coins == 0 && cpre.state.runPayout == 0, "prestige resets wallet + run levels");
+            Check(cpre.state.ticketsBanked == ticketsBefore && cpre.state.lifetimePlays == 25,
+                  "banked tickets + lifetime counters survive prestige");
+            // n=2 gates: 2 jackpots OR 150 plays; PP = jackpots + plays/40.
+            Check(cpre.GateJackpots == 2 && cpre.GatePlays == 150, "n=2 gates: J=2, C=150");
+            cpre.state.jackpotsThisRun = 2; cpre.state.playsThisRun = 20;
+            Check(cpre.PrestigeEligible, "2 jackpots satisfy the n=2 gate");
+            Check(System.Math.Abs(cpre.PrestigePpPreview - (2 + 20 / 40f)) < 1e-4,
+                  "PP preview = jackpots + plays/40 (effort floor)");
 
-            // Permanent AP purchases.
-            var fperm = new FateGame(new FateState(), new System.Random(4));
-            fperm.state.ascensionPoints = 5f;
-            Check(fperm.PermUpgradeCost(FateGame.PermUpgrade.Midas) == 2, "Midas L1 costs 2 AP");
-            Check(fperm.TryBuyPermUpgrade(FateGame.PermUpgrade.Midas) && fperm.state.permMidas == 1, "buy Midas L1");
-            Check(System.Math.Abs(fperm.state.ascensionPoints - 3f) < 1e-4, "AP deducted");
-            Check(!fperm.TryBuyPermUpgrade(FateGame.PermUpgrade.Marathoner),
+            // Permanent PP purchases.
+            var permHost = new GameState();
+            var cperm = new CasinoGame(permHost, new System.Random(4));
+            cperm.state.prestigePoints = 5f;
+            Check(cperm.PermUpgradeCost(CasinoGame.PermUpgrade.GoldenTouch) == 2, "Golden Touch L1 costs 2 PP");
+            Check(cperm.TryBuyPermUpgrade(CasinoGame.PermUpgrade.GoldenTouch) && cperm.state.permGoldenTouch == 1,
+                  "buy Golden Touch L1");
+            Check(System.Math.Abs(cperm.state.prestigePoints - 3f) < 1e-4, "PP deducted");
+            Check(!cperm.TryBuyPermUpgrade(CasinoGame.PermUpgrade.Marathoner),
                   "refuses Marathoner (costs 4, have 3)");
 
             // Marathoner: run-seconds add bonus step credit on top of the
             // pedometer steps (600 s * 2.8 steps/s * 2 lvl * 10% = 336).
-            var frun = new FateGame(new FateState(), new System.Random(5));
-            frun.state.permMarathoner = 2;
-            frun.GrantActivity(1000, 600);
-            Check(frun.state.cardsBanked == 13 && frun.state.stepAccumulator == 36,
-                  "marathoner: 1000+336 credit -> 13 cards + 36 acc, got "
-                  + frun.state.cardsBanked + "/" + frun.state.stepAccumulator);
+            var rhost = new GameState();
+            var crun = new CasinoGame(rhost, new System.Random(5));
+            crun.state.permMarathoner = 2;
+            crun.GrantActivity(1000, 600);
+            Check(crun.state.ticketsBanked == 13 && crun.state.stepAccumulator == 36,
+                  "marathoner: 1000+336 credit -> 13 tickets + 36 acc, got "
+                  + crun.state.ticketsBanked + "/" + crun.state.stepAccumulator);
 
-            // Card cap: over-cap step-chunks convert straight to gold.
-            var fcap = new FateGame(new FateState { cardsBanked = 299 }, new System.Random(6));
-            fcap.GrantActivity(300, 0);
-            Check(fcap.state.cardsBanked == 300 && fcap.state.gold == 2 * FateGame.OVERFLOW_GOLD_PER_CARD,
-                  "cap 300: 3 card-chunks -> 1 banked + 2 overflowed to gold");
+            // Ticket cap: over-cap step-chunks convert straight to coins.
+            var caphost = new GameState();
+            caphost.casino.ticketsBanked = 299;
+            var ccap = new CasinoGame(caphost, new System.Random(6));
+            ccap.GrantActivity(300, 0);
+            Check(ccap.state.ticketsBanked == 300 && caphost.coins == 2 * CasinoGame.OVERFLOW_COINS_PER_TICKET,
+                  "cap 300: 3 ticket-chunks -> 1 banked + 2 overflowed to coins");
 
             // Linear XP: 5000 steps per level, no curve.
             var g = new GamexGame();

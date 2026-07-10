@@ -35,23 +35,22 @@ namespace Gamex.Platform
         // GET completes.
         public static bool FilterManualEntries { get; private set; }
 
-        // Fate Cards boot-mode flag (M_fate Phase 0 — docs/fatecards-mvp-plan.md).
-        // Cache-only by design: GameRunner.Awake reads this ONCE to pick the
-        // session's mode, before the async fetch even starts. The fetched
-        // value only updates the PlayerPrefs cache and takes effect on the
-        // NEXT launch — flipping game modes mid-session would tear down the
-        // whole UI. The GAMEX_FATE scripting define forces the mode on for
-        // dev/QA builds; the Editor menu "Gamex > Fate Cards Mode" toggles
+        // Casino section flag (docs/casino-mvp-plan.md). Gates ONLY the
+        // Home-screen CASINO button + its screens — ticket accrual runs
+        // regardless (harmless while hidden). Cache-only by design: the Hud
+        // reads this once at construction, so a fetched change takes effect
+        // on the NEXT launch. The GAMEX_CASINO scripting define forces it
+        // on for dev/QA builds; the Editor menu "Gamex > Casino" toggles
         // the same cached key for play-mode testing.
-        public const string CACHE_KEY_FATE = "remote_config_fate_cards_v1";
-        public static bool FateCardsEnabled
+        public const string CACHE_KEY_CASINO = "remote_config_casino_v1";
+        public static bool CasinoEnabled
         {
             get
             {
-#if GAMEX_FATE
+#if GAMEX_CASINO
                 return true;
 #else
-                return PlayerPrefs.GetInt(CACHE_KEY_FATE, 0) != 0;
+                return PlayerPrefs.GetInt(CACHE_KEY_CASINO, 0) != 0;
 #endif
             }
         }
@@ -113,14 +112,14 @@ namespace Gamex.Platform
                 Debug.Log("[RemoteConfig] filterManualEntries -> " + next);
             }
 
-            // Fate Cards flag — cache for the NEXT launch only (see
-            // FateCardsEnabled above for why there's no live apply).
-            bool fate = parsed.fateCardsEnabled;
-            if (fate != (PlayerPrefs.GetInt(CACHE_KEY_FATE, 0) != 0))
+            // Casino flag — cache for the NEXT launch only (see
+            // CasinoEnabled above for why there's no live apply).
+            bool casino = parsed.casinoEnabled;
+            if (casino != (PlayerPrefs.GetInt(CACHE_KEY_CASINO, 0) != 0))
             {
-                PlayerPrefs.SetInt(CACHE_KEY_FATE, fate ? 1 : 0);
+                PlayerPrefs.SetInt(CACHE_KEY_CASINO, casino ? 1 : 0);
                 PlayerPrefs.Save();
-                Debug.Log("[RemoteConfig] fateCardsEnabled -> " + fate + " (applies next launch)");
+                Debug.Log("[RemoteConfig] casinoEnabled -> " + casino + " (applies next launch)");
             }
         }
 
@@ -131,7 +130,7 @@ namespace Gamex.Platform
         class ConfigSchema
         {
             public bool filterManualEntries;
-            public bool fateCardsEnabled;   // M_fate Phase 0 boot-mode flag
+            public bool casinoEnabled;   // shows/hides the Casino section
         }
     }
 }
