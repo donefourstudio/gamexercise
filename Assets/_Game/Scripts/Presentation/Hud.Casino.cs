@@ -17,11 +17,12 @@ namespace Gamex.Game
         // Home. Deadpan, literal scratch-lottery: no lore, instantly
         // legible symbols (CHERRY / BELL / BAR / 7), Coins, Prestige.
         //   CasinoLobby    — coins / PP / tickets + step->ticket progress,
-        //                    doors to SCRATCHERS / SLOTS(P4) / UPGRADES
-        //   CasinoScratch  — the "Lucky 7s" ticket, tap-to-reveal (drag-
-        //                    scratch lands in P3; Auto Scratcher is an
-        //                    earned unlock, never a base batch button)
+        //                    doors to SCRATCHERS / SLOTS(P4) / UPGRADES,
+        //                    PRESTIGE button when eligible
+        //   CasinoScratch  — the "Lucky 7s" ticket with true drag-to-
+        //                    scratch foil (P3), 777 fanfare, coin count-up
         //   CasinoUpgrades — run upgrades (coins) + permanent (PP)
+        //   CasinoPrestige — cash-out confirm + celebration ceremony (P3)
         //
         // Unlike the old game's callback routing, these screens hold the
         // CasinoGame core directly (_casino, injected via the Hud ctor):
@@ -31,40 +32,61 @@ namespace Gamex.Game
         // GameRunner stays the owner of the phase field.
         //
         // Reveal model: CasinoGame pre-rolls the outcome the moment a
-        // ticket is played (Play()). The three cells are pure theatre — a
-        // win shows three matching symbols of the rolled tier; a bust shows
-        // a near-miss (a pair + one odd symbol, occasionally two agonising
-        // 7s). Because coins are credited at play time, the on-screen coin
-        // counter subtracts the pending ticket's payout until the player
-        // has flipped all three cells (CasinoDisplayCoins).
+        // ticket is played (Play()). The symbols are set under the foil at
+        // deal time — a win shows three matching symbols of the rolled
+        // tier; a bust shows a near-miss (a pair + one odd symbol,
+        // occasionally two agonising 7s). Scratching the foil (ScratchFoil)
+        // physically uncovers them; a cell counts as revealed at ~55%
+        // scratched. Because coins are credited at play time, the on-screen
+        // counter subtracts the pending ticket's payout until every cell is
+        // revealed (CasinoDisplayCoins), then counts up to the new total.
+        //
+        // NO batch/"scratch all": every ticket is hand-played. Backlog
+        // tedium is the designed pressure that sells the earned Auto
+        // Scratcher unlock (P4) — automation is a carrot, never a freebie.
         // ============================================================
 
-        GameObject _casinoLobbyPanel, _casinoScratchPanel, _casinoUpgradesPanel;
+        GameObject _casinoLobbyPanel, _casinoScratchPanel, _casinoUpgradesPanel, _casinoPrestigePanel;
 
         // ---- Lobby ----
-        TMP_Text _lobbyCoins, _lobbyPp, _lobbyTickets, _lobbySteps,
-                 _lobbyBarLabel, _lobbyPrestigeHint;
+        TMP_Text _lobbyCoins, _lobbyPp, _lobbyTickets, _lobbySteps, _lobbyBarLabel;
         RectTransform _lobbyBarFill;
+        GameObject _lobbyPrestigeBtn;
         const float CASINO_BAR_W = 700f;
 
         // ---- Scratch ----
-        // Deliberately NO batch/"scratch all" here: every ticket is played
-        // by hand. Backlog tedium is the designed pressure that makes the
-        // earned Auto Scratcher unlock (PP tree, P3/P4) desirable —
-        // automation is a carrot, never a freebie.
         TMP_Text _scCoins, _scTicketsLeft, _scResultLine, _scEmptyLabel;
-        readonly GameObject[] _scCells = new GameObject[3];
-        readonly TMP_Text[]   _scCellTexts = new TMP_Text[3];
-        readonly bool[]       _scCellFlipped = new bool[3];
-        readonly CasinoTier[] _scCellSymbols = new CasinoTier[3];
+        GameObject _scCard;
+        readonly GameObject[]  _scCells = new GameObject[3];
+        readonly TMP_Text[]    _scCellTexts = new TMP_Text[3];
+        readonly bool[]        _scCellFlipped = new bool[3];
+        readonly CasinoTier[]  _scCellSymbols = new CasinoTier[3];
+        readonly ScratchFoil[] _scFoils = new ScratchFoil[3];
         PlayResult _scPending;
-        bool   _scHasPending;
+        bool  _scHasPending;
         GameObject _scNextBtn;
+        // juice state
+        float _scShakeT, _scResultPopT;
+        float _scCoinsShown = -1f;              // -1 = snap to target on first frame
+        static readonly Vector2 SC_CARD_POS = new Vector2(0f, 250f);
 
         // ---- Upgrades ----
         TMP_Text _upWallet;
         (TMP_Text lvl, TMP_Text cost, Button btn) _rowPayout, _rowLuck, _rowStride,
                                                   _rowGTouch, _rowLDice, _rowMara;
+
+        // ---- Prestige ----
+        GameObject _prestigeConfirmGroup, _prestigeCelebGroup;
+        TMP_Text _prestigeGainLine, _prestigeResetLine, _prestigeCelebTitle, _prestigeCelebPp;
+        float _prestigeCelebT;
+        bool  _prestigeCelebrating;
+
+        // ---- coin burst pool (jackpots + prestige ceremony) ----
+        const int BURST_POOL = 26;
+        Image[]   _burstCoins;
+        Vector2[] _burstVel;
+        float[]   _burstSpin;
+        bool      _burstAny;
 
         // ============================================================
         // Lobby
@@ -103,10 +125,10 @@ namespace Gamex.Game
             _lobbySteps = MkText("Steps", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -135f), new Vector2(900f, 44f), FS_BODY, TextAnchor.MiddleCenter, TextDim);
 
-            // Foreshadow only — the cash-out ceremony itself lands in P3.
-            _lobbyPrestigeHint = MkText("PrestigeHint", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -205f), new Vector2(960f, 50f), FS_LABEL, TextAnchor.MiddleCenter, AccentGold);
-            _lobbyPrestigeHint.text = "PRESTIGE READY";
+            // Appears when a cash-out is available (P3 ceremony).
+            _lobbyPrestigeBtn = MkButton("Prestige", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -215f), new Vector2(420f, 100f), "PRESTIGE",
+                () => _onCasinoNav((int)AppPhase.CasinoPrestige));
 
             MkButton("Scratchers", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -370f), new Vector2(640f, 140f), "SCRATCHERS",
@@ -131,6 +153,7 @@ namespace Gamex.Game
 
         void UpdateCasinoLobby(GamexGame g)
         {
+            TickCoinBurst(Time.unscaledDeltaTime);
             var c = _casino.state;
             _lobbyCoins.text   = $"{CasinoDisplayCoins:N0} COINS";
             _lobbyPp.text      = $"Prestige Points: {c.prestigePoints:0.#}";
@@ -140,7 +163,7 @@ namespace Gamex.Game
             _lobbyBarFill.sizeDelta = new Vector2((CASINO_BAR_W - 8f) * pct, 28f);
             _lobbyBarLabel.text = $"next ticket: {c.stepAccumulator}/{spt} steps";
             _lobbySteps.text = $"Today: {g.state.todaySteps:N0} steps";
-            _lobbyPrestigeHint.gameObject.SetActive(_casino.PrestigeEligible);
+            _lobbyPrestigeBtn.SetActive(_casino.PrestigeEligible);
         }
 
         // ============================================================
@@ -157,29 +180,37 @@ namespace Gamex.Game
                 new Vector2(-50f, -140f - SAFE_AREA_TOP_INSET), new Vector2(500f, 60f),
                 FS_LABEL, TextAnchor.UpperRight, TextWhite);
 
-            // The ticket face: a framed panel holding the 3 reveal cells.
-            var card = MkSpritePanel("Ticket", _casinoScratchPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, 250f), new Vector2(960f, 560f), "panel", PanelTint);
-            card.GetComponent<Image>().raycastTarget = false;
-            MkText("TicketTitle", card.transform, new Vector2(0.5f, 1f), new Vector2(0f, -30f),
+            // The ticket face: a framed panel holding the 3 scratch cells.
+            _scCard = MkSpritePanel("Ticket", _casinoScratchPanel.transform, new Vector2(0.5f, 0.5f),
+                SC_CARD_POS, new Vector2(960f, 560f), "panel", PanelTint);
+            _scCard.GetComponent<Image>().raycastTarget = false;
+            MkText("TicketTitle", _scCard.transform, new Vector2(0.5f, 1f), new Vector2(0f, -30f),
                 new Vector2(900f, 60f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "· LUCKY 7s ·";
-            MkText("TicketRule", card.transform, new Vector2(0.5f, 0f), new Vector2(0f, 28f),
-                new Vector2(900f, 44f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "match 3 to win";
+            MkText("TicketRule", _scCard.transform, new Vector2(0.5f, 0f), new Vector2(0f, 28f),
+                new Vector2(900f, 44f), FS_BODY, TextAnchor.LowerCenter, TextDim).text = "match 3 to win — scratch!";
 
             for (int i = 0; i < 3; i++)
             {
                 int idx = i;   // capture per-cell index, not the loop variable
-                var cell = MkSpritePanel("Cell" + i, card.transform, new Vector2(0.5f, 0.5f),
+                var cell = MkSpritePanel("Cell" + i, _scCard.transform, new Vector2(0.5f, 0.5f),
                     new Vector2(-300f + 300f * i, -20f), new Vector2(270f, 330f),
                     "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
-                var btn = cell.AddComponent<Button>();
-                btn.targetGraphic = cell.GetComponent<Image>();
-                btn.transition = Selectable.Transition.ColorTint;
-                var cb = btn.colors; cb.highlightedColor = new Color(1f, 0.9f, 0.7f, 1f); btn.colors = cb;
-                btn.onClick.AddListener(() => ScratchFlipCell(idx));
                 _scCells[i] = cell;
+                // Symbol sits UNDER the foil — scratching uncovers it.
                 _scCellTexts[i] = MkText("Sym", cell.transform, new Vector2(0.5f, 0.5f),
                     Vector2.zero, new Vector2(260f, 320f), FS_BTN, TextAnchor.MiddleCenter, TextDim);
+                // The scratchable foil (P3): RawImage + runtime texture.
+                var foilGo = new GameObject("Foil", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                foilGo.transform.SetParent(cell.transform, false);
+                var frt = foilGo.GetComponent<RectTransform>();
+                frt.anchorMin = Vector2.zero;
+                frt.anchorMax = Vector2.one;
+                frt.offsetMin = new Vector2(8f, 8f);
+                frt.offsetMax = new Vector2(-8f, -8f);
+                var foil = foilGo.AddComponent<ScratchFoil>();
+                foil.Init();
+                foil.onRevealed = () => OnCellRevealed(idx);
+                _scFoils[i] = foil;
             }
 
             // Shares the ticket slot; shown when there's nothing to play.
@@ -199,8 +230,8 @@ namespace Gamex.Game
         }
 
         // Phase-entry hook (called from Refresh's _lastPhase block): clear a
-        // finished ticket / stale summary and auto-deal so the screen is
-        // always ready to scratch the moment it appears.
+        // finished ticket and auto-deal so the screen is always ready to
+        // scratch the moment it appears.
         void OnEnterCasinoScratch()
         {
             if (!_scHasPending || TicketFullyRevealed)
@@ -211,7 +242,7 @@ namespace Gamex.Game
 
         // Coins as shown on screen: the pending ticket's payout is already
         // in the wallet (credited at play time) but hasn't "happened"
-        // visually until every cell is flipped, so hold it back.
+        // visually until every cell is revealed, so hold it back.
         long CasinoDisplayCoins => _casino.host.coins
             - (_scHasPending && !TicketFullyRevealed ? _scPending.coins : 0);
 
@@ -223,6 +254,12 @@ namespace Gamex.Game
             for (int i = 0; i < 3; i++) _scCellFlipped[i] = false;
             if (_scPending.tier == CasinoTier.Bust) RollBustSymbols();
             else for (int i = 0; i < 3; i++) _scCellSymbols[i] = _scPending.tier;
+            for (int i = 0; i < 3; i++)
+            {
+                _scCellTexts[i].text  = CasinoSymbolLabel(_scCellSymbols[i]);
+                _scCellTexts[i].color = CasinoTierColor(_scCellSymbols[i]);
+                _scFoils[i].ResetFoil();
+            }
         }
 
         // Near-miss theatre for busts: a pair + one odd symbol. 15% of
@@ -241,15 +278,32 @@ namespace Gamex.Game
             for (int i = 0; i < 3; i++) _scCellSymbols[i] = i == oddSlot ? odd : pair;
         }
 
-        void ScratchFlipCell(int i)
+        // A foil hit its reveal threshold. The LAST cell fires the payoff:
+        // result pop + tier sfx, and for 777 the full fanfare (shake +
+        // coin shower).
+        void OnCellRevealed(int i)
         {
             if (!_scHasPending || _scCellFlipped[i]) return;
             _scCellFlipped[i] = true;
-            Sfx.Play("tap");
-            if (TicketFullyRevealed)
+            if (!TicketFullyRevealed) return;
+
+            _scResultPopT = 0.35f;
+            if (_scPending.jackpot)
             {
-                if (_scPending.jackpot)                      Sfx.Play("milestone");
-                else if (_scPending.tier != CasinoTier.Bust) Sfx.Play("coin");
+                Sfx.Play("milestone");
+                Sfx.Play("level_up");
+                _scShakeT = 0.6f;
+                SpawnCoinBurst(_casinoScratchPanel.transform, SC_CARD_POS, BURST_POOL);
+            }
+            else if (_scPending.tier == CasinoTier.Bar)
+            {
+                Sfx.Play("coin");
+                Sfx.Play("quest_done", 0.7f);
+                SpawnCoinBurst(_casinoScratchPanel.transform, SC_CARD_POS, 10);
+            }
+            else if (_scPending.tier != CasinoTier.Bust)
+            {
+                Sfx.Play("coin");
             }
         }
 
@@ -290,20 +344,46 @@ namespace Gamex.Game
 
         void UpdateCasinoScratch()
         {
-            _scCoins.text       = $"Coins: {CasinoDisplayCoins:N0}";
+            float dt = Time.unscaledDeltaTime;
+            TickCoinBurst(dt);
+
+            // Coin counter counts UP toward the real total after a reveal —
+            // the classic casino tally. Snaps on first frame / big jumps
+            // finish fast (exponential approach).
+            long target = CasinoDisplayCoins;
+            if (_scCoinsShown < 0f) _scCoinsShown = target;
+            _scCoinsShown = Mathf.Abs(_scCoinsShown - target) < 1f
+                ? target
+                : Mathf.Lerp(_scCoinsShown, target, 1f - Mathf.Exp(-8f * dt));
+            _scCoins.text       = $"Coins: {(long)_scCoinsShown:N0}";
             _scTicketsLeft.text = $"Tickets: {_casino.state.ticketsBanked:N0}";
 
             for (int i = 0; i < 3; i++)
-            {
                 _scCells[i].SetActive(_scHasPending);
-                if (!_scHasPending) continue;
-                bool up = _scCellFlipped[i];
-                _scCellTexts[i].text  = up ? CasinoSymbolLabel(_scCellSymbols[i]) : "?";
-                _scCellTexts[i].color = up ? CasinoTierColor(_scCellSymbols[i]) : TextDim;
+
+            // 777 shake — decaying random offset on the whole ticket.
+            var cardRt = (RectTransform)_scCard.transform;
+            if (_scShakeT > 0f)
+            {
+                _scShakeT -= dt;
+                float amp = Mathf.Lerp(0f, 16f, Mathf.Clamp01(_scShakeT / 0.6f));
+                cardRt.anchoredPosition = SC_CARD_POS + new Vector2(
+                    UnityEngine.Random.Range(-amp, amp), UnityEngine.Random.Range(-amp, amp));
+                if (_scShakeT <= 0f) cardRt.anchoredPosition = SC_CARD_POS;
             }
 
-            if (_scHasPending && TicketFullyRevealed) _scResultLine.text = CasinoResultText(_scPending);
-            else                                     _scResultLine.text = "";
+            // Result line pops in (scale bounce), then rests.
+            if (_scResultPopT > 0f)
+            {
+                _scResultPopT -= dt;
+                float t01 = 1f - Mathf.Clamp01(_scResultPopT / 0.35f);
+                float s = Mathf.Lerp(1.35f, 1f, t01 * t01 * (3f - 2f * t01));
+                _scResultLine.rectTransform.localScale = new Vector3(s, s, 1f);
+            }
+            else _scResultLine.rectTransform.localScale = Vector3.one;
+
+            _scResultLine.text = _scHasPending && TicketFullyRevealed
+                ? CasinoResultText(_scPending) : "";
 
             _scNextBtn.SetActive((!_scHasPending || TicketFullyRevealed) && _casino.CanPlay);
 
@@ -414,6 +494,158 @@ namespace Gamex.Game
             row.lvl.text  = "Lv " + level;
             row.cost.text = capped ? "MAX" : costLabel;
             row.btn.interactable = !capped && affordable;
+        }
+
+        // ============================================================
+        // Prestige — cash-out confirm + celebration (P3)
+        // ============================================================
+        void BuildCasinoPrestige(Transform root)
+        {
+            _casinoPrestigePanel = MkFullPanel("CasinoPrestige", root);
+
+            MkText("Title", _casinoPrestigePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -140f - SAFE_AREA_TOP_INSET), new Vector2(900f, 80f),
+                FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "PRESTIGE";
+
+            // ---- confirm ----
+            _prestigeConfirmGroup = MkFullPanel("Confirm", _casinoPrestigePanel.transform);
+            MkText("Ask", _prestigeConfirmGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 430f), new Vector2(1000f, 60f), FS_BTN, TextAnchor.MiddleCenter, TextWhite)
+                .text = "Cash out this run?";
+            _prestigeGainLine = MkText("Gain", _prestigeConfirmGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 290f), new Vector2(1000f, 80f), FS_TITLE, TextAnchor.MiddleCenter, AccentGold);
+            _prestigeResetLine = MkText("Resets", _prestigeConfirmGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 180f), new Vector2(1000f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+            MkText("Keeps", _prestigeConfirmGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 110f), new Vector2(1020f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim)
+                .text = "Keeps: tickets · PP · permanent upgrades · lifetime stats";
+
+            MkButton("CashOut", _prestigeConfirmGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -120f), new Vector2(640f, 150f), "CASH OUT", DoPrestige);
+            MkButton("NotYet", _prestigeConfirmGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -300f), new Vector2(400f, 100f), "NOT YET",
+                () => _onCasinoNav((int)AppPhase.CasinoLobby), "btn_grey", "btn_grey_down", "back");
+
+            // ---- celebration ----
+            _prestigeCelebGroup = MkFullPanel("Celeb", _casinoPrestigePanel.transform);
+            _prestigeCelebTitle = MkText("CelebTitle", _prestigeCelebGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 260f), new Vector2(1040f, 130f), FS_BIG, TextAnchor.MiddleCenter, AccentGold);
+            _prestigeCelebPp = MkText("CelebPp", _prestigeCelebGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 110f), new Vector2(1000f, 80f), FS_TITLE, TextAnchor.MiddleCenter, TextWhite);
+            MkText("CelebSub", _prestigeCelebGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 10f), new Vector2(1000f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim)
+                .text = "Every step is worth more now.";
+            MkText("Hint", _prestigeCelebGroup.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -260f), new Vector2(900f, 50f), FS_LABEL, TextAnchor.MiddleCenter, TextDim)
+                .text = "(tap to continue)";
+            // Full-screen tap-through back to the lobby.
+            var celebImg = _prestigeCelebGroup.GetComponent<Image>();
+            celebImg.raycastTarget = true;
+            var cont = _prestigeCelebGroup.AddComponent<Button>();
+            cont.targetGraphic = celebImg;
+            cont.transition = Selectable.Transition.None;
+            cont.onClick.AddListener(() => _onCasinoNav((int)AppPhase.CasinoLobby));
+
+            _prestigeCelebGroup.SetActive(false);
+        }
+
+        void OnEnterCasinoPrestige()
+        {
+            _prestigeCelebrating = false;
+            _prestigeConfirmGroup.SetActive(true);
+            _prestigeCelebGroup.SetActive(false);
+        }
+
+        void DoPrestige()
+        {
+            float pp = _casino.PrestigePpPreview;
+            if (!_casino.TryPrestige()) return;
+            _prestigeCelebrating = true;
+            _prestigeCelebT = 0f;
+            _prestigeCelebTitle.text = "PRESTIGE " + _casino.state.prestigeCount;
+            _prestigeCelebPp.text    = $"+{pp:0.#} PP";
+            _prestigeConfirmGroup.SetActive(false);
+            _prestigeCelebGroup.SetActive(true);
+            Sfx.Play("milestone");
+            Sfx.Play("level_up");
+            SpawnCoinBurst(_casinoPrestigePanel.transform, new Vector2(0f, 120f), BURST_POOL);
+            _scCoinsShown = -1f;   // scratch-screen counter snaps to the fresh (zeroed) wallet
+        }
+
+        void UpdateCasinoPrestige()
+        {
+            float dt = Time.unscaledDeltaTime;
+            TickCoinBurst(dt);
+
+            if (!_prestigeCelebrating)
+            {
+                _prestigeGainLine.text  = $"+{_casino.PrestigePpPreview:0.#} Prestige Points";
+                _prestigeResetLine.text = $"Resets: {_casino.host.coins:N0} coins · run upgrades";
+                return;
+            }
+            _prestigeCelebT += dt;
+            float t = Mathf.Clamp01(_prestigeCelebT / 0.45f);
+            float s = Mathf.Lerp(1.8f, 1f, t * t * (3f - 2f * t));
+            _prestigeCelebTitle.rectTransform.localScale = new Vector3(s, s, 1f);
+        }
+
+        // ============================================================
+        // Coin burst — pooled UI coins with gravity, for 777s + prestige.
+        // ============================================================
+        void EnsureBurstPool()
+        {
+            if (_burstCoins != null) return;
+            _burstCoins = new Image[BURST_POOL];
+            _burstVel   = new Vector2[BURST_POOL];
+            _burstSpin  = new float[BURST_POOL];
+            for (int i = 0; i < BURST_POOL; i++)
+            {
+                var go = MkSpriteIcon("BurstCoin" + i, _casinoLobbyPanel.transform,
+                    new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(56f, 56f), "coin", Color.white);
+                go.SetActive(false);
+                _burstCoins[i] = go.GetComponent<Image>();
+            }
+        }
+
+        void SpawnCoinBurst(Transform parent, Vector2 origin, int n)
+        {
+            EnsureBurstPool();
+            int spawned = 0;
+            for (int i = 0; i < BURST_POOL && spawned < n; i++)
+            {
+                var img = _burstCoins[i];
+                if (img.gameObject.activeSelf) continue;
+                img.transform.SetParent(parent, false);
+                var rt = img.rectTransform;
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = origin + new Vector2(
+                    UnityEngine.Random.Range(-140f, 140f), UnityEngine.Random.Range(-40f, 40f));
+                rt.localRotation = Quaternion.identity;
+                _burstVel[i]  = new Vector2(UnityEngine.Random.Range(-420f, 420f),
+                                            UnityEngine.Random.Range(500f, 1050f));
+                _burstSpin[i] = UnityEngine.Random.Range(-540f, 540f);
+                img.gameObject.SetActive(true);
+                spawned++;
+            }
+            _burstAny = true;
+        }
+
+        void TickCoinBurst(float dt)
+        {
+            if (!_burstAny || _burstCoins == null) return;
+            bool any = false;
+            for (int i = 0; i < BURST_POOL; i++)
+            {
+                var img = _burstCoins[i];
+                if (!img.gameObject.activeSelf) continue;
+                var rt = img.rectTransform;
+                _burstVel[i].y -= 2400f * dt;
+                rt.anchoredPosition += _burstVel[i] * dt;
+                rt.Rotate(0f, 0f, _burstSpin[i] * dt);
+                if (rt.anchoredPosition.y < -1400f) img.gameObject.SetActive(false);
+                else any = true;
+            }
+            _burstAny = any;
         }
     }
 }

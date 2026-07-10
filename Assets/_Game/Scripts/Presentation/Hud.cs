@@ -453,6 +453,7 @@ namespace Gamex.Game
             BuildCasinoLobby(root);      // The Casino — flag-gated section,
             BuildCasinoScratch(root);    // inert unless the phase is one of
             BuildCasinoUpgrades(root);   // the AppPhase.Casino* values
+            BuildCasinoPrestige(root);
         }
 
     }

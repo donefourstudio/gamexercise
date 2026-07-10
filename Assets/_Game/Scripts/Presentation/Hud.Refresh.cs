@@ -30,7 +30,8 @@ namespace Gamex.Game
                     if (_titleCanvasGroup != null)  _titleCanvasGroup.alpha = 1f;
                     if (_titleStartButton != null)  _titleStartButton.interactable = true;
                 }
-                if (g.phase == AppPhase.CasinoScratch) OnEnterCasinoScratch();
+                if (g.phase == AppPhase.CasinoScratch)  OnEnterCasinoScratch();
+                if (g.phase == AppPhase.CasinoPrestige) OnEnterCasinoPrestige();
                 _lastPhase = g.phase;
             }
 
@@ -50,7 +51,8 @@ namespace Gamex.Game
                       || g.phase == AppPhase.Settings
                       || g.phase == AppPhase.CasinoLobby
                       || g.phase == AppPhase.CasinoScratch
-                      || g.phase == AppPhase.CasinoUpgrades;
+                      || g.phase == AppPhase.CasinoUpgrades
+                      || g.phase == AppPhase.CasinoPrestige;
             if (bgmOn) Bgm.PlayLoop("bgm_home");
             else       Bgm.Stop();
 
@@ -151,6 +153,8 @@ namespace Gamex.Game
             if (g.phase == AppPhase.CasinoScratch) UpdateCasinoScratch();
             Set(_casinoUpgradesPanel,     g.phase == AppPhase.CasinoUpgrades);
             if (g.phase == AppPhase.CasinoUpgrades) UpdateCasinoUpgrades();
+            Set(_casinoPrestigePanel,     g.phase == AppPhase.CasinoPrestige);
+            if (g.phase == AppPhase.CasinoPrestige) UpdateCasinoPrestige();
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {

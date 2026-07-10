@@ -61,6 +61,8 @@ namespace Gamex.Core
         CasinoLobby,
         CasinoScratch,
         CasinoUpgrades,
+        // P3 — the cash-out confirm + celebration ceremony.
+        CasinoPrestige,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }

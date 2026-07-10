@@ -1,6 +1,6 @@
 # The Casino — implementation plan
 
-**Status:** Phases 0–2 ✅ (scaffold `64e9a6c` · economy core `2a97408` · playable scratch screens `9e1da54`, built under the old "Fate Cards" naming) · Phase R ✅ (casino-as-section + full Casino rename + unified wallet + Coins/777 reskin) · **P3 next** (prestige ceremony + juice) → P4 slots → P5 device/tuning + RPG integration.
+**Status:** Phases 0–2 ✅ (`64e9a6c`, `2a97408`, `9e1da54`) · Phase R ✅ (Casino pivot, `71fa885`; quests→tickets `a5dc053`) · Phase 3 ✅ (drag-to-scratch foil + 777 fanfare + Prestige ceremony) · **P4 next** (slots + Auto Scratcher unlock) → P5 device/tuning + RPG integration.
 **Monetization (locked):** free download + one-time **$5.99** non-consumable **"Unlock Everything"** (free slice through the first prestige + a few days). Never sold: tickets, coins, PP, steps. No ads/subs/consumables.
 
 ## Concept (v2 — post-playtest pivot)
