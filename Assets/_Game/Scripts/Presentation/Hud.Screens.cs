@@ -220,20 +220,24 @@ namespace Gamex.Game
                     new Vector2(50f, 0f), new Vector2(rowW - 240f, rowH - 20f),
                     FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f));
 
-                // Coin + "+N" wrapped so the whole chip can toggle off when
-                // the quest completes (trophy takes the same right slot).
+                // Reward chip ("+N" over "tickets") wrapped so the whole
+                // chip can toggle off when the quest completes (trophy
+                // takes the same right slot). Quests pay casino TICKETS
+                // since the unified wallet — text chip until ticket art
+                // exists.
                 var chip = MkPanel("Chip", row.transform, new Vector2(1f, 0.5f),
-                    new Vector2(-120f, 0f), new Vector2(160f, 70f),
+                    new Vector2(-120f, 0f), new Vector2(190f, 100f),
                     new Color(0f, 0f, 0f, 0f));
                 chip.GetComponent<Image>().raycastTarget = false;
-                MkSpriteIcon("Coin", chip.transform, new Vector2(0f, 0.5f),
-                    new Vector2(0f, 0f), new Vector2(60f, 60f),
-                    "coin", Color.white);
                 int reward = QUEST_SPEC[i].reward;
                 MkText("Reward", chip.transform, new Vector2(0f, 0.5f),
-                    new Vector2(70f, 0f), new Vector2(90f, 60f),
+                    new Vector2(0f, 16f), new Vector2(190f, 56f),
                     FS_TITLE, TextAnchor.MiddleLeft, new Color(0.18f, 0.10f, 0.05f))
                     .text = $"+{reward}";
+                MkText("RewardUnit", chip.transform, new Vector2(0f, 0.5f),
+                    new Vector2(0f, -26f), new Vector2(190f, 36f),
+                    FS_BODY, TextAnchor.MiddleLeft, new Color(0.38f, 0.24f, 0.12f))
+                    .text = "tickets";
                 _questChipRoots[i] = chip;
 
                 _questCheckmarks[i] = MkSpriteIcon("Tick", row.transform, new Vector2(1f, 0.5f),

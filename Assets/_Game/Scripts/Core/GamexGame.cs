@@ -25,10 +25,13 @@ namespace Gamex.Core
         const int Q_WALK_10000    = 10000;
         const int Q_RUN_15_MIN_S  = 15 * 60;
         const int Q_RUN_30_MIN_S  = 30 * 60;
-        // Per-quest rewards retuned 2/4/6/4/6 + 8-coin all-done bonus so
-        // the daily max lands at a clean 30 coins. Anchors the Champion
-        // ladder at 5 / 15 / 30 days for Squire&Pink Archer / Silver
-        // Hooded / Dark Horned Knight respectively. See project_economy.md.
+        // Per-quest rewards pay CASINO TICKETS (2/4/6/4/6 + an 8-ticket
+        // all-done bonus = 30/day max ≈ +50% of an average walker's step
+        // faucet). Converted from coins when the unified wallet landed:
+        // quests are the daily finish lines; tickets are the spike that
+        // makes the thresholds worth chasing — and since the quests are
+        // step-gated themselves, ticket rewards stay exercise-pure.
+        // docs/casino-mvp-plan.md.
         public const int Q_REWARD_WALK_1000  = 2;
         public const int Q_REWARD_WALK_5000  = 4;
         public const int Q_REWARD_WALK_10000 = 6;
@@ -38,7 +41,7 @@ namespace Gamex.Core
         public const int Q_REWARD_DAILY_MAX  = Q_REWARD_WALK_1000 + Q_REWARD_WALK_5000 + Q_REWARD_WALK_10000
                                              + Q_REWARD_RUN_15  + Q_REWARD_RUN_30 + Q_REWARD_ALL_BONUS;  // 30
         const int STREAK_ACTIVE_THRESHOLD = 500;   // 500 steps = "active day" for streak
-        const int STREAK_WEEKLY_BONUS     = 5;     // every 7 streak days
+        const int STREAK_WEEKLY_BONUS     = 5;     // tickets, every 7 streak days
 
         public long EffectiveSteps => state.totalSteps + state.totalRunSteps;
 
@@ -181,7 +184,7 @@ namespace Gamex.Core
                 if (!state.questDone[idx] && met)
                 {
                     state.questDone[idx] = true;
-                    state.coins += reward;
+                    GrantTickets(reward);
                 }
             }
             Try(Quest.Walk1000,  state.todaySteps      >= Q_WALK_1000,    Q_REWARD_WALK_1000);
@@ -201,8 +204,20 @@ namespace Gamex.Core
             if (allDone && !state.questAllBonusToday)
             {
                 state.questAllBonusToday = true;
-                state.coins += Q_REWARD_ALL_BONUS;
+                GrantTickets(Q_REWARD_ALL_BONUS);
             }
+        }
+
+        // Quest / streak rewards pay casino TICKETS, not coins. Respects
+        // the ticket cap the same way the step faucet does — over-cap
+        // rewards convert to coins so a full wallet never wastes a quest.
+        void GrantTickets(int n)
+        {
+            int cap = state.casino.ticketCap > 0 ? state.casino.ticketCap : CasinoGame.TICKET_CAP_DEFAULT;
+            int space = Math.Max(0, cap - state.casino.ticketsBanked);
+            int add = Math.Min(n, space);
+            state.casino.ticketsBanked += add;
+            state.coins += (long)(n - add) * CasinoGame.OVERFLOW_COINS_PER_TICKET;
         }
 
         // Day rollover: advance streak (if today was active), reset daily counters
@@ -214,9 +229,9 @@ namespace Gamex.Core
             if (activeToday)
             {
                 state.streakDays += 1;
-                // Weekly streak bonus
+                // Weekly streak bonus — pays tickets (see GrantTickets)
                 if (state.streakDays > 0 && state.streakDays % 7 == 0)
-                    state.coins += STREAK_WEEKLY_BONUS;
+                    GrantTickets(STREAK_WEEKLY_BONUS);
             }
             else
             {

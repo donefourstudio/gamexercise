@@ -203,24 +203,23 @@ namespace Gamex.Game
             Check(g3.state.level == 20, "Lv 20 reached, got " + g3.state.level);
             Check(g3.phase == AppPhase.RaceSelect, "race select triggered, got " + g3.phase);
 
-            // Daily quests — rewards are tiered (1 / 3 / 5 / 3 / 5) with a
-            // +10 all-clear bonus when every quest is done in the same day.
-            // Updated 2026-06: rewards were 1g flat in M5b but were tuned up
-            // during the launch-cohort balance pass to make daily completion
-            // pay enough for casual shop purchases.
+            // Daily quests — rewards pay CASINO TICKETS (2/4/6/4/6 + an
+            // 8-ticket all-clear bonus = 30/day max), converted from coins
+            // when the unified wallet landed. The coin wallet must NOT move.
             var g4 = new GamexGame();
             g4.AddActivity(999, 0, 0);
-            Check(g4.state.coins == 0, "no quest done at 999 steps, got " + g4.state.coins);
+            Check(g4.state.casino.ticketsBanked == 0, "no quest done at 999 steps, got " + g4.state.casino.ticketsBanked);
             g4.AddActivity(1, 0, 0);                    // total 1000        -> Walk1000 (+2)
-            Check(g4.state.coins == 2, "walk 1000 -> +2, got " + g4.state.coins);
+            Check(g4.state.casino.ticketsBanked == 2, "walk 1000 -> +2 tickets, got " + g4.state.casino.ticketsBanked);
             g4.AddActivity(4000, 0, 0);                 // total 5000        -> Walk5000 (+4) = 6
-            Check(g4.state.coins == 6, "walk 5000 -> +4, got " + g4.state.coins);
+            Check(g4.state.casino.ticketsBanked == 6, "walk 5000 -> +4 tickets, got " + g4.state.casino.ticketsBanked);
             g4.AddActivity(5000, 0, 0);                 // total 10000       -> Walk10000 (+6) = 12
-            Check(g4.state.coins == 12, "walk 10000 -> +6, got " + g4.state.coins);
+            Check(g4.state.casino.ticketsBanked == 12, "walk 10000 -> +6 tickets, got " + g4.state.casino.ticketsBanked);
             g4.AddActivity(0, 0, 15 * 60);              // run 15 min        -> Run15 (+4) = 16
-            Check(g4.state.coins == 16, "run 15 -> +4, got " + g4.state.coins);
+            Check(g4.state.casino.ticketsBanked == 16, "run 15 -> +4 tickets, got " + g4.state.casino.ticketsBanked);
             g4.AddActivity(0, 0, 15 * 60);              // total 30 min run  -> Run30 (+6) + all-bonus (+8) = 30
-            Check(g4.state.coins == 30, "run 30 -> +6 +8 all-bonus, got " + g4.state.coins);
+            Check(g4.state.casino.ticketsBanked == 30, "run 30 -> +6 +8 all-bonus tickets, got " + g4.state.casino.ticketsBanked);
+            Check(g4.state.coins == 0, "quest rewards never touch the coin wallet");
 
             // EndDay resets daily counters, advances streak, weekly bonus
             var g5 = new GamexGame();
@@ -230,14 +229,14 @@ namespace Gamex.Game
                 g5.EndDay();
             }
             Check(g5.state.streakDays == 6, "6-day streak, got " + g5.state.streakDays);
-            int coinsBefore = (int)g5.state.coins;
+            int g5TicketsBefore = (int)g5.state.casino.ticketsBanked;
             g5.AddActivity(1000, 0, 0);                 // day 7
             g5.EndDay();
             Check(g5.state.streakDays == 7, "7-day streak, got " + g5.state.streakDays);
-            // EndDay should also have credited +5 streak bonus
-            int dailyQuestCoinsAdded = 2;               // just walk-1000 today (new reward 2)
-            Check(g5.state.coins == coinsBefore + dailyQuestCoinsAdded + 5,
-                  "weekly streak bonus credited, got " + g5.state.coins);
+            // EndDay should also have credited the +5-TICKET streak bonus
+            int dailyQuestTicketsAdded = 2;             // just walk-1000 today (+2)
+            Check(g5.state.casino.ticketsBanked == g5TicketsBefore + dailyQuestTicketsAdded + 5,
+                  "weekly streak bonus pays 5 tickets, got " + g5.state.casino.ticketsBanked);
 
             // Inactive day breaks streak
             var g6 = new GamexGame();

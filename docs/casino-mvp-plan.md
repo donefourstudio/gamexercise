@@ -27,7 +27,7 @@
 | **Cosmetics** | **real-exercise milestone trophies** — never purchasable | — (trophy sets grant small casino perks, e.g. +2% payout) | never |
 
 - **Achievements = the trophy system**, named after real-world distances (~2,000 steps/mile): Cross the Golden Gate ~3.5k (day-1 hook) → Manhattan ~28k → Marathon ~55k → London→Paris ~600k → Route 66 ~5.2M → **Walk Across America** ~5.9M → Around the World ~52M (white whale). Parallel streak + run lines. Monumental tiers also grant PP. Shop → **Wardrobe/Trophy gallery** (unlock conditions visible = fitness goals).
-- **Daily quests stay** (finish lines, the 8pm nudge, run incentive, daily ritual) — rewards convert from coins to **ticket chunks**.
+- **Daily quests stay** (finish lines, the 8pm nudge, run incentive, daily ritual) — rewards pay **tickets** (✅ converted, pulled forward from P5: 2/4/6/4/6 + 8 all-clear = 30 tickets/day max; weekly streak bonus = 5 tickets; over-cap rewards overflow to coins).
 - Optional garnish (later): 1–2 jackpot-exclusive trophies (777-only drops).
 
 ## The numbers (validated by sim + 50k-trial LogicTest)
@@ -50,9 +50,9 @@ Second room, same engine: a spin consumes a ticket, pays from the same pre-rolle
 | **R — Restructure + reskin** (now) | Home CASINO button + lobby; kill mode-replacement; rename `Fate*`→`Casino*` end to end (flag, save field, phases, files — free: never shipped); unified wallet; Coins/777/deadpan strings | compile + LogicTest; Editor playtest |
 | **3 — Prestige + juice** | Cash-out Prestige ceremony, 777 fanfare, coin showers, shake, **true drag-to-scratch** (the tactile foil-erase — the scratch IS the product) | Editor playtest |
 | **4 — Slots + automation** | Reels room on the shared engine; **Auto Scratcher as an EARNED unlock** (PP tree) — processes the backlog once owned | Editor playtest |
-| **5 — Device + integration** | Real HealthKit on iPhone; tuning; **RPG integration: quests→tickets, shop→trophy gallery, retroactive milestone credit** (must ship WITH the casino); StoreKit unlock | device + TestFlight |
+| **5 — Device + integration** | Real HealthKit on iPhone; tuning; **RPG integration: shop→trophy gallery + retroactive milestone credit** (quests→tickets already done); StoreKit unlock | device + TestFlight |
 
-**Interim hybrid (dev-only):** until P5 integration, old quests still pay coins and the old shop still charges coins. Acceptable while the flag is off in prod.
+**Interim hybrid (dev-only):** quests now pay tickets (done); the old shop still charges coins until the P5 trophy conversion. Acceptable while the flag is off in prod — but the casino flag must be ON at ship (quest ticket rewards are invisible with it off).
 
 ## Notes / risks
 
