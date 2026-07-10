@@ -454,6 +454,7 @@ namespace Gamex.Game
             BuildCasinoScratch(root);    // inert unless the phase is one of
             BuildCasinoUpgrades(root);   // the AppPhase.Casino* values
             BuildCasinoPrestige(root);
+            BuildCasinoSlots(root);
         }
 
     }

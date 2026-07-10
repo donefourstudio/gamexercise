@@ -83,6 +83,9 @@ namespace Gamex.Core
         public const float GTOUCH_COINS_PER_LEVEL = 0.05f;
         public const int   LDICE_L1_COST = 3;       public const float LDICE_COST_MULT = 1.6f;
         public const int   MARATHONER_L1_COST = 4;  public const float MARATHONER_COST_MULT = 1.6f;
+        // One-time (P4). Priced at ~2 prestiges of PP so the hand-scratch
+        // tedium has real time to bite first — automation is EARNED.
+        public const int   AUTOSCR_COST = 8;
 
         // ---- prestige ----
         public const int   FIRST_PRESTIGE_PLAYS = 25;   // scripted tutorial gate (pure effort, day-1 reachable)
@@ -235,15 +238,18 @@ namespace Gamex.Core
 
         // ---- permanent PP upgrades ----
 
-        public enum PermUpgrade { GoldenTouch, LoadedDice, Marathoner }
+        public enum PermUpgrade { GoldenTouch, LoadedDice, Marathoner, AutoScratcher }
+
+        public bool AutoScratcherOwned => state.permAutoScratcher > 0;
 
         public int PermUpgradeLevel(PermUpgrade u)
         {
             switch (u)
             {
-                case PermUpgrade.GoldenTouch: return state.permGoldenTouch;
-                case PermUpgrade.LoadedDice:  return state.permLoadedDice;
-                default:                      return state.permMarathoner;
+                case PermUpgrade.GoldenTouch:   return state.permGoldenTouch;
+                case PermUpgrade.LoadedDice:    return state.permLoadedDice;
+                case PermUpgrade.AutoScratcher: return state.permAutoScratcher;
+                default:                        return state.permMarathoner;
             }
         }
 
@@ -252,22 +258,25 @@ namespace Gamex.Core
             int lvl = PermUpgradeLevel(u);
             switch (u)
             {
-                case PermUpgrade.GoldenTouch: return (int)Cost(GTOUCH_L1_COST,     GTOUCH_COST_MULT,     lvl);
-                case PermUpgrade.LoadedDice:  return (int)Cost(LDICE_L1_COST,      LDICE_COST_MULT,      lvl);
-                default:                      return (int)Cost(MARATHONER_L1_COST, MARATHONER_COST_MULT, lvl);
+                case PermUpgrade.GoldenTouch:   return (int)Cost(GTOUCH_L1_COST,     GTOUCH_COST_MULT,     lvl);
+                case PermUpgrade.LoadedDice:    return (int)Cost(LDICE_L1_COST,      LDICE_COST_MULT,      lvl);
+                case PermUpgrade.AutoScratcher: return AUTOSCR_COST;   // flat, one-time
+                default:                        return (int)Cost(MARATHONER_L1_COST, MARATHONER_COST_MULT, lvl);
             }
         }
 
         public bool TryBuyPermUpgrade(PermUpgrade u)
         {
+            if (u == PermUpgrade.AutoScratcher && state.permAutoScratcher >= 1) return false;   // one-time
             int cost = PermUpgradeCost(u);
             if (state.prestigePoints < cost) return false;
             state.prestigePoints -= cost;
             switch (u)
             {
-                case PermUpgrade.GoldenTouch: state.permGoldenTouch++; break;
-                case PermUpgrade.LoadedDice:  state.permLoadedDice++;  break;
-                default:                      state.permMarathoner++;  break;
+                case PermUpgrade.GoldenTouch:   state.permGoldenTouch++;   break;
+                case PermUpgrade.LoadedDice:    state.permLoadedDice++;    break;
+                case PermUpgrade.AutoScratcher: state.permAutoScratcher++; break;
+                default:                        state.permMarathoner++;    break;
             }
             onSave?.Invoke();
             return true;

@@ -52,7 +52,8 @@ namespace Gamex.Game
                       || g.phase == AppPhase.CasinoLobby
                       || g.phase == AppPhase.CasinoScratch
                       || g.phase == AppPhase.CasinoUpgrades
-                      || g.phase == AppPhase.CasinoPrestige;
+                      || g.phase == AppPhase.CasinoPrestige
+                      || g.phase == AppPhase.CasinoSlots;
             if (bgmOn) Bgm.PlayLoop("bgm_home");
             else       Bgm.Stop();
 
@@ -155,6 +156,8 @@ namespace Gamex.Game
             if (g.phase == AppPhase.CasinoUpgrades) UpdateCasinoUpgrades();
             Set(_casinoPrestigePanel,     g.phase == AppPhase.CasinoPrestige);
             if (g.phase == AppPhase.CasinoPrestige) UpdateCasinoPrestige();
+            Set(_casinoSlotsPanel,        g.phase == AppPhase.CasinoSlots);
+            if (g.phase == AppPhase.CasinoSlots) UpdateCasinoSlots();
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {

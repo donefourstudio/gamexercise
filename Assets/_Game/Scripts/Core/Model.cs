@@ -63,6 +63,8 @@ namespace Gamex.Core
         CasinoUpgrades,
         // P3 — the cash-out confirm + celebration ceremony.
         CasinoPrestige,
+        // P4 — the reel room. Same pre-rolled engine, slot-machine theatre.
+        CasinoSlots,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }
@@ -275,5 +277,6 @@ namespace Gamex.Core
         public int   permGoldenTouch;    // PP-tree levels — MVP trio
         public int   permLoadedDice;
         public int   permMarathoner;
+        public int   permAutoScratcher;  // 0/1 — one-time P4 unlock (batch-rips the backlog)
     }
 }

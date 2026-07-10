@@ -64,16 +64,33 @@ namespace Gamex.Game
         readonly ScratchFoil[] _scFoils = new ScratchFoil[3];
         PlayResult _scPending;
         bool  _scHasPending;
-        GameObject _scNextBtn;
+        string _scSummary;                      // Auto Scratcher batch summary, shown until the next deal
+        GameObject _scNextBtn, _scAutoBtn;
+        TMP_Text   _scAutoLabel;
         // juice state
         float _scShakeT, _scResultPopT;
         float _scCoinsShown = -1f;              // -1 = snap to target on first frame
         static readonly Vector2 SC_CARD_POS = new Vector2(0f, 250f);
 
+        // ---- Slots (P4) — same pre-rolled engine, reel theatre ----
+        GameObject _casinoSlotsPanel, _slMachine, _slSpinBtn;
+        TMP_Text _slCoins, _slTickets, _slResultLine, _slEmptyLabel;
+        readonly TMP_Text[]   _slReelTexts = new TMP_Text[3];
+        readonly CasinoTier[] _slFinal   = new CasinoTier[3];
+        readonly bool[]       _slStopped = new bool[3];
+        readonly float[]      _slStopAt  = new float[3];
+        readonly float[]      _slStopPop = new float[3];
+        PlayResult _slPending;
+        bool  _slHasPending;
+        float _slSpinT, _slCycleT, _slShakeT, _slResultPopT;
+        float _slCoinsShown = -1f;
+        static readonly Vector2 SL_MACHINE_POS = new Vector2(0f, 280f);
+        bool SlotsAllStopped => _slStopped[0] && _slStopped[1] && _slStopped[2];
+
         // ---- Upgrades ----
         TMP_Text _upWallet;
         (TMP_Text lvl, TMP_Text cost, Button btn) _rowPayout, _rowLuck, _rowStride,
-                                                  _rowGTouch, _rowLDice, _rowMara;
+                                                  _rowGTouch, _rowLDice, _rowMara, _rowAuto;
 
         // ---- Prestige ----
         GameObject _prestigeConfirmGroup, _prestigeCelebGroup;
@@ -133,10 +150,9 @@ namespace Gamex.Game
             MkButton("Scratchers", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -370f), new Vector2(640f, 140f), "SCRATCHERS",
                 () => _onCasinoNav((int)AppPhase.CasinoScratch));
-            var slots = MkButton("Slots", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(0f, -530f), new Vector2(640f, 110f), "SLOTS — SOON",
-                () => { }, "btn_grey", "btn_grey_down");
-            slots.GetComponent<Button>().interactable = false;   // P4 door, visible on purpose
+            MkButton("Slots", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -530f), new Vector2(640f, 110f), "SLOTS",
+                () => _onCasinoNav((int)AppPhase.CasinoSlots));
             MkButton("Upgrades", _casinoLobbyPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, -670f), new Vector2(640f, 110f), "UPGRADES",
                 () => _onCasinoNav((int)AppPhase.CasinoUpgrades));
@@ -224,6 +240,13 @@ namespace Gamex.Game
                 new Vector2(0f, -300f), new Vector2(540f, 130f), "NEXT TICKET",
                 () => ScratchDealNext());
 
+            // The earned Auto Scratcher (P4) — hidden until the 8-PP
+            // unlock is owned. One press rips the whole backlog.
+            _scAutoBtn = MkButton("Auto", _casinoScratchPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -460f), new Vector2(540f, 110f), "AUTO-SCRATCH",
+                AutoScratchAll, "btn_grey", "btn_grey_down");
+            _scAutoLabel = _scAutoBtn.GetComponentInChildren<TMP_Text>();
+
             MkButton("Back", _casinoScratchPanel.transform, new Vector2(0.5f, 0f),
                 new Vector2(0f, 50f), new Vector2(300f, 100f), "BACK",
                 () => _onCasinoNav((int)AppPhase.CasinoLobby), sfx: "back");
@@ -240,19 +263,22 @@ namespace Gamex.Game
 
         bool TicketFullyRevealed => _scCellFlipped[0] && _scCellFlipped[1] && _scCellFlipped[2];
 
-        // Coins as shown on screen: the pending ticket's payout is already
-        // in the wallet (credited at play time) but hasn't "happened"
-        // visually until every cell is revealed, so hold it back.
+        // Coins as shown on screen: a pending play's payout is already in
+        // the wallet (credited at play time) but hasn't "happened" visually
+        // until the reveal finishes, so hold it back — for the scratch
+        // ticket AND a mid-spin slot play alike.
         long CasinoDisplayCoins => _casino.host.coins
-            - (_scHasPending && !TicketFullyRevealed ? _scPending.coins : 0);
+            - (_scHasPending && !TicketFullyRevealed ? _scPending.coins : 0)
+            - (_slHasPending && !SlotsAllStopped ? _slPending.coins : 0);
 
         void ScratchDealNext()
         {
+            _scSummary = null;
             if (!_casino.CanPlay) { _scHasPending = false; return; }
             _scPending = _casino.Play();
             _scHasPending = true;
             for (int i = 0; i < 3; i++) _scCellFlipped[i] = false;
-            if (_scPending.tier == CasinoTier.Bust) RollBustSymbols();
+            if (_scPending.tier == CasinoTier.Bust) FillBustSymbols(_scCellSymbols);
             else for (int i = 0; i < 3; i++) _scCellSymbols[i] = _scPending.tier;
             for (int i = 0; i < 3; i++)
             {
@@ -262,11 +288,11 @@ namespace Gamex.Game
             }
         }
 
-        // Near-miss theatre for busts: a pair + one odd symbol. 15% of
-        // busts tease a pair of 7s (the agonising almost-jackpot).
-        // Presentation-only randomness — the payout was already rolled in
-        // CasinoGame.
-        void RollBustSymbols()
+        // Near-miss theatre for busts (shared by scratchers + slots): a
+        // pair + one odd symbol. 15% of busts tease a pair of 7s (the
+        // agonising almost-jackpot). Presentation-only randomness — the
+        // payout was already rolled in CasinoGame.
+        static void FillBustSymbols(CasinoTier[] symbols)
         {
             CasinoTier pair = UnityEngine.Random.value < 0.15f
                 ? CasinoTier.Seven
@@ -275,7 +301,40 @@ namespace Gamex.Game
             do { odd = (CasinoTier)UnityEngine.Random.Range((int)CasinoTier.Cherry, (int)CasinoTier.Seven + 1); }
             while (odd == pair);
             int oddSlot = UnityEngine.Random.Range(0, 3);
-            for (int i = 0; i < 3; i++) _scCellSymbols[i] = i == oddSlot ? odd : pair;
+            for (int i = 0; i < 3; i++) symbols[i] = i == oddSlot ? odd : pair;
+        }
+
+        // The earned Auto Scratcher (P4): folds in the on-screen ticket if
+        // its reveal wasn't finished, drains the whole bank, reports one
+        // aggregate line. Only reachable once the one-time unlock is owned.
+        void AutoScratchAll()
+        {
+            long coins = 0; int count = 0, jackpots = 0;
+            if (_scHasPending && !TicketFullyRevealed)
+            {
+                for (int i = 0; i < 3; i++) _scCellFlipped[i] = true;
+                coins += _scPending.coins; count++;
+                if (_scPending.jackpot) jackpots++;
+            }
+            while (_casino.CanPlay)
+            {
+                var r = _casino.Play();
+                coins += r.coins; count++;
+                if (r.jackpot) jackpots++;
+            }
+            if (count == 0) return;
+            _scHasPending = false;   // machine ate the stack; cells hide
+            _scSummary = jackpots > 0
+                ? $"Auto-scratched {count}: +{coins:N0} coins — {jackpots} JACKPOT{(jackpots > 1 ? "S" : "")}!"
+                : $"Auto-scratched {count}: +{coins:N0} coins";
+            _scResultPopT = 0.35f;
+            if (jackpots > 0)
+            {
+                Sfx.Play("milestone");
+                _scShakeT = 0.5f;
+                SpawnCoinBurst(_casinoScratchPanel.transform, SC_CARD_POS, BURST_POOL);
+            }
+            else Sfx.Play("coin");
         }
 
         // A foil hit its reveal threshold. The LAST cell fires the payoff:
@@ -382,10 +441,21 @@ namespace Gamex.Game
             }
             else _scResultLine.rectTransform.localScale = Vector3.one;
 
-            _scResultLine.text = _scHasPending && TicketFullyRevealed
+            if (_scSummary != null) _scResultLine.text = _scSummary;
+            else _scResultLine.text = _scHasPending && TicketFullyRevealed
                 ? CasinoResultText(_scPending) : "";
 
             _scNextBtn.SetActive((!_scHasPending || TicketFullyRevealed) && _casino.CanPlay);
+
+            // Auto Scratcher button — only once owned, only with work to do.
+            bool canAuto = _casino.AutoScratcherOwned
+                && (_casino.state.ticketsBanked > 0 || (_scHasPending && !TicketFullyRevealed));
+            _scAutoBtn.SetActive(canAuto);
+            if (canAuto)
+            {
+                int autoCount = _casino.state.ticketsBanked + (_scHasPending && !TicketFullyRevealed ? 1 : 0);
+                _scAutoLabel.text = $"AUTO-SCRATCH ({autoCount:N0})";
+            }
 
             bool dry = !_casino.CanPlay && (!_scHasPending || TicketFullyRevealed);
             _scEmptyLabel.gameObject.SetActive(dry);
@@ -434,6 +504,9 @@ namespace Gamex.Game
             _rowMara = MkCasinoUpgradeRow(_casinoUpgradesPanel.transform, -540f,
                 "Marathoner", "running earns +10% tickets / level",
                 () => Sfx.Play(_casino.TryBuyPermUpgrade(CasinoGame.PermUpgrade.Marathoner) ? "purchase" : "error"));
+            _rowAuto = MkCasinoUpgradeRow(_casinoUpgradesPanel.transform, -710f,
+                "Auto Scratcher", "rips your whole ticket stack — one-time",
+                () => Sfx.Play(_casino.TryBuyPermUpgrade(CasinoGame.PermUpgrade.AutoScratcher) ? "purchase" : "error"));
 
             MkButton("Back", _casinoUpgradesPanel.transform, new Vector2(0.5f, 0f),
                 new Vector2(0f, 50f), new Vector2(300f, 100f), "BACK",
@@ -486,6 +559,11 @@ namespace Gamex.Game
             UpdateCasinoRow(_rowMara, c.permMarathoner,
                 _casino.PermUpgradeCost(CasinoGame.PermUpgrade.Marathoner) + " PP",
                 c.prestigePoints >= _casino.PermUpgradeCost(CasinoGame.PermUpgrade.Marathoner), false);
+            bool autoOwned = _casino.AutoScratcherOwned;
+            UpdateCasinoRow(_rowAuto, c.permAutoScratcher,
+                autoOwned ? "OWNED" : _casino.PermUpgradeCost(CasinoGame.PermUpgrade.AutoScratcher) + " PP",
+                !autoOwned && c.prestigePoints >= _casino.PermUpgradeCost(CasinoGame.PermUpgrade.AutoScratcher),
+                false);
         }
 
         static void UpdateCasinoRow((TMP_Text lvl, TMP_Text cost, Button btn) row,
@@ -569,7 +647,8 @@ namespace Gamex.Game
             Sfx.Play("milestone");
             Sfx.Play("level_up");
             SpawnCoinBurst(_casinoPrestigePanel.transform, new Vector2(0f, 120f), BURST_POOL);
-            _scCoinsShown = -1f;   // scratch-screen counter snaps to the fresh (zeroed) wallet
+            _scCoinsShown = -1f;   // play-screen counters snap to the fresh (zeroed) wallet
+            _slCoinsShown = -1f;
         }
 
         void UpdateCasinoPrestige()
@@ -587,6 +666,179 @@ namespace Gamex.Game
             float t = Mathf.Clamp01(_prestigeCelebT / 0.45f);
             float s = Mathf.Lerp(1.8f, 1f, t * t * (3f - 2f * t));
             _prestigeCelebTitle.rectTransform.localScale = new Vector3(s, s, 1f);
+        }
+
+        // ============================================================
+        // Slots (P4) — the reel room. A spin consumes one ticket via the
+        // SAME pre-rolled CasinoGame.Play(); the reels are theatre: they
+        // cycle random symbols, then stop left-to-right on the rolled
+        // outcome. When the first two reels match, the third hangs an
+        // extra beat — the near-miss tension slots invented.
+        // ============================================================
+        void BuildCasinoSlots(Transform root)
+        {
+            _casinoSlotsPanel = MkFullPanel("CasinoSlots", root);
+
+            _slCoins = MkText("Coins", _casinoSlotsPanel.transform, new Vector2(0f, 1f),
+                new Vector2(50f, -140f - SAFE_AREA_TOP_INSET), new Vector2(500f, 60f),
+                FS_LABEL, TextAnchor.UpperLeft, TextWhite);
+            _slTickets = MkText("Tickets", _casinoSlotsPanel.transform, new Vector2(1f, 1f),
+                new Vector2(-50f, -140f - SAFE_AREA_TOP_INSET), new Vector2(500f, 60f),
+                FS_LABEL, TextAnchor.UpperRight, TextWhite);
+
+            _slMachine = MkSpritePanel("Machine", _casinoSlotsPanel.transform, new Vector2(0.5f, 0.5f),
+                SL_MACHINE_POS, new Vector2(960f, 460f), "panel", PanelTint);
+            _slMachine.GetComponent<Image>().raycastTarget = false;
+            MkText("MachineTitle", _slMachine.transform, new Vector2(0.5f, 1f), new Vector2(0f, -28f),
+                new Vector2(900f, 56f), FS_LABEL, TextAnchor.UpperCenter, AccentGold).text = "· SLOTS ·";
+
+            for (int i = 0; i < 3; i++)
+            {
+                var win = MkSpritePanel("Reel" + i, _slMachine.transform, new Vector2(0.5f, 0.5f),
+                    new Vector2(-300f + 300f * i, -20f), new Vector2(270f, 250f),
+                    "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
+                win.GetComponent<Image>().raycastTarget = false;
+                _slReelTexts[i] = MkText("Sym", win.transform, new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(260f, 240f), FS_BTN, TextAnchor.MiddleCenter, TextDim);
+                _slReelTexts[i].text = "—";
+            }
+
+            _slEmptyLabel = MkText("Empty", _casinoSlotsPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -150f), new Vector2(1040f, 60f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+
+            _slResultLine = MkText("Result", _casinoSlotsPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -70f), new Vector2(1040f, 70f), FS_BTN, TextAnchor.MiddleCenter, AccentGold);
+
+            _slSpinBtn = MkButton("Spin", _casinoSlotsPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -300f), new Vector2(540f, 150f), "SPIN", SlotsSpin);
+            MkText("SpinCost", _casinoSlotsPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, -410f), new Vector2(600f, 40f), FS_BODY, TextAnchor.MiddleCenter, TextDim)
+                .text = "1 ticket per spin";
+
+            MkButton("Back", _casinoSlotsPanel.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 50f), new Vector2(300f, 100f), "BACK",
+                () => _onCasinoNav((int)AppPhase.CasinoLobby), sfx: "back");
+        }
+
+        void SlotsSpin()
+        {
+            if (!_casino.CanPlay || (_slHasPending && !SlotsAllStopped)) return;
+            _slPending = _casino.Play();
+            _slHasPending = true;
+            if (_slPending.tier == CasinoTier.Bust) FillBustSymbols(_slFinal);
+            else for (int i = 0; i < 3; i++) _slFinal[i] = _slPending.tier;
+            _slSpinT = 0f;
+            _slStopAt[0] = 0.7f; _slStopAt[1] = 1.5f; _slStopAt[2] = 2.3f;
+            // The slots classic: two matching reels make the third hang an
+            // extra beat — maximum tension whether it hits or heartbreaks.
+            if (_slFinal[0] == _slFinal[1]) _slStopAt[2] += 0.7f;
+            for (int i = 0; i < 3; i++) _slStopped[i] = false;
+        }
+
+        void SlotsResolve()
+        {
+            _slResultPopT = 0.35f;
+            if (_slPending.jackpot)
+            {
+                Sfx.Play("milestone");
+                Sfx.Play("level_up");
+                _slShakeT = 0.6f;
+                SpawnCoinBurst(_casinoSlotsPanel.transform, SL_MACHINE_POS, BURST_POOL);
+            }
+            else if (_slPending.tier == CasinoTier.Bar)
+            {
+                Sfx.Play("coin");
+                Sfx.Play("quest_done", 0.7f);
+                SpawnCoinBurst(_casinoSlotsPanel.transform, SL_MACHINE_POS, 10);
+            }
+            else if (_slPending.tier != CasinoTier.Bust)
+            {
+                Sfx.Play("coin");
+            }
+        }
+
+        void UpdateCasinoSlots()
+        {
+            float dt = Time.unscaledDeltaTime;
+            TickCoinBurst(dt);
+
+            long target = CasinoDisplayCoins;
+            if (_slCoinsShown < 0f) _slCoinsShown = target;
+            _slCoinsShown = Mathf.Abs(_slCoinsShown - target) < 1f
+                ? target
+                : Mathf.Lerp(_slCoinsShown, target, 1f - Mathf.Exp(-8f * dt));
+            _slCoins.text   = $"Coins: {(long)_slCoinsShown:N0}";
+            _slTickets.text = $"Tickets: {_casino.state.ticketsBanked:N0}";
+
+            bool spinning = _slHasPending && !SlotsAllStopped;
+            if (spinning)
+            {
+                _slSpinT  += dt;
+                _slCycleT += dt;
+                bool cycle = _slCycleT >= 0.06f;
+                if (cycle) _slCycleT = 0f;
+                for (int i = 0; i < 3; i++)
+                {
+                    if (_slStopped[i]) continue;
+                    if (_slSpinT >= _slStopAt[i])
+                    {
+                        _slStopped[i] = true;
+                        _slReelTexts[i].text  = CasinoSymbolLabel(_slFinal[i]);
+                        _slReelTexts[i].color = CasinoTierColor(_slFinal[i]);
+                        _slStopPop[i] = 0.25f;
+                        Sfx.Play("tap");
+                        if (i == 2) SlotsResolve();
+                    }
+                    else if (cycle)
+                    {
+                        var t = (CasinoTier)UnityEngine.Random.Range((int)CasinoTier.Cherry, (int)CasinoTier.Seven + 1);
+                        _slReelTexts[i].text  = CasinoSymbolLabel(t);
+                        _slReelTexts[i].color = TextDim;
+                    }
+                }
+            }
+
+            // Per-reel stop pop.
+            for (int i = 0; i < 3; i++)
+            {
+                if (_slStopPop[i] > 0f)
+                {
+                    _slStopPop[i] -= dt;
+                    float t01 = 1f - Mathf.Clamp01(_slStopPop[i] / 0.25f);
+                    float s = Mathf.Lerp(1.3f, 1f, t01);
+                    _slReelTexts[i].rectTransform.localScale = new Vector3(s, s, 1f);
+                }
+                else _slReelTexts[i].rectTransform.localScale = Vector3.one;
+            }
+
+            // 777 machine shake.
+            var mrt = (RectTransform)_slMachine.transform;
+            if (_slShakeT > 0f)
+            {
+                _slShakeT -= dt;
+                float amp = Mathf.Lerp(0f, 16f, Mathf.Clamp01(_slShakeT / 0.6f));
+                mrt.anchoredPosition = SL_MACHINE_POS + new Vector2(
+                    UnityEngine.Random.Range(-amp, amp), UnityEngine.Random.Range(-amp, amp));
+                if (_slShakeT <= 0f) mrt.anchoredPosition = SL_MACHINE_POS;
+            }
+
+            // Result pop + line.
+            if (_slResultPopT > 0f)
+            {
+                _slResultPopT -= dt;
+                float t01 = 1f - Mathf.Clamp01(_slResultPopT / 0.35f);
+                float s = Mathf.Lerp(1.35f, 1f, t01 * t01 * (3f - 2f * t01));
+                _slResultLine.rectTransform.localScale = new Vector3(s, s, 1f);
+            }
+            else _slResultLine.rectTransform.localScale = Vector3.one;
+            _slResultLine.text = _slHasPending && SlotsAllStopped ? CasinoResultText(_slPending) : "";
+
+            _slSpinBtn.GetComponent<Button>().interactable = _casino.CanPlay && !spinning;
+
+            bool dry = !_casino.CanPlay && !spinning;
+            _slEmptyLabel.gameObject.SetActive(dry);
+            if (dry)
+                _slEmptyLabel.text = $"Out of tickets — walk {_casino.StepsPerTicket - _casino.state.stepAccumulator} more steps.";
         }
 
         // ============================================================

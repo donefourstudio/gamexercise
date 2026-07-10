@@ -166,6 +166,19 @@ namespace Gamex.Game
             Check(!cperm.TryBuyPermUpgrade(CasinoGame.PermUpgrade.Marathoner),
                   "refuses Marathoner (costs 4, have 3)");
 
+            // Auto Scratcher: flat 8-PP, strictly one-time (P4).
+            var ahost = new GameState();
+            var cauto = new CasinoGame(ahost, new System.Random(7));
+            cauto.state.prestigePoints = 20f;
+            Check(cauto.PermUpgradeCost(CasinoGame.PermUpgrade.AutoScratcher) == 8, "Auto Scratcher costs 8 PP");
+            Check(!cauto.AutoScratcherOwned, "not owned initially");
+            Check(cauto.TryBuyPermUpgrade(CasinoGame.PermUpgrade.AutoScratcher)
+                  && cauto.AutoScratcherOwned && cauto.state.permAutoScratcher == 1,
+                  "buy Auto Scratcher");
+            Check(!cauto.TryBuyPermUpgrade(CasinoGame.PermUpgrade.AutoScratcher),
+                  "Auto Scratcher is one-time (refuses re-buy)");
+            Check(System.Math.Abs(cauto.state.prestigePoints - 12f) < 1e-4, "8 PP deducted, no double-charge");
+
             // Marathoner: run-seconds add bonus step credit on top of the
             // pedometer steps (600 s * 2.8 steps/s * 2 lvl * 10% = 336).
             var rhost = new GameState();
