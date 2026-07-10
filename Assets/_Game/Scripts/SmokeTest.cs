@@ -54,6 +54,117 @@ namespace Gamex.Game
                   && fateBack.fate.cardsBanked == 17 && fateBack.fate.permMidas == 2,
                   "FateState survives save round-trip");
 
+            // ==== Fate Cards core economy (M_fate Phase 1) ====
+            // RNG is seeded so every run of this suite is reproducible.
+
+            // Faucet: 1 card / 100 steps, remainder accumulates across ticks.
+            var ff = new FateGame(new FateState(), new System.Random(12345));
+            ff.GrantActivity(250, 0);
+            Check(ff.state.cardsBanked == 2 && ff.state.stepAccumulator == 50,
+                  "250 steps -> 2 cards + 50 acc, got " + ff.state.cardsBanked + "/" + ff.state.stepAccumulator);
+            ff.GrantActivity(50, 0);
+            Check(ff.state.cardsBanked == 3 && ff.state.stepAccumulator == 0, "accumulator completes a card");
+
+            // Fix #1: a jackpot is guaranteed within the first 3 lifetime
+            // cards (card #3 is rigged if none landed naturally).
+            var s1 = ff.ScratchCard(); var s2 = ff.ScratchCard(); var s3 = ff.ScratchCard();
+            Check(s1.jackpot || s2.jackpot || s3.jackpot, "first session guarantees a jackpot within 3 cards");
+            Check(ff.state.lifetimeJackpots >= 1 && ff.state.jackpotsThisRun >= 1, "jackpot counters tick");
+            Check(ff.state.cardsBanked == 0 && !ff.CanScratch, "scratching consumes cards");
+            Check(ff.ScratchCard().gold == 0 && ff.state.lifetimeCardsScratched == 3,
+                  "scratch at 0 cards is a no-op");
+
+            // Distribution: 50k scratches at luck 0 -> EV within 72 +/- 5,
+            // jackpot rate within 1.5% +/- 0.4%. (SEM at 50k ~ 1.1 gold /
+            // 0.05%, so a fail means the table changed, not noise.)
+            var fdist = new FateGame(new FateState { lifetimeJackpots = 1 }, new System.Random(777));
+            fdist.state.cardsBanked = 50000;
+            long distGold = 0; int distSuns = 0;
+            for (int i = 0; i < 50000; i++) { var r = fdist.ScratchCard(); distGold += r.gold; if (r.jackpot) distSuns++; }
+            double distEv = distGold / 50000.0, distSunRate = distSuns / 50000.0;
+            Check(distEv > 67 && distEv < 77, $"Three Fates EV ~72, got {distEv:F1}");
+            Check(distSunRate > 0.011 && distSunRate < 0.019, $"jackpot rate ~1.5%, got {distSunRate:P2}");
+
+            // Luck (Favor + BlessedFate) shifts the table: +0.3%/lvl into
+            // Sun, busts -> moons. EV at luck 5 ~ 72 + 6.185*5 = 102.9.
+            var fluck = new FateGame(new FateState { lifetimeJackpots = 1 }, new System.Random(778));
+            fluck.state.runFavor = 5;
+            Check(System.Math.Abs(fluck.JackpotChance - 0.030f) < 1e-4, "luck 5 -> 3.0% jackpot odds");
+            fluck.state.cardsBanked = 50000;
+            long luckGold = 0; int luckSuns = 0;
+            for (int i = 0; i < 50000; i++) { var r = fluck.ScratchCard(); luckGold += r.gold; if (r.jackpot) luckSuns++; }
+            double luckEv = luckGold / 50000.0, luckSunRate = luckSuns / 50000.0;
+            Check(luckEv > 97 && luckEv < 109, $"EV at luck 5 ~102.9, got {luckEv:F1}");
+            Check(luckSunRate > 0.025 && luckSunRate < 0.035, $"jackpot ~3% at luck 5, got {luckSunRate:P2}");
+
+            // Fortune + Midas multiply payouts (deterministic via the rigged
+            // Sun): 2000 * (1 + 5*0.08 + 2*0.05) = 3000.
+            var fmult = new FateGame(new FateState { lifetimeCardsScratched = 2 }, new System.Random(1));
+            fmult.state.runFortune = 5; fmult.state.permMidas = 2; fmult.state.cardsBanked = 1;
+            var rigged = fmult.ScratchCard();
+            Check(rigged.rigged && rigged.gold == 3000,
+                  "multipliers: rigged Sun pays 2000*1.5 = 3000, got " + rigged.gold);
+
+            // Per-run upgrade curve + purchase gating.
+            var fup = new FateGame(new FateState(), new System.Random(2));
+            Check(fup.RunUpgradeCost(FateGame.RunUpgrade.Fortune) == 300, "Fortune L1 costs 300");
+            fup.state.gold = 720;   // exactly L1 (300) + L2 (420)
+            Check(fup.TryBuyRunUpgrade(FateGame.RunUpgrade.Fortune) && fup.state.runFortune == 1, "buy Fortune L1");
+            Check(fup.RunUpgradeCost(FateGame.RunUpgrade.Fortune) == 420, "Fortune L2 costs 420 (300*1.4)");
+            Check(fup.TryBuyRunUpgrade(FateGame.RunUpgrade.Fortune) && fup.state.gold == 0, "L2 drains the wallet");
+            Check(!fup.TryBuyRunUpgrade(FateGame.RunUpgrade.Fortune), "refuses purchase without gold");
+            fup.state.gold = 1000000;
+            for (int i = 0; i < 10; i++) fup.TryBuyRunUpgrade(FateGame.RunUpgrade.Endurance);
+            Check(fup.state.runEndurance == 7 && fup.StepsPerCard == 44,
+                  "Endurance caps at L7 -> 44 steps/card floor");
+
+            // Scripted first ascension: pure-effort gate at 25 cards; grants
+            // flat 5 AP; resets gold + run levels; NEVER touches banked
+            // cards / lifetime counters (never punish exercise).
+            var fasc = new FateGame(new FateState { lifetimeJackpots = 1 }, new System.Random(3));
+            fasc.state.cardsBanked = 30;
+            for (int i = 0; i < 24; i++) fasc.ScratchCard();
+            Check(!fasc.AscensionEligible, "not eligible at 24 cards");
+            fasc.ScratchCard();
+            Check(fasc.AscensionEligible, "first ascension eligible at 25 cards");
+            fasc.state.gold = 9999; fasc.state.runFortune = 3;
+            int bankedBefore = fasc.state.cardsBanked;
+            Check(fasc.TryAscend(), "ascend succeeds");
+            Check(System.Math.Abs(fasc.state.ascensionPoints - 5f) < 1e-4, "first ascension grants flat 5 AP");
+            Check(fasc.state.gold == 0 && fasc.state.runFortune == 0, "ascension resets gold + run levels");
+            Check(fasc.state.cardsBanked == bankedBefore && fasc.state.lifetimeCardsScratched == 25,
+                  "banked cards + lifetime counters survive ascension");
+            // n=2 gates: 2 jackpots OR 150 cards; AP = jackpots + cards/40.
+            Check(fasc.GateJackpots == 2 && fasc.GateCards == 150, "n=2 gates: J=2, C=150");
+            fasc.state.jackpotsThisRun = 2; fasc.state.cardsThisRun = 20;
+            Check(fasc.AscensionEligible, "2 jackpots satisfy the n=2 gate");
+            Check(System.Math.Abs(fasc.AscensionApPreview - (2 + 20 / 40f)) < 1e-4,
+                  "AP preview = jackpots + cards/40 (effort floor)");
+
+            // Permanent AP purchases.
+            var fperm = new FateGame(new FateState(), new System.Random(4));
+            fperm.state.ascensionPoints = 5f;
+            Check(fperm.PermUpgradeCost(FateGame.PermUpgrade.Midas) == 2, "Midas L1 costs 2 AP");
+            Check(fperm.TryBuyPermUpgrade(FateGame.PermUpgrade.Midas) && fperm.state.permMidas == 1, "buy Midas L1");
+            Check(System.Math.Abs(fperm.state.ascensionPoints - 3f) < 1e-4, "AP deducted");
+            Check(!fperm.TryBuyPermUpgrade(FateGame.PermUpgrade.Marathoner),
+                  "refuses Marathoner (costs 4, have 3)");
+
+            // Marathoner: run-seconds add bonus step credit on top of the
+            // pedometer steps (600 s * 2.8 steps/s * 2 lvl * 10% = 336).
+            var frun = new FateGame(new FateState(), new System.Random(5));
+            frun.state.permMarathoner = 2;
+            frun.GrantActivity(1000, 600);
+            Check(frun.state.cardsBanked == 13 && frun.state.stepAccumulator == 36,
+                  "marathoner: 1000+336 credit -> 13 cards + 36 acc, got "
+                  + frun.state.cardsBanked + "/" + frun.state.stepAccumulator);
+
+            // Card cap: over-cap step-chunks convert straight to gold.
+            var fcap = new FateGame(new FateState { cardsBanked = 299 }, new System.Random(6));
+            fcap.GrantActivity(300, 0);
+            Check(fcap.state.cardsBanked == 300 && fcap.state.gold == 2 * FateGame.OVERFLOW_GOLD_PER_CARD,
+                  "cap 300: 3 card-chunks -> 1 banked + 2 overflowed to gold");
+
             // Linear XP: 5000 steps per level, no curve.
             var g = new GamexGame();
             Check(g.state.level == 1, "starts at lv 1");

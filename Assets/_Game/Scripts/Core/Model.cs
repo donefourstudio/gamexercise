@@ -252,6 +252,7 @@ namespace Gamex.Core
         public int  cardCap;                 // 0 = FateGame default (~300); >0 = upgraded cap
         public int  stepAccumulator;         // leftover steps not yet worth a card (0..stepsPerCard-1)
         public long lifetimeCardsScratched;  // never resets — real-effort record
+        public long lifetimeJackpots;        // never resets — gates the one-time rigged first jackpot (Fix #1)
 
         // ---- current run (resets on Ascension) ----
         public int cardsThisRun;             // effort-floor input for AP

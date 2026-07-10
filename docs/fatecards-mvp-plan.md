@@ -1,9 +1,19 @@
 # Fate Cards — MVP Implementation Plan
 
-**Status:** Design v0.2 — brainstorm complete + pressure-tested, pre-implementation.
+**Status:** Phase 0 ✅ (scaffold + flag, `64e9a6c`) · Phase 1 ✅ (FateGame core + LogicTest economy coverage) · **Phase 2 next** (core screens + steps→cards wiring) · Phases 3–4 pending.
+**Monetization (decided 2026-07):** free download + one-time **$5.99** non-consumable unlock — see the Monetization section below.
 **Goal:** Pivot Gamexercise from a passive idle-RPG into an **exercise-fuelled scratch-card / casino game** where real walking/running is the only faucet. Make fitness addictive (daily retention, short-term dopamine, long-term habit) without ever letting the fun run without the walking.
 
 > Guardrail: **steps are the ONLY currency faucet.** Never sell currency for real money. The base scratch is **pure-upside** (every card gains gold; variance is in *how much*). Real risk is opt-in and later. See `~/.claude` design memory `gamexercise-redesign-vision` for the full design rationale.
+
+## Monetization — free + one-time unlock (decided 2026-07)
+
+- **Free download.** The full core loop is playable free **through the first ascension + a few days** — the hook must set before any gate appears. The exact free/paid line is a Phase-4/TestFlight tuning decision.
+- **One non-consumable IAP — "Break the Seal", $5.99** — permanently unlocks everything: all card types as they level-unlock, full AP-tree depth, unlimited ascensions. Restorable across devices; Family Sharing optional.
+- **Never sold:** cards, gold, AP, steps. Money can never buy exercise progress. No ads, no subscriptions, no consumables. Because randomized rewards are never money-purchasable (directly or via intermediate currency), Apple's loot-box odds-disclosure rules don't apply.
+- Launch at $5.99; raise later if reviews/reputation justify it (raising is easy; lowering reads as failure).
+- Implementation: the StoreKit gate lands ~Phase 3–4. The economy core is monetization-agnostic — no Phase 1/2 impact.
+- Rejected alternative: $8.99 paid-upfront (ethically ideal but strangles the install funnel for an unknown indie; the mission needs users to arrive).
 
 ---
 
