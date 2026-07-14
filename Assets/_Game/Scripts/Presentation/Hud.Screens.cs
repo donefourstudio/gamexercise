@@ -161,7 +161,7 @@ namespace Gamex.Game
                 MkButton("Shop", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(-215f, 200f),
                     new Vector2(400f, 100f), "Shop", () => _onGoShop?.Invoke(), "btn_grey", "btn_grey_down");
                 MkButton("Casino", _homePanel.transform, new Vector2(0.5f, 0f), new Vector2(215f, 200f),
-                    new Vector2(400f, 100f), "CASINO", () => _onCasinoNav((int)AppPhase.CasinoLobby));
+                    new Vector2(400f, 100f), "CASINO", () => _onDeskNav((int)AppPhase.Desk));
             }
             else
             {

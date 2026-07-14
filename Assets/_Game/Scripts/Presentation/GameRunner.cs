@@ -20,11 +20,11 @@ namespace Gamex.Game
 
         GamexGame _game;
         Hud _hud;
-        // Casino economy core (docs/casino-mvp-plan.md). Always constructed
-        // and always fed activity — tickets accrue harmlessly even while
-        // the RemoteConfig flag hides the Casino button.
-        CasinoGame _casino;
-        public CasinoGame Casino => _casino;
+        // The Desk economy core (Pivot 3 — docs/casino-mvp-plan.md).
+        // Always constructed and always fed steps — stride rolls accrue
+        // harmlessly even while the RemoteConfig flag hides the button.
+        DeskGame _desk;
+        public DeskGame Desk => _desk;
 
         void Awake()
         {
@@ -38,8 +38,8 @@ namespace Gamex.Game
             _game.onSave = () => SaveSystem.Save(_game.state);
             _game.CatchUpDays();
 
-            _casino = new CasinoGame(_game.state);
-            _casino.onSave = () => SaveSystem.Save(_game.state);
+            _desk = new DeskGame(_game.state);
+            _desk.onSave = () => SaveSystem.Save(_game.state);
 
             // Cold start always lands on the Title screen — tapping "Start
             // Game" routes to DetermineInitialPhase() which picks the same
@@ -124,7 +124,7 @@ namespace Gamex.Game
                 {
                     SaveSystem.Wipe();
                     _game.state = new GameState();
-                    _casino.host = _game.state;   // re-point at the fresh save
+                    _desk.host = _game.state;   // re-point at the fresh save
                     _game.phase = AppPhase.Title;   // back to the front door
                     // SyncHealthKit reads state.todayHealthKitSteps which is
                     // now 0, so the next focus event will write the full HK
@@ -154,13 +154,13 @@ namespace Gamex.Game
                         // Denied / NotDetermined: stay on gate; UI auto-updates.
                     });
                 },
-                // The Casino. Nav sets the phase directly (same pattern as
+                // The Desk. Nav sets the phase directly (same pattern as
                 // onLeaveTitle — including BACK to AppPhase.Home). The
-                // CasinoGame ref is handed straight to the Hud — unlike
+                // DeskGame ref is handed straight to the Hud — unlike
                 // GamexGame's callback routing — because play results must
                 // flow back into the reveal animation synchronously.
-                onCasinoNav:          p => _game.phase = (AppPhase)p,
-                casino:               _casino);
+                onDeskNav:            p => _game.phase = (AppPhase)p,
+                desk:                 _desk);
 
             // Mirror persisted audio mutes into the Sfx/Bgm singletons so the
             // very first Refresh after Hud construction respects them. The
@@ -216,7 +216,7 @@ namespace Gamex.Game
         static bool IsGameplayPhase(AppPhase p)
             => p == AppPhase.Home || p == AppPhase.Quests || p == AppPhase.Shop
             || p == AppPhase.Inventory || p == AppPhase.SetDetail || p == AppPhase.Settings
-            || p == AppPhase.CasinoLobby || p == AppPhase.CasinoScratch || p == AppPhase.CasinoUpgrades;
+            || p == AppPhase.Desk;
 
         void Update()
         {
@@ -243,9 +243,9 @@ namespace Gamex.Game
             if (Input.GetKeyDown(KeyCode.T))
             {
                 _game.AddActivity(1000, 0, 0);
-                // The same debug steps also fill the casino ticket faucet
+                // The same debug steps also fill the Desk's stride rolls
                 // so the Editor loop is playable end to end.
-                _casino.GrantActivity(1000, 0);
+                _desk.GrantSteps(1000);
             }
             // Shift+R from anywhere: nuke save + replay opening (dev / QA only).
             if (Input.GetKeyDown(KeyCode.R) &&
@@ -253,7 +253,7 @@ namespace Gamex.Game
             {
                 SaveSystem.Wipe();
                 _game.state = new GameState();
-                _casino.host = _game.state;   // re-point at the fresh save
+                _desk.host = _game.state;   // re-point at the fresh save
                 _game.phase = AppPhase.OpeningIntro;
                 Debug.Log("[Gamex] save wiped, replaying opening");
             }
@@ -305,8 +305,8 @@ namespace Gamex.Game
                     _game.AddActivity(delta, 0, 0);
                     // Dual feed: levels / streaks (sacred stats) keep
                     // ticking through the old pipeline while the same delta
-                    // fills the casino ticket faucet.
-                    _casino.GrantActivity(delta, 0);
+                    // earns Desk stride rolls (the day job).
+                    _desk.GrantSteps(delta);
                 }
                 _game.state.todayHealthKitSteps = steps;
                 _game.onSave?.Invoke();
@@ -318,7 +318,8 @@ namespace Gamex.Game
                 if (delta > 0)
                 {
                     _game.AddActivity(0, 0, delta);
-                    _casino.GrantActivity(0, delta);   // Marathoner bonus credit
+                    // (Desk run-bonus perk arrives with the prestige tree —
+                    // running already pays via its higher step cadence.)
                 }
                 _game.state.todayHealthKitRunSeconds = runSec;
                 _game.onSave?.Invoke();

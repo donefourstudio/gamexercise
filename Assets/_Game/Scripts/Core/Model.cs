@@ -54,23 +54,11 @@ namespace Gamex.Core
         // detail page — big preview + price + Buy/Apply/Remove CTA. Mirrors
         // SetDetail for sets. Appended last for save-compat.
         SkinDetail,
-        // The Casino — flag-gated section reached from Home
-        // (docs/casino-mvp-plan.md). Lobby -> Scratch / Upgrades; the
-        // Prestige and Slots screens follow in P3/P4. Appended last per
-        // the save-compat convention.
-        CasinoLobby,
-        CasinoScratch,
-        CasinoUpgrades,
-        // P3 — the cash-out confirm + celebration ceremony.
-        CasinoPrestige,
-        // P4 — the reel room. Same pre-rolled engine, slot-machine theatre.
-        CasinoSlots,
-        // P5b — the full roster, level-gated (see CasinoGame.UNLOCK_*).
-        CasinoFindCash,
-        CasinoGoldRush,
-        CasinoLadder,
-        CasinoHighStakes,
-        CasinoMega,
+        // The Desk (Pivot 3 — docs/casino-mvp-plan.md): the whole game is
+        // one scene reached from Home's CASINO button. (The v2 room phases
+        // that lived here were removed with the rooms — phase is never
+        // persisted, so enum surgery is save-safe.)
+        Desk,
     }
 
     public enum Gender { Unset = 0, Male = 1, Female = 2 }

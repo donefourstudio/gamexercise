@@ -30,11 +30,6 @@ namespace Gamex.Game
                     if (_titleCanvasGroup != null)  _titleCanvasGroup.alpha = 1f;
                     if (_titleStartButton != null)  _titleStartButton.interactable = true;
                 }
-                if (g.phase == AppPhase.CasinoScratch)  OnEnterCasinoScratch();
-                if (g.phase == AppPhase.CasinoPrestige) OnEnterCasinoPrestige();
-                if (g.phase == AppPhase.CasinoFindCash) OnEnterCasinoFindCash();
-                if (g.phase == AppPhase.CasinoGoldRush) OnEnterCasinoGoldRush();
-                if (g.phase == AppPhase.CasinoMega)     OnEnterCasinoMega();
                 _lastPhase = g.phase;
             }
 
@@ -52,16 +47,7 @@ namespace Gamex.Game
                       || g.phase == AppPhase.SkinDetail
                       || g.phase == AppPhase.Inventory
                       || g.phase == AppPhase.Settings
-                      || g.phase == AppPhase.CasinoLobby
-                      || g.phase == AppPhase.CasinoScratch
-                      || g.phase == AppPhase.CasinoUpgrades
-                      || g.phase == AppPhase.CasinoPrestige
-                      || g.phase == AppPhase.CasinoSlots
-                      || g.phase == AppPhase.CasinoFindCash
-                      || g.phase == AppPhase.CasinoGoldRush
-                      || g.phase == AppPhase.CasinoLadder
-                      || g.phase == AppPhase.CasinoHighStakes
-                      || g.phase == AppPhase.CasinoMega;
+                      || g.phase == AppPhase.Desk;
             if (bgmOn) Bgm.PlayLoop("bgm_home");
             else       Bgm.Stop();
 
@@ -156,26 +142,8 @@ namespace Gamex.Game
             if (g.phase == AppPhase.Settings) UpdateSettings(g);
             Set(_hkGatePanel,             g.phase == AppPhase.HealthKitGate);
             if (g.phase == AppPhase.HealthKitGate) UpdateHealthKitGate();
-            Set(_casinoLobbyPanel,        g.phase == AppPhase.CasinoLobby);
-            if (g.phase == AppPhase.CasinoLobby) UpdateCasinoLobby(g);
-            Set(_casinoScratchPanel,      g.phase == AppPhase.CasinoScratch);
-            if (g.phase == AppPhase.CasinoScratch) UpdateCasinoScratch();
-            Set(_casinoUpgradesPanel,     g.phase == AppPhase.CasinoUpgrades);
-            if (g.phase == AppPhase.CasinoUpgrades) UpdateCasinoUpgrades();
-            Set(_casinoPrestigePanel,     g.phase == AppPhase.CasinoPrestige);
-            if (g.phase == AppPhase.CasinoPrestige) UpdateCasinoPrestige();
-            Set(_casinoSlotsPanel,        g.phase == AppPhase.CasinoSlots);
-            if (g.phase == AppPhase.CasinoSlots) UpdateCasinoSlots();
-            Set(_casinoFindCashPanel,     g.phase == AppPhase.CasinoFindCash);
-            if (g.phase == AppPhase.CasinoFindCash) UpdateCasinoFindCash();
-            Set(_casinoGoldRushPanel,     g.phase == AppPhase.CasinoGoldRush);
-            if (g.phase == AppPhase.CasinoGoldRush) UpdateCasinoGoldRush();
-            Set(_casinoLadderPanel,       g.phase == AppPhase.CasinoLadder);
-            if (g.phase == AppPhase.CasinoLadder) UpdateCasinoLadder();
-            Set(_casinoHighStakesPanel,   g.phase == AppPhase.CasinoHighStakes);
-            if (g.phase == AppPhase.CasinoHighStakes) UpdateCasinoHighStakes();
-            Set(_casinoMegaPanel,         g.phase == AppPhase.CasinoMega);
-            if (g.phase == AppPhase.CasinoMega) UpdateCasinoMega();
+            Set(_deskPanel,               g.phase == AppPhase.Desk);
+            if (g.phase == AppPhase.Desk) UpdateDesk(g);
 
             if (g.phase == AppPhase.RaceTransformAnim)
             {

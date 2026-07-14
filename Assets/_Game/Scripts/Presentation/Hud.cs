@@ -357,9 +357,9 @@ namespace Gamex.Game
         readonly Action         _onGoSettings, _onToggleSfx, _onToggleBgm, _onResetProgress;
         readonly Action         _onLeaveTitle;
         readonly Action         _onConnectHealthKit;
-        // ---- The Casino ----
-        readonly Action<int>    _onCasinoNav;   // arg = (int)AppPhase; casino nav incl. BACK to Home
-        readonly CasinoGame     _casino;        // direct core ref — see Hud.Casino.cs header
+        // ---- The Desk ----
+        readonly Action<int>    _onDeskNav;   // arg = (int)AppPhase; Desk <-> Home nav
+        readonly DeskGame       _desk;        // direct core ref — see Hud.Desk.cs header
 
         public Hud(
             Action onTapAdvanceOpening,
@@ -385,8 +385,8 @@ namespace Gamex.Game
             Action onResetProgress,
             Action onLeaveTitle,
             Action onConnectHealthKit,
-            Action<int> onCasinoNav,
-            CasinoGame casino)
+            Action<int> onDeskNav,
+            DeskGame desk)
         {
             _onTapAdvanceOpening   = onTapAdvanceOpening;
             _onCurseAnimDone       = onCurseAnimDone;
@@ -411,8 +411,8 @@ namespace Gamex.Game
             _onResetProgress       = onResetProgress;
             _onLeaveTitle          = onLeaveTitle;
             _onConnectHealthKit    = onConnectHealthKit;
-            _onCasinoNav           = onCasinoNav;
-            _casino                = casino;
+            _onDeskNav             = onDeskNav;
+            _desk                  = desk;
 
             if (EventSystem.current == null)
             {
@@ -450,16 +450,7 @@ namespace Gamex.Game
             BuildSettings(root);
             BuildHealthKitGate(root);
             BuildTutorialOverlay(root);
-            BuildCasinoLobby(root);      // The Casino — flag-gated section,
-            BuildCasinoScratch(root);    // inert unless the phase is one of
-            BuildCasinoUpgrades(root);   // the AppPhase.Casino* values
-            BuildCasinoPrestige(root);
-            BuildCasinoSlots(root);
-            BuildCasinoFindCash(root);   // P5b — the full roster
-            BuildCasinoGoldRush(root);
-            BuildCasinoLadder(root);
-            BuildCasinoHighStakes(root);
-            BuildCasinoMega(root);
+            BuildDesk(root);   // The Desk (Pivot 3) — flag-gated, inert unless AppPhase.Desk
         }
 
     }
