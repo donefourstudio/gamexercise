@@ -40,6 +40,24 @@ namespace Gamex.Game
 
         (TMP_Text name, TMP_Text info, Button buy, TMP_Text buyLbl, Button play)[] _dkCardRows;
         (TMP_Text name, TMP_Text info, Button buy, TMP_Text buyLbl)[] _dkUpRows;
+        long _dkPrevEarned = -1;   // unlock-celebration edge detector
+
+        // ---- the MAT (R2-3): real spot-by-spot scratching ----
+        GameObject _matPanel, _matCardGo, _matBailBtn, _matNextBtn, _matDoneBtn;
+        TMP_Text _matTitle, _matResult, _matStatus, _matOdds, _matBailLbl, _matNextLbl;
+        readonly GameObject[]  _matCells = new GameObject[9];
+        readonly Image[]       _matIcons = new Image[9];
+        readonly TMP_Text[]    _matTexts = new TMP_Text[9];
+        readonly ScratchFoil[] _matFoils = new ScratchFoil[9];
+        readonly bool[]        _matRevealed = new bool[9];
+        DealtCard  _matCard;
+        DeskResult _matRes;
+        bool  _matActive, _matResolved;
+        int   _matPrevLevel;
+        float _matPopT, _matShakeT;
+        static readonly Vector2 MAT_CARD_POS = new Vector2(0f, 180f);
+        static readonly string[] MAT_SYM_SPRITES = { "sym_cherry", "sym_bell", "sym_bar", "sym_seven" };
+        static readonly string[] MAT_SYM_NAMES   = { "CHERRY", "BELL", "BAR", "SEVEN" };
 
         // ---- coin burst pool (shared juice, migrated from the casino) ----
         const int BURST_POOL = 26;
@@ -91,7 +109,7 @@ namespace Gamex.Game
                 new Vector2(210f, 470f), new Vector2(460f, 140f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
             MkText("MatNote", _deskPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(210f, 350f), new Vector2(480f, 40f), FS_BODY, TextAnchor.MiddleCenter, TextDim)
-                .text = "PLAY scratches instantly — the foil mat lands in R2-3";
+                .text = "PLAY puts a card on the mat — scratch it";
 
             _dkResultLine = MkText("Result", _deskPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 150f), new Vector2(1050f, 64f), FS_BTN, TextAnchor.MiddleCenter, AccentGold);
@@ -116,7 +134,7 @@ namespace Gamex.Game
                 var buyLbl = buyGo.GetComponentInChildren<TMP_Text>();
                 buyLbl.fontSize = FS_LABEL;
                 var playGo = MkButton("Play", row.transform, new Vector2(1f, 0.5f), new Vector2(-16f, 0f),
-                    new Vector2(160f, 84f), "PLAY", () => DeskBasicPlay(idx), "btn_grey", "btn_grey_down");
+                    new Vector2(160f, 84f), "PLAY", () => DeskEnterMat(idx), "btn_grey", "btn_grey_down");
                 playGo.GetComponentInChildren<TMP_Text>().fontSize = FS_LABEL;
                 _dkCardRows[i] = (nameL, infoL, buyGo.GetComponent<Button>(), buyLbl, playGo.GetComponent<Button>());
             }
@@ -154,6 +172,8 @@ namespace Gamex.Game
                 buyLbl.fontSize = FS_BODY;
                 _dkUpRows[i] = (nameL, infoL, buyGo.GetComponent<Button>(), buyLbl);
             }
+
+            BuildDeskMat();   // topmost child — the scratch overlay
         }
 
         void DeskBuy(int i)
@@ -161,31 +181,277 @@ namespace Gamex.Game
             Sfx.Play(_desk.TryBuyCard(i) ? "purchase" : "error");
         }
 
-        // R2-2 basic play: instant full reveal. R2-3 replaces this with the
-        // foil mat + printed odds + peek-and-bail.
-        void DeskBasicPlay(int i)
+        // ============================================================
+        // The MAT — a dealt card, its printed odds, and a thumb. Spots
+        // are pre-rolled (DealCard); scratching a spot's foil reveals it;
+        // revealed traps are committed. BAIL / CASH OUT resolves with only
+        // what you've revealed — the Scritchy peek-and-bail, for real.
+        // ============================================================
+        void BuildDeskMat()
+        {
+            _matPanel = MkFullPanel("MatOverlay", _deskPanel.transform);
+            var dim = _matPanel.GetComponent<Image>();
+            dim.color = new Color(0f, 0f, 0f, 0.72f);
+            dim.raycastTarget = true;   // swallow taps to the desk behind
+
+            _matCardGo = MkSpritePanel("MatCard", _matPanel.transform, new Vector2(0.5f, 0.5f),
+                MAT_CARD_POS, new Vector2(1010f, 1050f), "panel", PanelTint);
+            _matCardGo.GetComponent<Image>().raycastTarget = false;
+            _matTitle = MkText("Title", _matCardGo.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -26f), new Vector2(940f, 56f), FS_LABEL, TextAnchor.UpperCenter, AccentGold);
+            _matResult = MkText("Result", _matCardGo.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -88f), new Vector2(980f, 60f), FS_BTN, TextAnchor.UpperCenter, AccentGold);
+            _matStatus = MkText("Status", _matCardGo.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 148f), new Vector2(940f, 46f), FS_LABEL, TextAnchor.LowerCenter, TextWhite);
+            _matOdds = MkText("Odds", _matCardGo.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 26f), new Vector2(960f, 108f), FS_BODY, TextAnchor.LowerCenter, TextDim);
+
+            for (int i = 0; i < 9; i++)
+            {
+                int idx = i;
+                var cell = MkSpritePanel("Spot" + i, _matCardGo.transform, new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(210f, 210f),
+                    "panel_light", new Color(0.16f, 0.18f, 0.28f, 1f));
+                _matCells[i] = cell;
+                _matTexts[i] = MkText("Sym", cell.transform, new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(200f, 200f), FS_TITLE, TextAnchor.MiddleCenter, TextDim);
+                _matIcons[i] = MkSpriteIcon("Icon", cell.transform, new Vector2(0.5f, 0.5f),
+                    Vector2.zero, new Vector2(140f, 140f), (Sprite)null, Color.white).GetComponent<Image>();
+                _matIcons[i].enabled = false;
+                var foilGo = new GameObject("Foil", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+                foilGo.transform.SetParent(cell.transform, false);
+                var frt = foilGo.GetComponent<RectTransform>();
+                frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+                frt.offsetMin = new Vector2(6f, 6f); frt.offsetMax = new Vector2(-6f, -6f);
+                var foil = foilGo.AddComponent<ScratchFoil>();
+                foil.Init();
+                foil.onRevealed = () => OnMatSpot(idx);
+                _matFoils[i] = foil;
+            }
+
+            _matBailBtn = MkButton("Bail", _matPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(-260f, -450f), new Vector2(400f, 110f), "BAIL",
+                MatResolveNow, "btn_grey", "btn_grey_down");
+            _matBailLbl = _matBailBtn.GetComponentInChildren<TMP_Text>();
+            _matNextBtn = MkButton("Next", _matPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(-260f, -450f), new Vector2(400f, 110f), "NEXT",
+                () => { int i = _matCard.cardIdx; ExitMat(); DeskEnterMat(i); });
+            _matNextLbl = _matNextBtn.GetComponentInChildren<TMP_Text>();
+            _matDoneBtn = MkButton("Done", _matPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(260f, -450f), new Vector2(400f, 110f), "DONE",
+                ExitMat, "btn_grey", "btn_grey_down", "back");
+
+            _matPanel.SetActive(false);
+        }
+
+        static Vector2[] MatLayout(int spots)
+        {
+            switch (spots)
+            {
+                case 1: return new[] { new Vector2(0f, 60f) };
+                case 3: return new[] { new Vector2(-300f, 60f), new Vector2(0f, 60f), new Vector2(300f, 60f) };
+                case 6: return new[]
+                {
+                    new Vector2(-280f, 190f), new Vector2(0f, 190f), new Vector2(280f, 190f),
+                    new Vector2(-280f, -70f), new Vector2(0f, -70f), new Vector2(280f, -70f),
+                };
+                case 8: return new[]
+                {
+                    new Vector2(-280f, 230f), new Vector2(0f, 230f), new Vector2(280f, 230f),
+                    new Vector2(-280f, 10f),  new Vector2(0f, 10f),  new Vector2(280f, 10f),
+                    new Vector2(-145f, -210f), new Vector2(145f, -210f),
+                };
+                default: return new[]
+                {
+                    new Vector2(-260f, 230f), new Vector2(0f, 230f), new Vector2(260f, 230f),
+                    new Vector2(-260f, 10f),  new Vector2(0f, 10f),  new Vector2(260f, 10f),
+                    new Vector2(-260f, -210f), new Vector2(0f, -210f), new Vector2(260f, -210f),
+                };
+            }
+        }
+
+        static string MatOddsText(CardDef c)
+        {
+            if (c.whaleX > 0)
+                return $"1 in {Mathf.RoundToInt(1f / c.whaleP):N0} pays {c.whaleX:N0}x the cost\nno fine print · hardness {c.hardness}";
+            if (c.multP != null)
+            {
+                var parts = new List<string>();
+                for (int k = 0; k < c.multP.Length; k++)
+                    parts.Add($"x{c.multX[k]:0} {c.multP[k]:P0}");
+                return string.Join("  ·  ", parts) + $"\ninstant multiplier · hardness {c.hardness}";
+            }
+            var lines = new List<string>();
+            for (int k = 0; k < c.symP.Length; k++)
+                lines.Add($"{MAT_SYM_NAMES[k]} {c.symP[k]:P0}—{c.symPrize[k]:N0}");
+            string meta = $"match {c.matchNeed} · blank {DeskGame.JunkP(c):P0}";
+            if (c.trapChance > 0) meta += $" · TRAP {c.trapChance:P0}—minus {c.trapPenalty:N0}";
+            return string.Join("  ", lines) + "\n" + meta + $" · hardness {c.hardness}";
+        }
+
+        void DeskEnterMat(int i)
         {
             if (_desk.state.cardsOwned[i] <= 0) { Sfx.Play("error"); return; }
-            var r = _desk.ScratchAll(i);
+            _matPrevLevel = _desk.state.cardLevel[i];
+            _matCard = _desk.DealCard(i);
+            if (_matCard.spots == null) return;
+            _matActive = true;
+            _matResolved = false;
+            _matResult.text = "";
             var c = DeskGame.CATALOG[i];
+            _matTitle.text = $"· {c.name.ToUpper()} ·   Lv {_desk.state.cardLevel[i]}";
+            _matOdds.text = MatOddsText(c);
+
+            float brush = (1f + 0.10f * _desk.state.upSize) * (1f + 0.08f * _desk.state.upCoin)
+                        / (0.55f + 0.45f * c.hardness);
+            var pos = MatLayout(c.spots);
+            float size = c.spots == 1 ? 360f : c.spots == 3 ? 260f : c.spots == 6 ? 240f : 205f;
+            for (int s = 0; s < 9; s++)
+            {
+                bool on = s < c.spots;
+                _matCells[s].SetActive(on);
+                if (!on) continue;
+                _matRevealed[s] = false;
+                var rt = (RectTransform)_matCells[s].transform;
+                rt.anchoredPosition = pos[s];
+                rt.sizeDelta = new Vector2(size, size);
+                SetMatSpotFace(s, c);
+                _matFoils[s].brushScale = brush;
+                _matFoils[s].ResetFoil();
+            }
+            _matPanel.SetActive(true);
+        }
+
+        // What's printed under the foil for spot s.
+        void SetMatSpotFace(int s, CardDef c)
+        {
+            var icon = _matIcons[s];
+            var txt  = _matTexts[s];
+            icon.enabled = false;
+            txt.text = "";
+            if (c.matchNeed == 1)
+            {
+                // instant card: show the pre-rolled outcome
+                if (_matCard.instant <= 0) { txt.text = "—"; txt.color = TextDim; return; }
+                if (c.whaleX > 0)
+                {
+                    var seven = Make.Casino("sym_seven");
+                    if (seven != null) { icon.sprite = seven; icon.enabled = true; }
+                    txt.text = seven == null ? "MEGA" : "";
+                    txt.color = new Color(1f, 0.35f, 0.3f);
+                }
+                else
+                {
+                    long mult = _matCard.instant / Math.Max(1, c.cost);
+                    txt.text = $"x{mult}";
+                    txt.color = mult >= 5 ? new Color(1f, 0.35f, 0.3f) : mult >= 2 ? AccentGold : TextWhite;
+                }
+                return;
+            }
+            sbyte v = _matCard.spots[s];
+            if (v == Spot.TRAP) { txt.text = "✗"; txt.color = new Color(1f, 0.35f, 0.3f); return; }
+            if (v == Spot.JUNK) { txt.text = "—"; txt.color = TextDim; return; }
+            var spr = Make.Casino(MAT_SYM_SPRITES[v]);
+            if (spr != null) { icon.sprite = spr; icon.enabled = true; }
+            else { txt.text = MAT_SYM_NAMES[v]; txt.color = AccentGold; }
+        }
+
+        void OnMatSpot(int s)
+        {
+            if (!_matActive || _matResolved || _matRevealed[s]) return;
+            _matRevealed[s] = true;
+            var c = DeskGame.CATALOG[_matCard.cardIdx];
+            if (c.matchNeed > 1 && _matCard.spots[s] == Spot.TRAP) Sfx.Play("error");
+            bool all = true;
+            for (int k = 0; k < c.spots; k++) if (!_matRevealed[k]) { all = false; break; }
+            if (all) MatResolveNow();
+        }
+
+        void MatResolveNow()
+        {
+            if (!_matActive || _matResolved) return;
+            var c = DeskGame.CATALOG[_matCard.cardIdx];
+            var mask = new bool[c.spots];
+            for (int s = 0; s < c.spots; s++) mask[s] = _matRevealed[s];
+            _matRes = _desk.ResolveCard(_matCard, mask);
+            _matResolved = true;
+            // reveal any remaining foil so the player sees what they bailed on
+            for (int s = 0; s < c.spots; s++) _matFoils[s].gameObject.SetActive(false);
+
             string t;
-            if (r.payout > 0)
-                t = $"{c.name}: +{r.payout:N0}" + (r.penalty > 0 ? $"  · traps −{r.penalty:N0}" : "");
-            else if (r.penalty > 0)
-                t = $"{c.name}: traps −{r.penalty:N0}. Ouch.";
+            if (_matRes.payout > 0)
+                t = $"+{_matRes.payout:N0}" + (_matRes.penalty > 0 ? $"  · traps −{_matRes.penalty:N0}" : "");
+            else if (_matRes.penalty > 0)
+                t = $"traps −{_matRes.penalty:N0}. Ouch.";
             else
-                t = $"{c.name}: nothing. Zilch.";
-            if (r.bigWin)
+                t = "nothing. Zilch.";
+            if (_desk.state.cardLevel[_matCard.cardIdx] > _matPrevLevel)
+                t += "  · CARD LEVEL UP!";
+            if (_matRes.bigWin)
             {
                 t = "★ BIG WIN ★  " + t;
                 Sfx.Play("milestone"); Sfx.Play("level_up");
-                _dkShakeT = 0.5f;
-                SpawnCoinBurst(_deskPanel.transform, DK_DESK_POS, BURST_POOL);
+                _matShakeT = 0.6f;
+                SpawnCoinBurst(_matPanel.transform, MAT_CARD_POS, BURST_POOL);
             }
-            else if (r.payout >= c.cost) Sfx.Play("coin");
-            else Sfx.Play("tap");
-            _dkResult = t;
-            _dkPopT = 0.35f;
+            else if (_matRes.payout >= c.cost) Sfx.Play("coin");
+            else if (_matRes.payout > 0) Sfx.Play("coin", 0.6f);
+            _matResult.text = t;
+            _matPopT = 0.35f;
+        }
+
+        void ExitMat()
+        {
+            if (_matActive && !_matResolved) MatResolveNow();   // leaving = bailing
+            _matActive = false;
+            _matPanel.SetActive(false);
+        }
+
+        void UpdateDeskMat(float dt)
+        {
+            TickShake(_matCardGo, MAT_CARD_POS, ref _matShakeT, dt);
+            TickPop(_matResult.rectTransform, ref _matPopT, dt);
+            var c = DeskGame.CATALOG[_matCard.cardIdx];
+
+            if (!_matResolved)
+            {
+                // live match status + committed traps (the near-miss engine)
+                string status = "";
+                if (c.matchNeed > 1)
+                {
+                    var counts = new int[c.symP.Length];
+                    int traps = 0;
+                    for (int s = 0; s < c.spots; s++)
+                    {
+                        if (!_matRevealed[s]) continue;
+                        if (_matCard.spots[s] == Spot.TRAP) traps++;
+                        else if (_matCard.spots[s] >= 0) counts[_matCard.spots[s]]++;
+                    }
+                    int bestK = -1, bestN = 0;
+                    for (int k = 0; k < counts.Length; k++)
+                        if (counts[k] >= bestN && counts[k] > 0) { bestN = counts[k]; bestK = k; }
+                    if (bestK >= 0 && bestN >= c.matchNeed)
+                        status = $"MATCHED {MAT_SYM_NAMES[bestK]}!";
+                    else if (bestK >= 0)
+                        status = $"{bestN}x {MAT_SYM_NAMES[bestK]} — {c.matchNeed - bestN} more";
+                    if (traps > 0) status += $"   ·   traps −{traps * c.trapPenalty:N0}";
+                }
+                _matStatus.text = status;
+                bool anyMatch = status.StartsWith("MATCHED");
+                _matBailLbl.text = anyMatch ? "CASH OUT" : "BAIL";
+                _matBailBtn.SetActive(true);
+                _matNextBtn.SetActive(false);
+                _matDoneBtn.SetActive(false);
+            }
+            else
+            {
+                _matStatus.text = "";
+                _matBailBtn.SetActive(false);
+                int owned = _desk.state.cardsOwned[_matCard.cardIdx];
+                _matNextBtn.SetActive(owned > 0);
+                if (owned > 0) _matNextLbl.text = $"NEXT ({owned})";
+                _matDoneBtn.SetActive(true);
+            }
         }
 
         void DeskTearEnvelope()
@@ -205,6 +471,7 @@ namespace Gamex.Game
             TickCoinBurst(dt);
             TickShake(_dkDesk, DK_DESK_POS, ref _dkShakeT, dt);
             TickPop(_dkResultLine.rectTransform, ref _dkPopT, dt);
+            if (_matActive) UpdateDeskMat(dt);
 
             var d = _desk.state;
             long coins = _desk.host.coins;
@@ -228,6 +495,19 @@ namespace Gamex.Game
                 _dkBarFill.sizeDelta = new Vector2(DK_BAR_W - 6f, 24f);
                 _dkBarLabel.text = $"catalog complete  ·  {d.earnedThisRun:N0} earned";
             }
+
+            // Unlock celebration — golden desk-burst when the bar crosses a
+            // card's threshold (the Scritchy "Unlocked!" moment).
+            if (_dkPrevEarned >= 0 && d.earnedThisRun > _dkPrevEarned)
+                foreach (var c in DeskGame.CATALOG)
+                    if (_dkPrevEarned < c.unlockAt && d.earnedThisRun >= c.unlockAt)
+                    {
+                        _dkResult = $"★ UNLOCKED: {c.name} ★";
+                        _dkPopT = 0.4f;
+                        Sfx.Play("milestone");
+                        SpawnCoinBurst(_deskPanel.transform, DK_DESK_POS, 14);
+                    }
+            _dkPrevEarned = d.earnedThisRun;
 
             // envelope + steps
             bool hasPay = d.rollsPending > 0;

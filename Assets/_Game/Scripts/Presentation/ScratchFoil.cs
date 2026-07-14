@@ -24,8 +24,12 @@ namespace Gamex.Game
 
         public Action onRevealed;
         // Base material color (set before Init). Default = silver ticket
-        // foil; Gold Rush overrides with dirt brown, Mega with gold.
+        // foil; special cards may tint it (dirt, gold).
         public Color32 foilColor = new Color32(178, 178, 188, 255);
+        // Brush effectiveness multiplier — The Desk sets this from
+        // (Scratch Size + Lucky Coin upgrades) vs the card's Hardness, so
+        // tough foils physically take more rubbing.
+        public float brushScale = 1f;
 
         RawImage      _img;
         Texture2D     _tex;
@@ -88,8 +92,9 @@ namespace Gamex.Game
             int cx = Mathf.RoundToInt((lp.x - rect.xMin) / rect.width  * W);
             int cy = Mathf.RoundToInt((lp.y - rect.yMin) / rect.height * H);
 
+            float brushR = BRUSH_R * Mathf.Clamp(brushScale, 0.35f, 3f);
             int newly = 0;
-            int r = Mathf.CeilToInt(BRUSH_R);
+            int r = Mathf.CeilToInt(brushR);
             for (int y = cy - r; y <= cy + r; y++)
             {
                 if ((uint)y >= H) continue;
@@ -97,7 +102,7 @@ namespace Gamex.Game
                 {
                     if ((uint)x >= W) continue;
                     int dx = x - cx, dy = y - cy;
-                    if (dx * dx + dy * dy > BRUSH_R * BRUSH_R) continue;
+                    if (dx * dx + dy * dy > brushR * brushR) continue;
                     int i = y * W + x;
                     if (_holes[i]) continue;
                     _holes[i] = true;
