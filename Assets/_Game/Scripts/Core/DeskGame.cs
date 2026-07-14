@@ -49,6 +49,17 @@ namespace Gamex.Core
         public bool bigWin;       // payout >= BIGWIN_X * cost -> PP driver
     }
 
+    // One node of the prestige tree (R2-4). prereq = index of the node
+    // that must be owned first (-1 = root). Cost escalates per level:
+    // costPp * (currentLevel + 1).
+    public class PermDef
+    {
+        public string id, name, desc;
+        public int costPp;
+        public int maxLvl;
+        public int prereq;
+    }
+
     // The Desk core (Pivot 3 — docs/casino-mvp-plan.md). Pure C#, RNG
     // injected, no Unity types. Scritchy-faithful loop: steps are the day
     // job (stride rolls, themselves a gamble), coins buy cards with a
@@ -112,10 +123,46 @@ namespace Gamex.Core
                 whaleP=1f/500f, whaleX=400f },
         };
 
+        // ---- prestige tree (R2-4) — bought with PP, NEVER reset ----
+        public const int PERM_TINCOIN = 0, PERM_SHOES = 1, PERM_STICKY = 2, PERM_WHISPER = 3,
+                         PERM_FATSTACK = 4, PERM_ROBOT = 5, PERM_HAGGLER = 6, PERM_MAGNET = 7,
+                         PERM_LAWYER = 8;
+        public static readonly PermDef[] PERMS =
+        {
+            new PermDef { id="tincoin", name="Tin Coin",       desc="start each run with +200 coins / lvl",   costPp=3,  maxLvl=3, prereq=-1 },
+            new PermDef { id="shoes",   name="Better Shoes",   desc="+1 coin on small strides / lvl",          costPp=4,  maxLvl=3, prereq=-1 },
+            new PermDef { id="sticky",  name="Sticky Thumb",   desc="permanent +1 Scratch Luck / lvl",         costPp=5,  maxLvl=4, prereq=-1 },
+            new PermDef { id="whisper", name="Card Whisperer", desc="cards gain +1 extra XP per play / lvl",   costPp=4,  maxLvl=2, prereq=-1 },
+            new PermDef { id="fatstack",name="Fat Paydays",    desc="+5 coins on big strides / lvl",           costPp=6,  maxLvl=3, prereq=PERM_SHOES },
+            new PermDef { id="robot",   name="Robot Arm",      desc="a tireless arm scratches your whole pile",costPp=12, maxLvl=1, prereq=PERM_TINCOIN },
+            new PermDef { id="haggler", name="Haggler",        desc="cards cost 3% less / lvl",                costPp=6,  maxLvl=3, prereq=PERM_WHISPER },
+            new PermDef { id="magnet",  name="PP Magnet",      desc="+10% PP from prestiging / lvl",           costPp=8,  maxLvl=2, prereq=PERM_STICKY },
+            new PermDef { id="lawyer",  name="Better Lawyer",  desc="the loan shark only garnishes 40%/30%",   costPp=5,  maxLvl=2, prereq=PERM_TINCOIN },
+        };
+
         public GameState host;                 // unified wallet = host.coins (may go negative)
         public DeskState state => host.desk;
         public Action onSave;
         readonly Random _rng;
+
+        public int  PermLvl(int i) => state.permNode[i];
+        public long PermCost(int i) => PERMS[i].costPp * (long)(state.permNode[i] + 1);
+        public bool PermUnlockable(int i) => PERMS[i].prereq < 0 || state.permNode[PERMS[i].prereq] > 0;
+        public bool RobotOwned => PermLvl(PERM_ROBOT) > 0;
+
+        public bool TryBuyPerm(int i)
+        {
+            if (state.permNode[i] >= PERMS[i].maxLvl || !PermUnlockable(i)) return false;
+            long cost = PermCost(i);
+            if (state.prestigePoints < cost) return false;
+            state.prestigePoints -= cost;
+            state.permNode[i]++;
+            onSave?.Invoke();
+            return true;
+        }
+
+        // Effective luck = run upgrade + the permanent Sticky Thumb floor.
+        public int EffLuck => Math.Min(state.upLuck + PermLvl(PERM_STICKY), LUCK_CAP);
 
         public DeskGame(GameState host, Random rng = null)
         {
@@ -141,9 +188,11 @@ namespace Gamex.Core
         // (90% small / 10% big — even the day job is a slot machine).
         public long TearEnvelope()
         {
+            long small = ROLL_SMALL + PermLvl(PERM_SHOES);
+            long big   = ROLL_BIG + 5 * PermLvl(PERM_FATSTACK);
             long gross = 0;
             for (int i = 0; i < state.rollsPending; i++)
-                gross += _rng.NextDouble() < ROLL_BIG_P ? ROLL_BIG : ROLL_SMALL;
+                gross += _rng.NextDouble() < ROLL_BIG_P ? big : small;
             state.rollsPending = 0;
             Credit(gross);
             onSave?.Invoke();
@@ -158,7 +207,8 @@ namespace Gamex.Core
             state.earnedThisRun += amount;
             if (state.loanOwed > 0)
             {
-                long g = Math.Min(state.loanOwed, (long)(amount * LOAN_GARNISH));
+                float rate = LOAN_GARNISH - 0.10f * PermLvl(PERM_LAWYER);   // a better lawyer
+                long g = Math.Min(state.loanOwed, (long)(amount * rate));
                 state.loanOwed -= g;
                 amount -= g;
             }
@@ -168,12 +218,15 @@ namespace Gamex.Core
         // ---- catalog / buying ----
 
         public bool Unlocked(int i) => state.earnedThisRun >= CATALOG[i].unlockAt;
-        public bool CanBuy(int i)   => Unlocked(i) && host.coins >= CATALOG[i].cost;
+        // Effective price after the Haggler perk.
+        public long CostOf(int i)
+            => (long)Math.Round(CATALOG[i].cost * (1.0 - 0.03 * PermLvl(PERM_HAGGLER)));
+        public bool CanBuy(int i)   => Unlocked(i) && host.coins >= CostOf(i);
 
         public bool TryBuyCard(int i)
         {
             if (!CanBuy(i)) return false;
-            host.coins -= CATALOG[i].cost;
+            host.coins -= CostOf(i);
             state.cardsOwned[i]++;
             onSave?.Invoke();
             return true;
@@ -216,7 +269,7 @@ namespace Gamex.Core
                 return d;
             }
 
-            float junkShift = Math.Min(LUCK_SHIFT_PER_LVL * Math.Min(state.upLuck, LUCK_CAP),
+            float junkShift = Math.Min(LUCK_SHIFT_PER_LVL * EffLuck,
                                        Math.Max(JunkP(c) - 0.05f, 0f));
             for (int s = 0; s < c.spots; s++)
             {
@@ -285,11 +338,11 @@ namespace Gamex.Core
             res.bigWin = res.payout >= c.cost * BIGWIN_X;
             if (res.bigWin) { state.bigWinsThisRun++; state.lifetimeBigWins++; }
 
-            // card XP -> levels (+3% prizes each)
+            // card XP -> levels (+3% prizes each); Card Whisperer speeds it
             int idx = d.cardIdx;
             if (state.cardLevel[idx] < CARDLVL_CAP)
             {
-                state.cardXp[idx]++;
+                state.cardXp[idx] += 1 + PermLvl(PERM_WHISPER);
                 if (state.cardXp[idx] >= XP_PER_LEVEL * (state.cardLevel[idx] + 1))
                 { state.cardXp[idx] = 0; state.cardLevel[idx]++; }
             }
@@ -359,7 +412,9 @@ namespace Gamex.Core
         public bool PrestigeEligible => state.earnedThisRun >= PRESTIGE_AT
                                         && state.loanOwed <= 0 && host.coins >= 0;
 
-        public float PrestigePpPreview => state.bigWinsThisRun + state.playsThisRun / PP_EFFORT_DIVISOR;
+        public float PrestigePpPreview
+            => (state.bigWinsThisRun + state.playsThisRun / PP_EFFORT_DIVISOR)
+               * (1f + 0.10f * PermLvl(PERM_MAGNET));
 
         public bool TryPrestige()
         {
@@ -368,8 +423,9 @@ namespace Gamex.Core
             state.prestigeCount++;
             // The sacrifice: wallet, upgrades, card levels/XP, unscratched
             // cards, and the unlock bar. NEVER touched: pending stride
-            // rolls + accumulator (walked-for), PP, lifetime counters.
-            host.coins = 0;
+            // rolls + accumulator (walked-for), PP, perm nodes, lifetime
+            // counters. Tin Coin seeds the fresh wallet.
+            host.coins = 200L * PermLvl(PERM_TINCOIN);
             state.upLuck = 0; state.upSize = 0; state.upCoin = 0;
             for (int i = 0; i < state.cardXp.Length; i++)
             { state.cardXp[i] = 0; state.cardLevel[i] = 0; state.cardsOwned[i] = 0; }

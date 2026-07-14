@@ -460,6 +460,50 @@ namespace Gamex.Game
                       "sacred: pending rolls, accumulator, PP survive");
             }
 
+            // Prestige tree (R2-4): costs, prereqs, caps, effects.
+            {
+                var tHost = new GameState();
+                var tg = new DeskGame(tHost, new System.Random(50));
+                tg.state.prestigePoints = 100f;
+                Check(tg.PermCost(DeskGame.PERM_TINCOIN) == 3, "Tin Coin L1 costs 3 PP");
+                Check(!tg.PermUnlockable(DeskGame.PERM_ROBOT) && !tg.TryBuyPerm(DeskGame.PERM_ROBOT),
+                      "Robot Arm gated behind Tin Coin");
+                Check(tg.TryBuyPerm(DeskGame.PERM_TINCOIN) && tg.PermLvl(DeskGame.PERM_TINCOIN) == 1, "buy Tin Coin");
+                Check(tg.PermCost(DeskGame.PERM_TINCOIN) == 6, "Tin Coin L2 costs 6 (3*2)");
+                Check(tg.TryBuyPerm(DeskGame.PERM_ROBOT) && tg.RobotOwned, "Robot Arm unlocks after Tin Coin");
+                Check(!tg.TryBuyPerm(DeskGame.PERM_ROBOT), "Robot Arm is one-time");
+                Check(System.Math.Abs(tg.state.prestigePoints - 85f) < 1e-3, "PP deducted (100-3-12)");
+
+                tg.state.permNode[DeskGame.PERM_STICKY] = 4;
+                tg.state.upLuck = 2;
+                Check(tg.EffLuck == 6, "EffLuck = run luck + Sticky Thumb");
+                tg.state.permNode[DeskGame.PERM_HAGGLER] = 3;
+                Check(tg.CostOf(1) == 91, "Haggler: Mini costs 91 (100*0.91), got " + tg.CostOf(1));
+                tg.state.permNode[DeskGame.PERM_SHOES] = 3;
+                tg.state.permNode[DeskGame.PERM_FATSTACK] = 3;
+                tg.state.rollsPending = 4000;
+                long fat = tg.TearEnvelope();
+                double fatPer = fat / 4000.0;   // EV = .9*6 + .1*30 = 8.4
+                Check(fatPer > 7.9 && fatPer < 8.9, $"upgraded stride EV ~8.4, got {fatPer:F2}");
+                tg.state.permNode[DeskGame.PERM_MAGNET] = 2;
+                tg.state.bigWinsThisRun = 5; tg.state.playsThisRun = 200;
+                Check(System.Math.Abs(tg.PrestigePpPreview - 12f) < 1e-3, "PP Magnet: (5+5)*1.2 = 12");
+                tg.state.earnedThisRun = DeskGame.PRESTIGE_AT;
+                tg.state.permNode[DeskGame.PERM_TINCOIN] = 3;
+                Check(tg.TryPrestige() && tHost.coins == 600, "Tin Coin seeds 600 after prestige");
+                Check(tg.PermLvl(DeskGame.PERM_STICKY) == 4, "perm nodes survive prestige");
+
+                var lwHost = new GameState();
+                var lw = new DeskGame(lwHost, new System.Random(51));
+                lw.state.permNode[DeskGame.PERM_LAWYER] = 2;   // garnish 50% -> 30%
+                lwHost.coins = 10;
+                lw.TakeLoan();
+                lw.state.rollsPending = 100;
+                long lwGross = lw.TearEnvelope();
+                Check(lw.state.loanOwed == 750 - (long)(lwGross * 0.3f),
+                      "Better Lawyer garnishes only 30%");
+            }
+
             // Marathoner: run-seconds add bonus step credit on top of the
             // pedometer steps (600 s * 2.8 steps/s * 2 lvl * 10% = 336).
             var rhost = new GameState();

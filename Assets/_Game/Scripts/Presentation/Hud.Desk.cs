@@ -42,6 +42,12 @@ namespace Gamex.Game
         (TMP_Text name, TMP_Text info, Button buy, TMP_Text buyLbl)[] _dkUpRows;
         long _dkPrevEarned = -1;   // unlock-celebration edge detector
 
+        // ---- R2-4: robot arm, the phone, the prestige tree ----
+        GameObject _robotBtn, _phoneBtn, _phonePanel, _prestigePanel, _prestigeBtn, _pgGoBtn;
+        TMP_Text _prestigeBtnLbl, _pgPp, _pgElig, _pgGoLbl;
+        float _pgArmedUntil;
+        (TMP_Text name, TMP_Text desc, Button buy, TMP_Text buyLbl)[] _pgRows;
+
         // ---- the MAT (R2-3): real spot-by-spot scratching ----
         GameObject _matPanel, _matCardGo, _matBailBtn, _matNextBtn, _matDoneBtn;
         TMP_Text _matTitle, _matResult, _matStatus, _matOdds, _matBailLbl, _matNextLbl;
@@ -99,17 +105,29 @@ namespace Gamex.Game
             _dkDesk.GetComponent<Image>().raycastTarget = false;
 
             _dkEnvelopeBtn = MkButton("Envelope", _deskPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(-270f, 470f), new Vector2(330f, 190f), "PAYCHECK",
+                new Vector2(-270f, 490f), new Vector2(330f, 180f), "PAYCHECK",
                 DeskTearEnvelope);
             _dkEnvelopeLabel = _dkEnvelopeBtn.GetComponentInChildren<TMP_Text>();
             _dkStepsLine = MkText("Steps", _deskPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(-270f, 340f), new Vector2(420f, 44f), FS_BODY, TextAnchor.MiddleCenter, TextDim);
+                new Vector2(-270f, 370f), new Vector2(420f, 44f), FS_BODY, TextAnchor.MiddleCenter, TextDim);
+            // the earned automation (R2-4) — appears once the tree node is bought
+            _robotBtn = MkButton("Robot", _deskPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(-270f, 280f), new Vector2(330f, 84f), "ROBOT ARM",
+                DeskRobotArm, "btn_grey", "btn_grey_down");
+            _robotBtn.GetComponentInChildren<TMP_Text>().fontSize = FS_LABEL;
 
             _dkPileLine = MkText("Pile", _deskPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(210f, 470f), new Vector2(460f, 140f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
-            MkText("MatNote", _deskPanel.transform, new Vector2(0.5f, 0.5f),
-                new Vector2(210f, 350f), new Vector2(480f, 40f), FS_BODY, TextAnchor.MiddleCenter, TextDim)
-                .text = "PLAY puts a card on the mat — scratch it";
+                new Vector2(230f, 555f), new Vector2(470f, 90f), FS_LABEL, TextAnchor.MiddleCenter, TextDim);
+            _prestigeBtn = MkButton("Prestige", _deskPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(230f, 440f), new Vector2(360f, 95f), "PRESTIGE",
+                () => { _pgArmedUntil = 0f; _prestigePanel.SetActive(true); });
+            _prestigeBtnLbl = _prestigeBtn.GetComponentInChildren<TMP_Text>();
+            _prestigeBtnLbl.fontSize = FS_LABEL;
+            // the loan shark's phone — only rings when you're broke
+            _phoneBtn = MkButton("Phone", _deskPanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(230f, 300f), new Vector2(360f, 84f), "THE PHONE RINGS",
+                () => _phonePanel.SetActive(true), "btn_grey", "btn_grey_down");
+            _phoneBtn.GetComponentInChildren<TMP_Text>().fontSize = FS_BODY;
 
             _dkResultLine = MkText("Result", _deskPanel.transform, new Vector2(0.5f, 0.5f),
                 new Vector2(0f, 150f), new Vector2(1050f, 64f), FS_BTN, TextAnchor.MiddleCenter, AccentGold);
@@ -173,7 +191,175 @@ namespace Gamex.Game
                 _dkUpRows[i] = (nameL, infoL, buyGo.GetComponent<Button>(), buyLbl);
             }
 
+            BuildDeskPhone();
+            BuildDeskPrestige();
             BuildDeskMat();   // topmost child — the scratch overlay
+        }
+
+        // ============================================================
+        // The phone (R2-4) — comedically transparent loan terms.
+        // ============================================================
+        void BuildDeskPhone()
+        {
+            _phonePanel = MkFullPanel("PhoneModal", _deskPanel.transform);
+            var dim = _phonePanel.GetComponent<Image>();
+            dim.color = new Color(0f, 0f, 0f, 0.72f);
+            dim.raycastTarget = true;
+            var paper = MkSpritePanel("Paper", _phonePanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 160f), new Vector2(880f, 760f), "panel",
+                new Color(0.96f, 0.93f, 0.82f, 1f));
+            paper.GetComponent<Image>().raycastTarget = false;
+            MkText("Title", paper.transform, new Vector2(0.5f, 1f), new Vector2(0f, -36f),
+                new Vector2(800f, 64f), FS_TITLE, TextAnchor.UpperCenter, new Color(0.25f, 0.15f, 0.08f))
+                .text = "A LOAN, FRIEND?";
+            MkText("Terms", paper.transform, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f),
+                new Vector2(780f, 460f), FS_LABEL, TextAnchor.MiddleCenter, new Color(0.30f, 0.20f, 0.10f))
+                .text = "the deal:\n\n+500 coins, right now\nyou owe 750\nwe take HALF of everything\nyou earn until it's paid\n\nAPR: yes\nno hidden fees (this is all of them)";
+            MkButton("Sign", _phonePanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(-240f, -330f), new Vector2(420f, 120f), "SIGN HERE", () =>
+                {
+                    if (_desk.TakeLoan())
+                    {
+                        _dkResult = "borrowed 500. the phone is pleased.";
+                        _dkPopT = 0.35f;
+                        Sfx.Play("coin");
+                    }
+                    _phonePanel.SetActive(false);
+                });
+            MkButton("No", _phonePanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(240f, -330f), new Vector2(420f, 120f), "NO THANKS",
+                () => _phonePanel.SetActive(false), "btn_grey", "btn_grey_down", "back");
+            _phonePanel.SetActive(false);
+        }
+
+        // ============================================================
+        // Prestige (R2-4) — cash out the run, spend PP on the tree.
+        // ============================================================
+        void BuildDeskPrestige()
+        {
+            _prestigePanel = MkFullPanel("PrestigeModal", _deskPanel.transform);
+            var dim = _prestigePanel.GetComponent<Image>();
+            dim.color = new Color(0f, 0f, 0f, 0.80f);
+            dim.raycastTarget = true;
+
+            MkText("Title", _prestigePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -90f - SAFE_AREA_TOP_INSET), new Vector2(900f, 70f),
+                FS_TITLE, TextAnchor.UpperCenter, AccentGold).text = "PRESTIGE";
+            _pgPp = MkText("Pp", _prestigePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -170f - SAFE_AREA_TOP_INSET), new Vector2(900f, 50f),
+                FS_LABEL, TextAnchor.UpperCenter, TextWhite);
+            _pgElig = MkText("Elig", _prestigePanel.transform, new Vector2(0.5f, 1f),
+                new Vector2(0f, -228f - SAFE_AREA_TOP_INSET), new Vector2(1000f, 46f),
+                FS_BODY, TextAnchor.UpperCenter, TextDim);
+
+            _pgGoBtn = MkButton("Go", _prestigePanel.transform, new Vector2(0.5f, 0.5f),
+                new Vector2(0f, 560f), new Vector2(680f, 120f), "PRESTIGE", DeskPrestigePressed);
+            _pgGoLbl = _pgGoBtn.GetComponentInChildren<TMP_Text>();
+            _pgGoLbl.fontSize = FS_LABEL;
+
+            int n = DeskGame.PERMS.Length;
+            _pgRows = new (TMP_Text, TMP_Text, Button, TMP_Text)[n];
+            for (int i = 0; i < n; i++)
+            {
+                int idx = i;
+                float y = 420f - 96f * i;
+                var row = MkSpritePanel("Node_" + i, _prestigePanel.transform, new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, y), new Vector2(1010f, 88f),
+                    "panel_light", new Color(0.14f, 0.16f, 0.24f, 1f));
+                row.GetComponent<Image>().raycastTarget = false;
+                var nameL = MkText("Name", row.transform, new Vector2(0f, 1f), new Vector2(24f, -8f),
+                    new Vector2(560f, 44f), FS_LABEL, TextAnchor.UpperLeft, TextWhite);
+                var descL = MkText("Desc", row.transform, new Vector2(0f, 0f), new Vector2(24f, 8f),
+                    new Vector2(700f, 34f), FS_BODY, TextAnchor.LowerLeft, TextDim);
+                var buyGo = MkButton("Buy", row.transform, new Vector2(1f, 0.5f), new Vector2(-14f, 0f),
+                    new Vector2(210f, 70f), "—",
+                    () => Sfx.Play(_desk.TryBuyPerm(idx) ? "purchase" : "error"));
+                var buyLbl = buyGo.GetComponentInChildren<TMP_Text>();
+                buyLbl.fontSize = FS_BODY;
+                _pgRows[i] = (nameL, descL, buyGo.GetComponent<Button>(), buyLbl);
+            }
+
+            MkButton("Close", _prestigePanel.transform, new Vector2(0.5f, 0f),
+                new Vector2(0f, 40f), new Vector2(300f, 92f), "CLOSE",
+                () => _prestigePanel.SetActive(false), "btn_grey", "btn_grey_down", "back");
+            _prestigePanel.SetActive(false);
+        }
+
+        void DeskPrestigePressed()
+        {
+            if (!_desk.PrestigeEligible) return;
+            if (Time.unscaledTime >= _pgArmedUntil)
+            {
+                _pgArmedUntil = Time.unscaledTime + 3f;   // two-tap confirm
+                Sfx.Play("tap");
+                return;
+            }
+            float pp = _desk.PrestigePpPreview;
+            int num = _desk.state.prestigeCount + 1;
+            _desk.TryPrestige();
+            _pgArmedUntil = 0f;
+            _dkResult = $"★ PRESTIGE {num} ★  +{pp:0.#} PP";
+            _dkPopT = 0.5f;
+            Sfx.Play("milestone"); Sfx.Play("level_up");
+            SpawnCoinBurst(_prestigePanel.transform, new Vector2(0f, 300f), BURST_POOL);
+            _dkCoinsShown = -1f;
+        }
+
+        void UpdateDeskPrestige()
+        {
+            var d = _desk.state;
+            _pgPp.text = $"Prestige Points: {d.prestigePoints:0.#}   ·   prestige #{d.prestigeCount + 1}";
+            bool elig = _desk.PrestigeEligible;
+            string why = elig
+                ? $"ready — cash out for +{_desk.PrestigePpPreview:0.#} PP (wallet, upgrades and card levels reset)"
+                : $"prestige at {DeskGame.PRESTIGE_AT:N0} earned this run — you're at {d.earnedThisRun:N0}";
+            if (d.loanOwed > 0) why += "  ·  repay the loan first";
+            if (_desk.host.coins < 0) why += "  ·  climb out of debt first";
+            _pgElig.text = why;
+            bool armed = Time.unscaledTime < _pgArmedUntil;
+            _pgGoBtn.GetComponent<Button>().interactable = elig;
+            _pgGoLbl.text = !elig ? "PRESTIGE"
+                : armed ? "SURE? EVERYTHING RESETS"
+                : $"PRESTIGE  +{_desk.PrestigePpPreview:0.#} PP";
+
+            for (int i = 0; i < _pgRows.Length; i++)
+            {
+                var p = DeskGame.PERMS[i];
+                var row = _pgRows[i];
+                int lvl = _desk.PermLvl(i);
+                bool open = _desk.PermUnlockable(i);
+                bool capped = lvl >= p.maxLvl;
+                row.name.text = $"{p.name}   Lv {lvl}/{p.maxLvl}";
+                row.name.color = open ? TextWhite : TextDim;
+                row.desc.text = open ? p.desc : $"needs {DeskGame.PERMS[p.prereq].name}";
+                row.buyLbl.text = capped ? "MAX" : $"{_desk.PermCost(i):N0} PP";
+                row.buy.interactable = open && !capped && d.prestigePoints >= _desk.PermCost(i);
+            }
+        }
+
+        // The Robot Arm: rips the whole pile, one aggregate report.
+        void DeskRobotArm()
+        {
+            long pay = 0, pen = 0; int count = 0, bigs = 0;
+            for (int i = 0; i < DeskGame.CATALOG.Length; i++)
+                while (_desk.state.cardsOwned[i] > 0)
+                {
+                    var r = _desk.ScratchAll(i);
+                    pay += r.payout; pen += r.penalty; count++;
+                    if (r.bigWin) bigs++;
+                }
+            if (count == 0) { Sfx.Play("error"); return; }
+            _dkResult = $"the arm scratched {count}: +{pay:N0}"
+                      + (pen > 0 ? $" · traps −{pen:N0}" : "")
+                      + (bigs > 0 ? $" · {bigs} BIG WIN{(bigs > 1 ? "S" : "")}!" : "");
+            _dkPopT = 0.4f;
+            if (bigs > 0)
+            {
+                Sfx.Play("milestone");
+                _dkShakeT = 0.5f;
+                SpawnCoinBurst(_deskPanel.transform, DK_DESK_POS, BURST_POOL);
+            }
+            else Sfx.Play("coin");
         }
 
         void DeskBuy(int i)
@@ -521,6 +707,12 @@ namespace Gamex.Game
             for (int i = 0; i < DeskGame.CATALOG.Length; i++) pile += d.cardsOwned[i];
             _dkPileLine.text = pile > 0 ? $"the pile: {pile} unscratched card{(pile == 1 ? "" : "s")}" : "the desk is clear";
 
+            // R2-4 desk objects
+            _robotBtn.SetActive(_desk.RobotOwned && pile > 0);
+            _phoneBtn.SetActive(_desk.LoanAvailable);
+            _prestigeBtnLbl.text = $"PRESTIGE · {d.prestigePoints:0.#} PP";
+            if (_prestigePanel.activeSelf) UpdateDeskPrestige();
+
             _dkResultLine.text = _dkResult ?? "";
 
             // catalog rows
@@ -538,12 +730,13 @@ namespace Gamex.Game
                     row.play.gameObject.SetActive(false);
                     continue;
                 }
+                long price = _desk.CostOf(i);   // Haggler-aware
                 row.name.text = $"{c.name}   Lv {d.cardLevel[i]}";
                 row.name.color = TextWhite;
-                row.info.text = $"cost {c.cost:N0}   ·   owned {d.cardsOwned[i]}";
+                row.info.text = $"cost {price:N0}   ·   owned {d.cardsOwned[i]}";
                 row.buy.gameObject.SetActive(true);
                 row.buy.interactable = _desk.CanBuy(i);
-                row.buyLbl.text = c.cost >= 1000 ? $"{c.cost / 1000}k" : c.cost.ToString();
+                row.buyLbl.text = price >= 1000 ? $"{price / 1000}k" : price.ToString();
                 row.play.gameObject.SetActive(d.cardsOwned[i] > 0);
             }
 

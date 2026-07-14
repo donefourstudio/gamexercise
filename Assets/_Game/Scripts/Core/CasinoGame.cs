@@ -14,6 +14,9 @@ namespace Gamex.Core
         public bool rigged;   // the scripted first-session jackpot (Fix #1)
     }
 
+    // [RETIRED — Pivot 3 replaced the casino rooms with The Desk
+    // (DeskGame). Kept compiling for its passing test suite; delete in a
+    // later cleanup pass.]
     // Casino core logic (Phase R — docs/casino-mvp-plan.md). Pure C#, no
     // Unity types (same rule as GamexGame): the presentation layer reads
     // state every frame and routes player intents back through this class.

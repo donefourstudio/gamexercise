@@ -267,6 +267,7 @@ namespace Gamex.Core
         public long lifetimeBigWins;
         public float prestigePoints;
         public int   prestigeCount;
+        public int[] permNode = new int[24];   // prestige-tree node levels (R2-4); never reset
     }
 
     // Casino progression state (docs/casino-mvp-plan.md). Nested inside
