@@ -40,8 +40,8 @@ namespace Gamex.Game
             // gains a CasinoState.
             var v1 = JsonUtility.FromJson<GameState>("{\"schemaVersion\":1,\"level\":7}");
             Migrations.Apply(v1);
-            Check(v1.schemaVersion == 2 && v1.casino != null && v1.level == 7,
-                  "v1 -> v2 adds CasinoState, preserves fields");
+            Check(v1.schemaVersion == Migrations.CurrentVersion && v1.casino != null && v1.level == 7,
+                  "v1 walks the full ladder, adds CasinoState, preserves fields");
 
             // CasinoState + the unified coin wallet survive the save
             // round-trip (nested-object serialization through JsonUtility).
@@ -275,6 +275,190 @@ namespace Gamex.Game
             for (int i = 0; i < 50000; i++) chsEv.PlayHighStakes(100);
             double hsNet = (hsEvHost.coins - hsBefore) / 50000.0;
             Check(hsNet > 2 && hsNet < 8, $"High Stakes net EV ~ +5/play on 100 wager, got {hsNet:F2}");
+
+            // ==== The Desk (R2-1, Pivot 3) ====
+
+            // Migration v2 -> v3 backfills DeskState; arrays round-trip.
+            var v2d = JsonUtility.FromJson<GameState>("{\"schemaVersion\":2,\"level\":9}");
+            Migrations.Apply(v2d);
+            Check(v2d.schemaVersion == 3 && v2d.desk != null && v2d.level == 9,
+                  "v2 -> v3 adds DeskState, preserves fields");
+            var dGs = new GameState();
+            dGs.desk.cardLevel[3] = 7; dGs.desk.rollsPending = 5; dGs.desk.loanOwed = 750;
+            var dBack = JsonUtility.FromJson<GameState>(JsonUtility.ToJson(dGs));
+            Check(dBack.desk != null && dBack.desk.cardLevel[3] == 7
+                  && dBack.desk.rollsPending == 5 && dBack.desk.loanOwed == 750,
+                  "DeskState arrays survive save round-trip");
+
+            // Stride rolls: 100 steps/roll, remainder accumulates; the
+            // envelope gambles every roll (EV 4.2) and credits the wallet
+            // AND the unlock bar.
+            var ehost = new GameState();
+            var dg = new DeskGame(ehost, new System.Random(41));
+            Check(dg.GrantSteps(250) == 2 && dg.state.rollsPending == 2 && dg.state.stepAccumulator == 50,
+                  "250 steps -> 2 rolls + 50 acc");
+            dg.GrantSteps(50);
+            Check(dg.state.rollsPending == 3, "accumulator completes a roll");
+            dg.state.rollsPending = 5000;
+            long gross = dg.TearEnvelope();
+            double perRoll = gross / 5000.0;
+            Check(perRoll > 3.9 && perRoll < 4.5, $"stride roll EV ~4.2, got {perRoll:F2}");
+            Check(ehost.coins == gross && dg.state.earnedThisRun == gross && dg.state.rollsPending == 0,
+                  "envelope credits wallet + unlock bar");
+
+            // Per-card EV at Luck 0 / Lv 0 (house edge — the sucker phase).
+            // Bands from sim v3: 90/94/92/89/79% of cost (Golden ~81%).
+            {
+                var evHost = new GameState();
+                evHost.desk.lifetimeBigWins = 1;   // disarm the rigged 3rd play
+                var evg = new DeskGame(evHost, new System.Random(42));
+                (int idx, double lo, double hi)[] bands =
+                {
+                    (0, 8.2, 9.9), (1, 86, 102), (2, 1690, 2010), (3, 8300, 9500), (4, 140000, 176000),
+                };
+                foreach (var b in bands)
+                {
+                    evg.state.cardsOwned[b.idx] = 30000;
+                    long net = 0;
+                    for (int i = 0; i < 30000; i++)
+                    {
+                        evg.state.cardLevel[b.idx] = 0; evg.state.cardXp[b.idx] = 0;   // pin Lv0 (XP works!)
+                        var r = evg.ScratchAll(b.idx); net += r.payout - r.penalty;
+                    }
+                    double e = net / 30000.0;
+                    Check(e > b.lo && e < b.hi,
+                          $"{DeskGame.CATALOG[b.idx].name} EV in [{b.lo},{b.hi}], got {e:F1}");
+                }
+                // Golden Ticket: 1-in-500 pays 400x. 200k plays, wide band.
+                evg.state.cardsOwned[5] = 200000;
+                long gnet = 0;
+                for (int i = 0; i < 200000; i++)
+                {
+                    evg.state.cardLevel[5] = 0; evg.state.cardXp[5] = 0;
+                    gnet += evg.ScratchAll(5).payout;
+                }
+                double gev = gnet / 200000.0;
+                Check(gev > 620000 && gev < 1000000, $"Golden EV ~800k, got {gev:F0}");
+            }
+
+            // Luck removes junk: TwoWin EV at Luck 20 clearly beats Luck 0.
+            {
+                var lHost = new GameState();
+                lHost.desk.lifetimeBigWins = 1;
+                var lg = new DeskGame(lHost, new System.Random(43));
+                lg.state.cardsOwned[0] = 60000;
+                long n0 = 0;
+                for (int i = 0; i < 30000; i++)
+                { lg.state.cardLevel[0] = 0; lg.state.cardXp[0] = 0; n0 += lg.ScratchAll(0).payout; }
+                lg.state.upLuck = 20;
+                long n20 = 0;
+                for (int i = 0; i < 30000; i++)
+                { lg.state.cardLevel[0] = 0; lg.state.cardXp[0] = 0; n20 += lg.ScratchAll(0).payout; }
+                Check(n20 > n0 * 1.2, $"Luck 20 lifts TwoWin EV >20% ({n0 / 30000.0:F2} -> {n20 / 30000.0:F2})");
+            }
+
+            // Deterministic resolve: crafted card, level multiplier, traps,
+            // peek-and-bail (unrevealed traps don't hurt).
+            {
+                var cHost = new GameState();
+                var cg2 = new DeskGame(cHost, new System.Random(44));
+                cg2.state.cardLevel[0] = 10;   // +30% prizes
+                var crafted = new DealtCard { cardIdx = 0, spots = new sbyte[] { 2, 2, Spot.JUNK } };
+                var rr = cg2.ResolveCard(crafted, new[] { true, true, true });
+                Check(rr.payout == 78 && rr.matchedSym == 2, "Lv10 top match pays 60*1.3 = 78, got " + rr.payout);
+                // Sour Orchard traps: two revealed traps = -1000; hiding
+                // them costs nothing (the bail decision is real).
+                var trapCard = new DealtCard { cardIdx = 2, spots = new sbyte[] { Spot.TRAP, Spot.TRAP, 0, 0, Spot.JUNK, Spot.JUNK, Spot.JUNK, Spot.JUNK } };
+                long before = cHost.coins;
+                var tr = cg2.ResolveCard(trapCard, new[] { true, true, true, true, true, true, true, true });
+                Check(tr.penalty == 1000 && tr.payout == 0 && cHost.coins == before - 1000,
+                      "2 revealed traps cost 1000, 2-of-3 sym0 pays nothing");
+                var tr2 = cg2.ResolveCard(trapCard, new[] { false, false, true, true, true, true, true, true });
+                Check(tr2.penalty == 0, "unrevealed traps don't hurt (peek-and-bail)");
+                // Debt floor: traps can't dig below -1000.
+                cHost.coins = -900;
+                cg2.ResolveCard(trapCard, new[] { true, true, false, false, false, false, false, false });
+                Check(cHost.coins == DeskGame.DEBT_FLOOR, "trap losses clamp at the debt floor");
+            }
+
+            // The rigged 3rd play: top-symbol match on the third card ever.
+            {
+                var rigHost = new GameState();
+                var rg = new DeskGame(rigHost, new System.Random(45));
+                rg.state.cardsOwned[0] = 3;
+                rg.ScratchAll(0); rg.ScratchAll(0);
+                var third = rg.DealCard(0);
+                Check(third.rigged, "3rd lifetime play is rigged");
+                var rres = rg.ResolveCard(third, new[] { true, true, true });
+                Check(rres.matchedSym == 2 && rres.payout == 60, "rig pays the top symbol (60)");
+            }
+
+            // Buying: locked cards refuse; funds gate; owned pile counts.
+            {
+                var bHost = new GameState();
+                var bg = new DeskGame(bHost, new System.Random(46));
+                bHost.coins = 1000;
+                Check(!bg.Unlocked(1) && !bg.TryBuyCard(1), "Mini locked until 400 earned");
+                Check(bg.TryBuyCard(0) && bHost.coins == 990 && bg.state.cardsOwned[0] == 1, "buy Two Win");
+                bg.state.earnedThisRun = 400;
+                Check(bg.Unlocked(1) && bg.TryBuyCard(1) && bHost.coins == 890, "Mini unlocks at 400 earned");
+                bHost.coins = 5;
+                Check(!bg.TryBuyCard(0), "refuses without funds");
+            }
+
+            // The loan phone: trigger, one-at-a-time, 50% garnish to repay.
+            {
+                var loHost = new GameState();
+                var lo = new DeskGame(loHost, new System.Random(47));
+                loHost.coins = 10;
+                Check(lo.LoanAvailable && lo.TakeLoan(), "phone rings under 50 coins");
+                Check(loHost.coins == 510 && lo.state.loanOwed == 750, "loan: +500 now, owe 750");
+                Check(!lo.TakeLoan(), "one loan at a time");
+                lo.state.rollsPending = 100;             // deterministic-ish income chunk
+                long loanGross = lo.TearEnvelope();
+                Check(lo.state.loanOwed == 750 - loanGross / 2 && loHost.coins == 510 + loanGross - loanGross / 2,
+                      "garnish takes half of income");
+                lo.state.loanOwed = 3;
+                lo.state.rollsPending = 100;
+                lo.TearEnvelope();
+                Check(lo.state.loanOwed == 0, "loan repays fully, garnish stops");
+            }
+
+            // Upgrade costs + caps.
+            {
+                var uHost = new GameState();
+                var ug = new DeskGame(uHost, new System.Random(48));
+                Check(ug.UpgradeCost(DeskGame.Upgrade.Luck) == 60, "Luck L1 costs 60");
+                uHost.coins = 153;   // 60 + 93
+                Check(ug.TryBuyUpgrade(DeskGame.Upgrade.Luck) && ug.UpgradeCost(DeskGame.Upgrade.Luck) == 93,
+                      "Luck L2 costs 93 (60*1.55)");
+                Check(ug.TryBuyUpgrade(DeskGame.Upgrade.Luck) && uHost.coins == 0, "curve drains exactly");
+                ug.state.upLuck = DeskGame.LUCK_CAP; uHost.coins = 999999;
+                Check(!ug.TryBuyUpgrade(DeskGame.Upgrade.Luck), "Luck capped at 20");
+            }
+
+            // Prestige: gate, PP formula, the sacrifice vs the sacred.
+            {
+                var pHost = new GameState();
+                var pg = new DeskGame(pHost, new System.Random(49));
+                Check(!pg.PrestigeEligible, "not eligible at 0 earned");
+                pg.state.earnedThisRun = DeskGame.PRESTIGE_AT;
+                pg.state.loanOwed = 100;
+                Check(!pg.PrestigeEligible, "loan blocks prestige");
+                pg.state.loanOwed = 0;
+                pHost.coins = 5000;
+                pg.state.bigWinsThisRun = 3; pg.state.playsThisRun = 80;
+                pg.state.upLuck = 7; pg.state.cardLevel[1] = 4; pg.state.cardsOwned[0] = 2;
+                pg.state.rollsPending = 9; pg.state.stepAccumulator = 33;
+                Check(System.Math.Abs(pg.PrestigePpPreview - 5f) < 1e-4, "PP = bigWins + plays/40 = 5");
+                Check(pg.TryPrestige() && pg.state.prestigeCount == 1, "prestige fires");
+                Check(pHost.coins == 0 && pg.state.upLuck == 0 && pg.state.cardLevel[1] == 0
+                      && pg.state.cardsOwned[0] == 0 && pg.state.earnedThisRun == 0,
+                      "sacrifice: wallet, upgrades, card levels, pile, bar");
+                Check(pg.state.rollsPending == 9 && pg.state.stepAccumulator == 33
+                      && System.Math.Abs(pg.state.prestigePoints - 5f) < 1e-4,
+                      "sacred: pending rolls, accumulator, PP survive");
+            }
 
             // Marathoner: run-seconds add bonus step credit on top of the
             // pedometer steps (600 s * 2.8 steps/s * 2 lvl * 10% = 336).

@@ -1,6 +1,6 @@
 # The Desk — Scritchy-faithful recraft (Pivot #3)
 
-**Status:** Spec complete (from ~10 min of reference gameplay footage, frame-decoded July 2026) · **R2-1 next**.
+**Status:** Spec ✅ (`9c2eaf1`) · R2-1 ✅ (DeskGame core + sim-v3-tuned tables + ~40 LogicTest assertions; 30-day sim medians: sedentary shark ~d10/652k earned · average ~d10/2.3M · active d3–8/11.6M — arc + gradient + no-death-spiral verified) · **R2-2 next** (the desk scene + paycheck envelope).
 **Predecessor:** the seven-room "Casino" (P0–P5b, through `f2a8f11`) is retired — playtest verdict: no tension, no dopamine. Root cause: the pure-upside guardrail removed all risk, rooms-as-menus removed the *place*, and pre-rolled reveals removed decisions.
 **Legal line (signed off):** mechanics-faithful clone of Scritchy Scratchy with our own art, name, theme + the steps twist. No copied assets/names/trade dress.
 

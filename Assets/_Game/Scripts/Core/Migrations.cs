@@ -26,7 +26,7 @@ namespace Gamex.Core
     public static class Migrations
     {
         // Bump every time a new migration block is added below.
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         public static void Apply(GameState s)
         {
@@ -54,9 +54,19 @@ namespace Gamex.Core
                 s.schemaVersion = 2;
             }
 
+            // v2 -> v3: The Desk (Pivot 3). Guarantees the nested DeskState
+            // exists; all-zero fields are a valid "never sat at the desk"
+            // state. (Also heals array sizes if a future catalog outgrows
+            // the serialized arrays.)
+            if (s.schemaVersion < 3)
+            {
+                if (s.desk == null) s.desk = new DeskState();
+                s.schemaVersion = 3;
+            }
+
             // Future migrations go here, e.g.:
-            //   if (s.schemaVersion < 3) { ...split foo into foo_a + foo_b...; s.schemaVersion = 3; }
-            //   if (s.schemaVersion < 4) { ...backfill new default...;          s.schemaVersion = 4; }
+            //   if (s.schemaVersion < 4) { ...split foo into foo_a + foo_b...; s.schemaVersion = 4; }
+            //   if (s.schemaVersion < 5) { ...backfill new default...;          s.schemaVersion = 5; }
 
             // Forward-compat guard: a save from a newer build than the one
             // running (downgrade scenario) — we can't reverse-migrate, so

@@ -244,13 +244,41 @@ namespace Gamex.Core
         public bool sfxMuted;
         public bool bgmMuted;
 
-        // ---- The Casino ----
-        // Guaranteed non-null from schemaVersion 2 (Migrations backfills
-        // older saves). See CasinoState below + docs/casino-mvp-plan.md.
-        // NOTE: the casino's coin winnings live in `coins` above — ONE
-        // unified wallet shared with quests + (until the P5 trophy
-        // conversion) the shop. Prestige resets that balance.
+        // ---- The Casino (v2, retired — replaced by The Desk below; kept
+        // so pre-pivot dev saves load until the rooms are deleted) ----
         public CasinoState casino = new CasinoState();
+
+        // ---- The Desk (v3 — docs/casino-mvp-plan.md) ----
+        // Guaranteed non-null from schemaVersion 3. The wallet is `coins`
+        // above and MAY GO NEGATIVE (debt) down to DeskGame.DEBT_FLOOR.
+        public DeskState desk = new DeskState();
+    }
+
+    // The Desk progression state (Pivot 3). Fixed-size arrays leave room
+    // for catalog growth; JsonUtility serializes int[] fine and missing
+    // fields default sanely for older saves.
+    [Serializable]
+    public class DeskState
+    {
+        public int  stepAccumulator;     // 0..99 toward the next stride roll
+        public int  rollsPending;        // uncollected rolls (the paycheck envelope)
+        public long earnedThisRun;       // lifetime-earned bar — unlocks cards; resets on prestige
+        public long loanOwed;            // outstanding repayment (0 = none); income is garnished
+
+        public int[] cardXp     = new int[16];
+        public int[] cardLevel  = new int[16];
+        public int[] cardsOwned = new int[16];   // bought-but-unscratched pile per card type
+
+        public int upLuck;               // money upgrades — reset on prestige
+        public int upSize;               // brush size (presentation reads it)
+        public int upCoin;               // coin strength vs card Hardness (presentation reads it)
+
+        public int  playsThisRun;        // PP effort floor input
+        public int  bigWinsThisRun;      // PP driver: wins >= 20x card cost
+        public long lifetimePlays;       // never resets — also gates the rigged 3rd play
+        public long lifetimeBigWins;
+        public float prestigePoints;
+        public int   prestigeCount;
     }
 
     // Casino progression state (docs/casino-mvp-plan.md). Nested inside
